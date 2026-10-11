@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         process.executableURL = URL(fileURLWithPath: pythonPath)
         process.arguments = [scriptPath]
         process.currentDirectoryURL = URL(fileURLWithPath: projectDir)
-        let logDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".smart_personal_search")
+        let logDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".hyperlight")
         try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
         let logFile = logDir.appendingPathComponent("backend.log")
         if !FileManager.default.fileExists(atPath: logFile.path) {
@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         // App Menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
-        let appName = "Smart Personal Search"
+        let appName = "Hyperlight"
         appMenu.addItem(withTitle: "About \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Hide \(appName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
@@ -122,9 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             defer: false
         )
 
-        window.title = "Smart Personal Search"
+        window.title = "Hyperlight"
         window.center()
-        window.setFrameAutosaveName("SmartPersonalSearchMainWindow")
+        window.setFrameAutosaveName("HyperlightMainWindow")
 
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -173,7 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let alert = NSAlert()
-        alert.messageText = "Smart Personal Search"
+        alert.messageText = "Hyperlight"
         alert.informativeText = message
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
@@ -183,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "Smart Personal Search"
+        alert.messageText = "Hyperlight"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Continue")
@@ -192,8 +192,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         completionHandler(res == .alertFirstButtonReturn)
     }
 }
-
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()

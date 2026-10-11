@@ -78,8 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     else groups.push([label, [conv]])
   }
 
-  return (
-    <aside className={styles.sidebar} style={{ width }}>
+  return (\n    <aside className={styles.sidebar} style={{ width }}>
       <div
         className={styles.resizeHandle}
         role="separator"
@@ -94,6 +93,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onDoubleClick={() => commitWidth(DEFAULT_WIDTH)}
       />
       <div className={styles.topSection}>
+        <div className={styles.brandHeader}>
+          <img src="/hyperlight-icon.png" alt="Hyperlight" className={styles.brandIcon} />
+          <div className={styles.brandInfo}>
+            <span className={styles.brandTitle}>Hyperlight</span>
+            <span className={styles.brandSubtitle}>Personal AI</span>
+          </div>
+        </div>
+
         <div className={styles.navGroup}>
           <button className={styles.navButton} onClick={onNewChat}>
             <span>New chat</span>

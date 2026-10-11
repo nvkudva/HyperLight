@@ -1,4 +1,4 @@
-# Smart Personal Search
+# Hyperlight
 
 ## Dev Server
 - Web prototype port: 8585

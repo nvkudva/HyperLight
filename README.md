@@ -1,6 +1,6 @@
-# Smart Personal Search
+# Hyperlight
 
-Smart Personal Search is a private, local-first multimodal personal search engine and AI assistant for macOS (Apple Silicon). It acts as a next-generation Spotlight and Siri replacement, allowing you to search and ask questions across your personal life—documents, code, photos, notes, calendar events, contacts, bookmarks, and installed applications—without compromising privacy.
+Hyperlight is a private, local-first multimodal personal search engine and AI assistant for macOS (Apple Silicon). It acts as a next-generation Spotlight and Siri replacement, allowing you to search and ask questions across your personal life—documents, code, photos, notes, calendar events, contacts, bookmarks, and installed applications—without compromising privacy.
 
 ---
 
@@ -78,7 +78,7 @@ Smart Personal Search is a private, local-first multimodal personal search engin
 ### 2. Setup
 ```bash
 # Clone and enter directory
-cd "Smart Personal Search"
+cd "Hyperlight"
 
 # Setup Python virtual environment
 python3 -m venv .venv

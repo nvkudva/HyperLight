@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Smart Personal Search",
+  "productName": "Hyperlight",
   "version": "0.1.0",
-  "identifier": "com.smartpersonalsearch.app",
+  "identifier": "com.hyperlight.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:8585",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "",
+        "title": "Hyperlight",
         "width": 780,
         "height": 520,
         "minWidth": 640,

@@ -5,17 +5,17 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>Smart Personal Search</string>
+    <string>Hyperlight</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.local.SmartPersonalSearch</string>
+    <string>com.hyperlight.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Smart Personal Search</string>
+    <string>Hyperlight</string>
     <key>CFBundleDisplayName</key>
-    <string>Smart Personal Search</string>
+    <string>Hyperlight</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

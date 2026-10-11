@@ -29,7 +29,7 @@ import watcher
 logging_config.setup_logging()
 logger = logging_config.get_logger("web_app")
 
-app = fastapi.FastAPI(title="Smart Personal Search")
+app = fastapi.FastAPI(title="Hyperlight")
 
 emb = embedder.Embedder()
 store = storage.Storage()
@@ -331,7 +331,7 @@ def api_google_callback(request: fastapi.Request, code: Optional[str] = None, er
     <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⚠️</div>
     <h1>Google Sign-In Cancelled</h1>
     <p>{html.escape(error)}</p>
-    <p style="margin-top: 1.5rem; font-size: 0.75rem; color: #64748b;">You can close this tab and return to Smart Personal Search.</p>
+    <p style="margin-top: 1.5rem; font-size: 0.75rem; color: #64748b;">You can close this tab and return to Hyperlight.</p>
   </div>
 </body>
 </html>""", status_code=400)
@@ -392,7 +392,7 @@ def api_google_callback(request: fastapi.Request, code: Optional[str] = None, er
   <div class="card">
     <div class="icon">✨</div>
     <h1>Connected to Google</h1>
-    <p>Your Google account has been linked to Smart Personal Search. You can close this window now.</p>
+    <p>Your Google account has been linked to Hyperlight. You can close this window now.</p>
     <div class="badge">● Connected &amp; Ready</div>
   </div>
   <script>
@@ -468,7 +468,7 @@ def api_index_apple_mail() -> Any:
     except PermissionError:
         return fastapi.responses.JSONResponse(status_code=403, content={
             "error": "full_disk_access",
-            "message": "Grant Full Disk Access to Smart Personal Search in System Settings > Privacy & Security, then retry.",
+            "message": "Grant Full Disk Access to Hyperlight in System Settings > Privacy & Security, then retry.",
         })
     return {"status": job_manager.start_indexing(mail_dir, "apple_mail", "Apple Mail"), "name": "Apple Mail"}
 
@@ -575,11 +575,11 @@ def api_remove_source(req: RemoveSourceRequest) -> Dict[str, str]:
     return {"status": "removed"}
 
 class BrowseFolderRequest(pydantic.BaseModel):
-    prompt: Optional[str] = "Select a folder to index in Smart Personal Search"
+    prompt: Optional[str] = "Select a folder to index in Hyperlight"
 
 @app.post("/api/browse-folder")
 def api_browse_folder(req: Optional[BrowseFolderRequest] = None) -> Dict[str, Any]:
-    prompt_str = (req.prompt if req and req.prompt else "Select a folder to index in Smart Personal Search").replace('"', '\\"')
+    prompt_str = (req.prompt if req and req.prompt else "Select a folder to index in Hyperlight").replace('"', '\\"')
     try:
         script = f'tell application "Finder"\nactivate\nset sel to (choose folder with prompt "{prompt_str}")\nPOSIX path of sel\nend tell'
         res = subprocess.run(

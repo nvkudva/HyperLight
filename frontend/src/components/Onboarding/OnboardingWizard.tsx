@@ -74,7 +74,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
             </div>
             {needsDiskAccess && (
               <div className={styles.notice}>
-                Apple Mail needs Full Disk Access. Turn it on for Smart Personal Search, then continue.
+                Apple Mail needs Full Disk Access. Turn it on for Hyperlight, then continue.
                 <button className={styles.linkBtn} onClick={() => api.openSettingsPane('full-disk-access')}>
                   Open Privacy Settings
                 </button>

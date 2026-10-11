@@ -148,7 +148,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleBrowseFinder = async () => {
     showToast('Opening Finder folder picker...', 'blue')
     try {
-      const res = await browseFolder('Select a folder to index in Smart Personal Search')
+      const res = await browseFolder('Select a folder to index in Hyperlight')
       if (res.path && !res.canceled) {
         showToast(`Selected '${res.name}'. Indexing...`, 'emerald')
         await startIndex(res.path, 'local', res.name)

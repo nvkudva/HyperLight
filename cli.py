@@ -83,7 +83,7 @@ def cmd_status(args: argparse.Namespace) -> None:
     store = storage.Storage()
     stats = store.get_stats()
     print("=" * 40)
-    print("SMART PERSONAL SEARCH STATUS")
+    print("HYPERLIGHT STATUS")
     print("=" * 40)
     print(f"Total indexed items: {stats['total']}")
     print(f"Photos:              {stats['photos']}")
@@ -115,7 +115,7 @@ def cmd_watch(args: argparse.Namespace) -> None:
         return
 
     print("=" * 60)
-    print("⚡ SMART PERSONAL SEARCH - LIVE FSEVENTS AUTO-SYNC")
+    print("⚡ HYPERLIGHT - LIVE FSEVENTS AUTO-SYNC")
     print("=" * 60)
     for s in active_sources:
         print(f"  Watching: {s['name']} -> {s['path']}")
@@ -143,7 +143,7 @@ def cmd_watch(args: argparse.Namespace) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="smart-search",
-        description="Smart Personal Search - Multimodal on-device search & Gemma 2 Q&A",
+        description="Hyperlight - Multimodal on-device search & Gemma 2 Q&A",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
