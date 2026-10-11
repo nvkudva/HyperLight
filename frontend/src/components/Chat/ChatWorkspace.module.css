@@ -5,7 +5,7 @@
   height: 100%;
   position: relative;
   overflow: hidden;
-  background: rgba(248, 250, 252, 0.45);
+  background: var(--window-bg);
 }
 
 .messagesArea {
@@ -26,26 +26,26 @@
 .welcomeBadge {
   width: 3rem;
   height: 3rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #0071e3 0%, #4338ca 100%);
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--indigo) 100%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: white;
-  box-shadow: 0 8px 18px rgba(0, 113, 227, 0.25);
+  box-shadow: 0 8px 18px rgba(var(--accent-rgb), 0.25);
   margin-bottom: 1rem;
 }
 
 .welcomeTitle {
   font-size: 1.35rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--label);
   letter-spacing: -0.02em;
 }
 
 .welcomeSubtitle {
   font-size: 0.8125rem;
-  color: #64748b;
+  color: var(--label-2);
   margin-top: 0.375rem;
   line-height: 1.5;
 }
@@ -59,23 +59,20 @@
 }
 
 .promptPill {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 9999px;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-capsule);
   padding: 0.375rem 0.875rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: #475569;
+  color: var(--label-2);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .promptPill:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: #0071e3;
-  color: #0071e3;
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 
 .userBubbleWrapper {
@@ -84,15 +81,14 @@
 }
 
 .userBubble {
-  background: #0071e3;
+  background: var(--accent);
   color: #fff;
-  border-radius: 1.125rem;
-  border-top-right-radius: 0.25rem;
+  border-radius: var(--r-lg);
+  border-bottom-right-radius: var(--r-xs);
   padding: 0.625rem 0.9375rem;
   max-width: 32rem;
   font-size: 0.8125rem;
   line-height: 1.45;
-  box-shadow: 0 2px 6px rgba(0, 113, 227, 0.2);
 }
 
 .assistantWrapper {
@@ -104,12 +100,12 @@
 .assistantAvatar {
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: 0.5rem;
-  background: rgba(226, 232, 240, 0.8);
+  border-radius: var(--r-sm);
+  background: rgba(var(--fill-rgb), 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #475569;
+  color: var(--label-2);
   flex-shrink: 0;
 }
 
@@ -119,16 +115,13 @@
 }
 
 .assistantAnswerCard {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 1rem;
-  padding: 0.875rem 1rem;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-md);
+  padding: 0.75rem 1rem;
   font-size: 0.8125rem;
   line-height: 1.55;
-  color: #1e293b;
+  color: var(--label);
   white-space: pre-wrap;
 }
 
@@ -142,11 +135,11 @@
 .photoCard {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 0.75rem;
+  border-radius: var(--r-md);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(var(--surface-rgb), 0.8);
   cursor: pointer;
-  background: #f1f5f9;
+  background: var(--fill);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -178,7 +171,7 @@
 
 .photoFilename {
   color: #fff;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -193,11 +186,9 @@
 }
 
 .entityCard {
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 0.75rem;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-sm);
   padding: 0.5rem 0.75rem;
   display: flex;
   align-items: center;
@@ -207,9 +198,7 @@
 }
 
 .entityCard:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: #0071e3;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  background: var(--accent-tint);
 }
 
 .entityLeft {
@@ -220,17 +209,17 @@
 }
 
 .entityTitle {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #0f172a;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--label);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .entitySub {
-  font-size: 0.625rem;
-  color: #94a3b8;
+  font-size: 0.6875rem;
+  color: var(--label-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -246,16 +235,21 @@
 }
 
 .inputBar {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(var(--surface-rgb), 0.75);
   backdrop-filter: blur(32px) saturate(190%);
   -webkit-backdrop-filter: blur(32px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  border-radius: 1.125rem;
-  padding: 0.375rem 0.5rem 0.375rem 1rem;
+  border: 0.5px solid var(--separator);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.12);
+  border-radius: var(--r-capsule);
+  min-height: 2.75rem;
+  padding: 0 0.5rem 0 1.25rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.inputBar:focus-within {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), var(--focus-ring);
 }
 
 .textInput {
@@ -263,19 +257,19 @@
   background: transparent;
   border: none;
   font-size: 0.8125rem;
-  color: #0f172a;
+  color: var(--label);
   outline: none;
 }
 
 .textInput::placeholder {
-  color: #94a3b8;
+  color: var(--label-3);
 }
 
 .sendButton {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.625rem;
-  background: #0071e3;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--accent);
   color: #fff;
   border: none;
   display: flex;
@@ -286,11 +280,7 @@
   flex-shrink: 0;
 }
 
-.sendButton:hover {
-  background: #0077ed;
-}
-
 .sendButton:disabled {
-  background: #cbd5e1;
+  background: var(--label-3);
   cursor: default;
 }

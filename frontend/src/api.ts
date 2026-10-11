@@ -112,20 +112,6 @@ export async function fetchGoogleAuthUrl(): Promise<{ url?: string; error?: stri
   return res.json()
 }
 
-export async function saveGoogleConfig(clientId: string, clientSecret: string): Promise<GoogleStatus> {
-  const res = await fetch('/api/auth/google/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
-  })
-  return res.json()
-}
-
-export async function quickConnectGoogle(): Promise<{ status: string; user?: any; error?: string }> {
-  const res = await fetch('/api/auth/google/quick-connect', { method: 'POST' })
-  return res.json()
-}
-
 export async function disconnectGoogle(): Promise<{ status: string }> {
   const res = await fetch('/api/auth/google/disconnect', { method: 'POST' })
   return res.json()
@@ -136,7 +122,27 @@ export async function syncCloudDrive(): Promise<{ status: string; name?: string;
   return res.json()
 }
 
-export async function syncCloudPhotos(): Promise<{ status: string; name?: string; message?: string }> {
+export async function syncCloudPhotos(): Promise<{ status?: string; picker_uri?: string; error?: string }> {
   const res = await fetch('/api/auth/google/sync-photos', { method: 'POST' })
+  return res.json()
+}
+
+export async function syncGmail(): Promise<{ status: string }> {
+  const res = await fetch('/api/auth/google/sync-gmail', { method: 'POST' })
+  return res.json()
+}
+
+export async function indexAppleMail(): Promise<{ status?: string; error?: string; message?: string }> {
+  const res = await fetch('/api/sources/apple-mail', { method: 'POST' })
+  return res.json()
+}
+
+export async function openFullDiskAccess(): Promise<{ success: boolean }> {
+  const res = await fetch('/api/open-full-disk-access', { method: 'POST' })
+  return res.json()
+}
+
+export async function openInternetAccounts(): Promise<{ success: boolean }> {
+  const res = await fetch('/api/open-internet-accounts', { method: 'POST' })
   return res.json()
 }

@@ -11,8 +11,9 @@ import {
 } from './api'
 import { ChatWorkspace } from './components/Chat/ChatWorkspace'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
+import { OnboardingWizard } from './components/Onboarding/OnboardingWizard'
 import { PhotoLightbox } from './components/Lightbox/PhotoLightbox'
-import { SettingsSheet } from './components/Settings/SettingsSheet'
+import { SettingsPage } from './components/Settings/SettingsPage'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { SpotlightHud } from './components/Spotlight/SpotlightHud'
 import type {
@@ -35,7 +36,8 @@ export const App: React.FC = () => {
 
   // Modals & Panels
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [view, setView] = useState<'chat' | 'settings'>('chat')
+  const [isOnboarding, setIsOnboarding] = useState(() => !localStorage.getItem('onboarded'))
   const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -74,7 +76,7 @@ export const App: React.FC = () => {
     // Handle OAuth callback query params in URL
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('google_connected')) {
-      setIsSettingsOpen(true)
+      setView('settings')
       window.history.replaceState({}, document.title, window.location.pathname)
     }
   }, [])
@@ -87,7 +89,7 @@ export const App: React.FC = () => {
         setIsSpotlightOpen((prev) => !prev)
       } else if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        setIsSettingsOpen((prev) => !prev)
+        setView((prev) => (prev === 'settings' ? 'chat' : 'settings'))
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -214,7 +216,7 @@ export const App: React.FC = () => {
           <div className={styles.progressHeader}>
             <span className={styles.progressStatus}>{indexStatus.status}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.625rem', fontFamily: 'monospace', color: '#64748b' }}>
+              <span style={{ fontSize: '0.6875rem', fontFamily: 'monospace', color: 'var(--label-2)' }}>
                 {Math.round(indexStatus.percent)}%
               </span>
               <button className={styles.stopButton} onClick={() => stopIndex()}>
@@ -233,27 +235,43 @@ export const App: React.FC = () => {
         sources={sources}
         totalItems={totalItems}
         onOpenSpotlight={() => setIsSpotlightOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onNewChat={() => setMessages([])}
+        activeView={view}
+        onOpenSettings={() => setView('settings')}
+        onNewChat={() => (view === 'settings' ? setView('chat') : setMessages([]))}
         onContextMenu={handleContextMenu}
       />
 
-      <ChatWorkspace
-        messages={messages}
-        isLoading={isChatLoading}
-        onSendMessage={handleSendMessage}
-        onOpenPhoto={(path, filename) => setLightboxPhoto({ path, filename })}
-        onContextMenu={handleContextMenu}
-        onRevealTarget={(p) => revealTarget(p)}
-        onLaunchTarget={(p) => launchTarget(p)}
-      />
+      {view === 'settings' ? (
+        <SettingsPage
+          onBack={() => setView('chat')}
+          totalItems={totalItems}
+          sources={sources}
+          googleStatus={googleStatus}
+          indexStatus={indexStatus}
+          onRefreshSources={reloadData}
+          onRefreshGoogleStatus={() => fetchGoogleStatus().then(setGoogleStatus)}
+          onStartProgress={handleStartProgress}
+          onRevealTarget={(p) => revealTarget(p)}
+        />
+      ) : (
+        <ChatWorkspace
+          messages={messages}
+          isLoading={isChatLoading}
+          onSendMessage={handleSendMessage}
+          onOpenPhoto={(path, filename) => setLightboxPhoto({ path, filename })}
+          onContextMenu={handleContextMenu}
+          onRevealTarget={(p) => revealTarget(p)}
+          onLaunchTarget={(p) => launchTarget(p)}
+        />
+      )}
 
       {/* Modals & Overlays */}
       <SpotlightHud
         isOpen={isSpotlightOpen}
         onClose={() => setIsSpotlightOpen(false)}
         onSelectResult={(item: SearchResult) => {
-          if (item.file_type === 'app') {
+          const kind = item.type ?? item.file_type
+          if (kind === 'app' || kind === 'email' || item.path.startsWith('http')) {
             launchTarget(item.path)
           } else {
             revealTarget(item.path)
@@ -263,17 +281,16 @@ export const App: React.FC = () => {
         onContextMenu={handleContextMenu}
       />
 
-      <SettingsSheet
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        sources={sources}
-        googleStatus={googleStatus}
-        indexStatus={indexStatus}
-        onRefreshSources={reloadData}
-        onRefreshGoogleStatus={() => fetchGoogleStatus().then(setGoogleStatus)}
-        onStartProgress={handleStartProgress}
-        onRevealTarget={(p) => revealTarget(p)}
-      />
+
+      {isOnboarding && (
+        <OnboardingWizard
+          onStartProgress={handleStartProgress}
+          onDone={() => {
+            localStorage.setItem('onboarded', '1')
+            setIsOnboarding(false)
+          }}
+        />
+      )}
 
       <ContextMenu state={contextMenu} onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))} />
 

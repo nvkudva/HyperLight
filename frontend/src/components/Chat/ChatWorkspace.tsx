@@ -124,7 +124,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 <div className={styles.entitySub}>{s.excerpt || s.path}</div>
                               </div>
                             </div>
-                            <span style={{ fontSize: '0.625rem', color: '#0071e3', fontWeight: 600 }}>
+                            <span style={{ fontSize: '0.6875rem', color: 'var(--accent)', fontWeight: 600 }}>
                               {s.file_type === 'app' ? 'Open' : 'Reveal'}
                             </span>
                           </div>
@@ -143,10 +143,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <div className={styles.assistantAvatar}>
               <SearchIcon className="w-3.5 h-3.5" />
             </div>
-            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.6)', borderRadius: '0.75rem' }}>
-              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#94a3b8' }} />
-              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#94a3b8' }} />
-              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#94a3b8' }} />
+            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'rgba(var(--surface-rgb), 0.6)', borderRadius: '0.75rem' }}>
+              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--label-3)' }} />
+              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--label-3)' }} />
+              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--label-3)' }} />
             </div>
           </div>
         )}

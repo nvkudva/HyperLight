@@ -1,11 +1,16 @@
 from concurrent.futures import ThreadPoolExecutor
 import datetime
+import email
+import email.policy
 import hashlib
+import html
 import os
+import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 import docx
 import pypdf
+import pypdfium2 as pdfium
 import embedder
 import storage
 
@@ -16,7 +21,8 @@ DOCUMENT_EXTENSIONS = {".pdf", ".docx"} | TEXT_EXTENSIONS | CODE_EXTENSIONS
 CONTACT_EXTENSIONS = {".vcf"}
 CALENDAR_EXTENSIONS = {".ics"}
 BOOKMARK_EXTENSIONS = {".webloc", ".url"}
-ALL_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | CONTACT_EXTENSIONS | CALENDAR_EXTENSIONS | BOOKMARK_EXTENSIONS
+EMAIL_EXTENSIONS = {".emlx", ".eml"}
+ALL_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | CONTACT_EXTENSIONS | CALENDAR_EXTENSIONS | BOOKMARK_EXTENSIONS | EMAIL_EXTENSIONS
 
 IGNORED_DIRS = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".cache",
@@ -84,6 +90,139 @@ def get_file_metadata(path: Path, size_bytes: Optional[int] = None, modified_ts:
         "modified_str": modified_str,
     }
 
+def extract_ocr_text(path: Path) -> str:
+    try:
+        import Quartz
+        import Vision
+        url = Quartz.CFURLCreateWithFileSystemPath(None, str(path.resolve()), Quartz.kCFURLPOSIXPathStyle, False)
+        if not url:
+            return ""
+        request = Vision.VNRecognizeTextRequest.alloc().init()
+        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+        request.setUsesLanguageCorrection_(True)
+        handler = Vision.VNImageRequestHandler.alloc().initWithURL_options_(url, None)
+        handler.performRequests_error_([request], None)
+        lines = []
+        for obs in request.results() or []:
+            top = obs.topCandidates_(1)
+            if top:
+                lines.append(top[0].string())
+        return " ".join(lines)
+    except Exception:
+        return ""
+
+def build_photo_record(path: Path, vec: List[float]) -> Dict[str, Any]:
+    file_meta = get_file_metadata(path)
+    desc = f"Photo: {path.name} | Type: {file_meta['file_type']} | Size: {file_meta['size_human']} | Added/Modified: {file_meta['modified_str']}"
+    ocr = extract_ocr_text(path)
+    if ocr:
+        desc += f"\nOn-screen text: {ocr}"
+        file_meta["ocr"] = ocr[:500]
+    return {
+        "id": hashlib.sha256(f"img:{path}".encode()).hexdigest()[:16],
+        "vector": vec,
+        "type": "photo",
+        "path": str(path.resolve()),
+        "filename": path.name,
+        "content": desc,
+        "modified_at": file_meta["modified_at"],
+        "metadata": file_meta,
+    }
+
+REPO_MARKERS = (".git", "package.json", "pyproject.toml")
+
+def find_repo_relative_path(path: Path) -> str:
+    home = Path.home()
+    for curr in path.parents:
+        if curr == home or curr == curr.parent:
+            break
+        if any((curr / m).exists() for m in REPO_MARKERS):
+            return f"{curr.name}/{path.relative_to(curr)}"
+    return f"{path.parent.name}/{path.name}"
+
+CODE_DEFINERS = (
+    "def ", "async def ", "class ", "fn ", "fun ", "func ", "function ",
+    "struct ", "enum ", "protocol ", "interface ", "type ", "trait ", "impl ",
+    "export default function ", "export function ", "export class "
+)
+
+def chunk_code_text(text: str, max_chars: int = 1500) -> List[Tuple[str, int, Optional[str]]]:
+    lines = text.splitlines()
+    if not lines:
+        return []
+
+    pieces: List[Tuple[str, int, Optional[str]]] = []
+    current_lines: List[str] = []
+    start_line = 1
+    current_chars = 0
+    primary_def: Optional[str] = None
+
+    for idx, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        is_def = stripped.startswith(CODE_DEFINERS)
+        def_label = stripped[:80] if is_def else None
+        if is_def and primary_def is None and not line.startswith(" "):
+            primary_def = def_label
+
+        line_len = len(line) + 1
+        if current_chars + line_len > max_chars and current_lines:
+            pieces.append(("\n".join(current_lines), start_line, primary_def))
+            overlap = current_lines[-2:] if not is_def and len(current_lines) > 2 else []
+            current_lines = list(overlap)
+            start_line = idx - len(overlap)
+            current_chars = sum(len(l) + 1 for l in current_lines)
+            primary_def = def_label
+
+        current_lines.append(line)
+        current_chars += line_len
+
+    if current_lines:
+        pieces.append(("\n".join(current_lines), start_line, primary_def))
+    return pieces
+
+SF_DATALESS = 0x40000000
+
+def is_dataless(path: Path) -> bool:
+    """Cloud-only file (e.g. Google Drive streaming); reading its content would download it."""
+    try:
+        return bool(os.stat(path).st_flags & SF_DATALESS)
+    except (OSError, AttributeError):
+        return False
+
+def cloud_placeholder_record(path: Path) -> Dict[str, Any]:
+    file_meta = get_file_metadata(path)
+    return {
+        "id": hashlib.sha256(f"cloud:{path}".encode()).hexdigest()[:16],
+        "type": "document",
+        "path": str(path),
+        "filename": path.name,
+        "content": f"File: {path.name}\nFolder: {path.parent}\nType: {file_meta['file_type']}\nModified: {file_meta['modified_str']}",
+        "modified_at": file_meta["modified_at"],
+        "metadata": {**file_meta, "cloud_only": True},
+    }
+
+def email_record(record_id: str, source: str, path: str, subject: str, sender: str, to: str, date: str, body: str, modified_at: float) -> Dict[str, Any]:
+    return {
+        "id": record_id,
+        "type": "email",
+        "path": path,
+        "filename": subject,
+        "source": source,
+        "content": f"Email: {subject}\nFrom: {sender}\nTo: {to}\nDate: {date}\n\n{body}",
+        "modified_at": modified_at,
+        "metadata": {"from": sender, "to": to, "date": date, "subject": subject},
+    }
+
+def _email_body_text(msg: email.message.EmailMessage) -> str:
+    part = msg.get_body(preferencelist=("plain", "html"))
+    if part is None:
+        return ""
+    text = part.get_content()
+    if part.get_content_type() == "text/html":
+        text = re.sub(r"<(script|style)[^>]*>.*?</\1>|<[^>]+>", " ", text, flags=re.S | re.I)
+        text = html.unescape(text)
+    return " ".join(text.split())
+
 class Scanner:
     def __init__(self, emb: embedder.Embedder, store: storage.Storage):
         self.embedder = emb
@@ -94,9 +233,28 @@ class Scanner:
         try:
             file_meta = get_file_metadata(path)
             reader = pypdf.PdfReader(str(path))
+            pdf = None
             for page_num, page in enumerate(reader.pages):
-                text = page.extract_text() or ""
-                text = text.strip()
+                text = (page.extract_text() or "").strip()
+                if len(text) < 100:
+                    try:
+                        if pdf is None:
+                            pdf = pdfium.PdfDocument(str(path))
+                        vec = self.embedder.embed_image(pdf[page_num].render(scale=1.5).to_pil())
+                    except Exception:
+                        vec = None
+                    if vec:
+                        chunks.append({
+                            "id": hashlib.sha256(f"{path}:pimg:{page_num}".encode()).hexdigest()[:16],
+                            "vector": vec,
+                            "type": "document",
+                            "path": str(path.resolve()),
+                            "filename": path.name,
+                            "content": f"Document Page Image: {path.name} (Page {page_num + 1})",
+                            "modified_at": file_meta["modified_at"],
+                            "metadata": {**file_meta, "page": page_num + 1, "is_scanned_image": True},
+                        })
+                        continue
                 if not text:
                     continue
                 page_chunks = self.chunk_text(text, chunk_size=800, overlap=100)
@@ -172,23 +330,71 @@ class Scanner:
             return []
         return chunks
 
+    def parse_code_file(self, path: Path) -> List[Dict[str, Any]]:
+        chunks = []
+        try:
+            file_meta = get_file_metadata(path)
+            if file_meta["size_bytes"] > 1024 * 1024:
+                return []
+            content = path.read_text(encoding="utf-8", errors="ignore")
+            top = content[:1000]
+            if "PRIVATE KEY-----" in top:
+                return []
+            if any(mark in top for mark in ("DO NOT EDIT", "@generated", "Code generated by")):
+                return []
+
+            repo_rel = find_repo_relative_path(path)
+            pieces = chunk_code_text(content, max_chars=1500)
+            for idx, (piece_text, first_line, def_name) in enumerate(pieces):
+                chunk_id = hashlib.sha256(f"{path}:code:{idx}".encode()).hexdigest()[:16]
+                cmeta = dict(file_meta)
+                cmeta.update({
+                    "repo_path": repo_rel,
+                    "first_line": first_line,
+                    "definition": def_name or "",
+                    "is_code": True,
+                })
+                chunks.append({
+                    "id": chunk_id,
+                    "type": "document",
+                    "path": str(path.resolve()),
+                    "filename": path.name,
+                    "content": piece_text,
+                    "modified_at": file_meta["modified_at"],
+                    "metadata": cmeta,
+                    "repo_path": repo_rel,
+                })
+        except Exception:
+            return []
+        return chunks
+
     def parse_image(self, path: Path) -> Optional[Dict[str, Any]]:
         vec = self.embedder.embed_image(path)
         if vec is None:
             return None
-        file_meta = get_file_metadata(path)
-        image_id = hashlib.sha256(f"img:{path}".encode()).hexdigest()[:16]
-        desc = f"Photo: {path.name} | Type: {file_meta['file_type']} | Size: {file_meta['size_human']} | Added/Modified: {file_meta['modified_str']}"
-        return {
-            "id": image_id,
-            "vector": vec,
-            "type": "photo",
-            "path": str(path.resolve()),
-            "filename": path.name,
-            "content": desc,
-            "modified_at": file_meta["modified_at"],
-            "metadata": file_meta,
-        }
+        return build_photo_record(path, vec)
+
+    def parse_email(self, path: Path) -> List[Dict[str, Any]]:
+        try:
+            raw = path.read_bytes()
+            if path.suffix.lower() == ".emlx":
+                length_line, _, rest = raw.partition(b"\n")
+                raw = rest[: int(length_line.strip())]
+            msg = email.message_from_bytes(raw, policy=email.policy.default)
+            subject = str(msg.get("Subject") or "(no subject)")
+            return [email_record(
+                record_id=hashlib.sha256(f"mail:{path}".encode()).hexdigest()[:16],
+                source="apple_mail",
+                path=str(path.resolve()),
+                subject=subject,
+                sender=str(msg.get("From") or ""),
+                to=str(msg.get("To") or ""),
+                date=str(msg.get("Date") or ""),
+                body=_email_body_text(msg)[:2000],
+                modified_at=path.stat().st_mtime,
+            )]
+        except Exception:
+            return []
 
     def parse_vcf(self, path: Path) -> List[Dict[str, Any]]:
         records = []
@@ -354,15 +560,7 @@ class Scanner:
 
         def flush_docs():
             nonlocal indexed_items, doc_buffer
-            if not doc_buffer:
-                return
-            texts = [r["content"] for r in doc_buffer]
-            titles = [r.get("filename", "") for r in doc_buffer]
-            vectors = self.embedder.embed_texts(texts, titles=titles, batch_size=BATCH_SIZE)
-            for r, vec in zip(doc_buffer, vectors):
-                r["vector"] = vec
-                r["source"] = source
-            indexed_items += self.storage.add_items(doc_buffer)
+            indexed_items += self._embed_and_store_docs(doc_buffer, source, batch_size=BATCH_SIZE)
             doc_buffer = []
 
         def flush_images():
@@ -374,20 +572,7 @@ class Scanner:
             for img_path, vec in zip(image_buffer, vectors):
                 if vec is None:
                     continue
-                file_meta = get_file_metadata(img_path)
-                image_id = hashlib.sha256(f"img:{img_path}".encode()).hexdigest()[:16]
-                desc = f"Photo: {img_path.name} | Type: {file_meta['file_type']} | Size: {file_meta['size_human']} | Added/Modified: {file_meta['modified_str']}"
-                records.append({
-                    "id": image_id,
-                    "vector": vec,
-                    "type": "photo",
-                    "path": str(img_path.resolve()),
-                    "filename": img_path.name,
-                    "content": desc,
-                    "source": source,
-                    "modified_at": file_meta["modified_at"],
-                    "metadata": file_meta,
-                })
+                records.append({**build_photo_record(img_path, vec), "source": source})
             if records:
                 indexed_items += self.storage.add_items(records)
             image_buffer = []
@@ -436,6 +621,8 @@ class Scanner:
 
     def _parse_file(self, file_path: Path) -> Tuple[str, Path, List[Dict[str, Any]]]:
         ext = file_path.suffix.lower()
+        if is_dataless(file_path):
+            return ("doc", file_path, [cloud_placeholder_record(file_path)])
         if ext in IMAGE_EXTENSIONS:
             return ("image", file_path, [])
         elif ext == ".pdf":
@@ -448,17 +635,24 @@ class Scanner:
             return ("doc", file_path, self.parse_ics(file_path))
         elif ext in BOOKMARK_EXTENSIONS:
             return ("doc", file_path, self.parse_bookmark(file_path))
-        elif ext in TEXT_EXTENSIONS or ext in CODE_EXTENSIONS:
+        elif ext in EMAIL_EXTENSIONS:
+            return ("doc", file_path, self.parse_email(file_path))
+        elif ext in CODE_EXTENSIONS:
+            return ("doc", file_path, self.parse_code_file(file_path))
+        elif ext in TEXT_EXTENSIONS:
             return ("doc", file_path, self.parse_text_file(file_path))
         return ("unknown", file_path, [])
 
-    def _embed_and_store_docs(self, doc_records: List[Dict[str, Any]], source: str) -> int:
+    def _embed_and_store_docs(self, doc_records: List[Dict[str, Any]], source: str, batch_size: int = 32) -> int:
         if not doc_records:
             return 0
-        texts = [r["content"] for r in doc_records]
-        titles = [r.get("filename", "") for r in doc_records]
-        vectors = self.embedder.embed_texts(texts, titles=titles)
-        for r, vec in zip(doc_records, vectors):
-            r["vector"] = vec
+        unembedded = [r for r in doc_records if "vector" not in r]
+        if unembedded:
+            texts = [r["content"] for r in unembedded]
+            titles = [r.get("repo_path") or r.get("filename", "") for r in unembedded]
+            vectors = self.embedder.embed_texts(texts, titles=titles, batch_size=batch_size)
+            for r, vec in zip(unembedded, vectors):
+                r["vector"] = vec
+        for r in doc_records:
             r["source"] = source
         return self.storage.add_items(doc_records)

@@ -6,6 +6,7 @@ import styles from './Sidebar.module.css'
 interface SidebarProps {
   sources: ConfiguredSource[]
   totalItems: number
+  activeView: 'chat' | 'settings'
   onOpenSpotlight: () => void
   onOpenSettings: () => void
   onNewChat: () => void
@@ -15,6 +16,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   sources,
   totalItems,
+  activeView,
   onOpenSpotlight,
   onOpenSettings,
   onNewChat,
@@ -34,7 +36,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className={styles.navGroup}>
-          <button className={`${styles.navButton} ${styles.navButtonActive}`} onClick={onNewChat}>
+          <button
+            className={`${styles.navButton} ${activeView === 'chat' ? styles.navButtonActive : ''}`}
+            onClick={onNewChat}
+            aria-current={activeView === 'chat' ? 'page' : undefined}
+          >
             <span>Chat Search</span>
             <span className={styles.shortcutPill}>New</span>
           </button>
@@ -42,8 +48,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Spotlight HUD</span>
             <span className={styles.shortcutPill}>⌘K</span>
           </button>
-          <button className={styles.navButton} onClick={onOpenSettings}>
-            <span>Sources & Cloud</span>
+          <button
+            className={`${styles.navButton} ${activeView === 'settings' ? styles.navButtonActive : ''}`}
+            onClick={onOpenSettings}
+            aria-current={activeView === 'settings' ? 'page' : undefined}
+          >
+            <span>Settings</span>
             <span className={styles.shortcutPill}>⌘,</span>
           </button>
         </div>
@@ -51,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className={styles.sectionHeader}>Indexed Locations</div>
         <div className={`${styles.sourcesList} custom-scroll`}>
           {sources.length === 0 ? (
-            <div style={{ padding: '0.5rem', fontSize: '0.6875rem', color: '#94a3b8' }}>
+            <div style={{ padding: '0.5rem', fontSize: '0.6875rem', color: 'var(--label-3)' }}>
               No sources added.
             </div>
           ) : (
@@ -84,7 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           className={styles.settingsTrigger}
           onClick={onOpenSettings}
-          title="Connected Sources Settings"
+          title="Settings"
+          aria-label="Settings"
         >
           <SettingsIcon className="w-4 h-4" />
         </button>

@@ -1,16 +1,20 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   disconnectGoogle,
-  fetchGoogleAuthUrl,
-  fetchGoogleStatus,
+  fetchDriveLocations,
+  indexAppleMail,
   launchTarget,
-  quickConnectGoogle,
-  saveGoogleConfig,
+  openFullDiskAccess,
+  openInternetAccounts,
+  startIndex,
   syncCloudDrive,
   syncCloudPhotos,
+  syncGmail,
 } from '../../api'
+import { useGoogleSignIn } from '../../hooks/useGoogleSignIn'
 import type { GoogleStatus, IndexJobStatus } from '../../types'
-import { CloudIcon, GoogleLogo, PhotoIcon, SettingsIcon } from '../common/Icons'
+import { GoogleLogo } from '../common/Icons'
+import ui from '../Settings/SettingsPage.module.css'
 import styles from './GoogleAccountCard.module.css'
 
 interface GoogleAccountCardProps {
@@ -28,96 +32,52 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
   onShowToast,
   onStartProgress,
 }) => {
-  const [showCreds, setShowCreds] = useState(false)
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
-  const [isSigningIn, setIsSigningIn] = useState(false)
+  const { signIn, isSigningIn } = useGoogleSignIn()
+  const [driveLocations, setDriveLocations] = useState<Array<{ name: string; path: string; account: string }>>([])
+
+  const loadDriveLocations = useCallback(async () => {
+    try {
+      setDriveLocations((await fetchDriveLocations()).locations)
+    } catch {
+      setDriveLocations([])
+    }
+  }, [])
 
   useEffect(() => {
-    const handleMessage = (e: MessageEvent) => {
-      if (e.data?.type === 'GOOGLE_AUTH_SUCCESS') {
-        setIsSigningIn(false)
-        onShowToast('Google account connected!', 'emerald')
-        onRefreshStatus()
-      }
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [onRefreshStatus, onShowToast])
+    loadDriveLocations()
+  }, [loadDriveLocations])
 
-  const handleQuickLink = async () => {
-    onShowToast('Linking active Mac Google account...', 'blue')
-    try {
-      const res = await quickConnectGoogle()
-      if (res.status === 'success' && res.user) {
-        onShowToast(`Connected as ${res.user.name || res.user.email}!`, 'emerald')
-        onRefreshStatus()
-      } else {
-        onShowToast(res.error || 'No active account found. Please sign in via Google.', 'amber')
-      }
-    } catch (err: any) {
-      onShowToast(`Quick link error: ${err.message}`, 'red')
+  const handleIndexDrive = async () => {
+    for (const loc of driveLocations) {
+      await startIndex(loc.path, 'google_drive', loc.name)
     }
+    onShowToast('Indexing Google Drive folders...', 'emerald')
+    onStartProgress()
+  }
+
+  const handleIndexMail = async () => {
+    const res = await indexAppleMail()
+    if (res.error === 'full_disk_access') {
+      onShowToast(res.message || 'Grant Full Disk Access, then retry.', 'amber')
+      openFullDiskAccess()
+      return
+    }
+    if (res.error) {
+      onShowToast(res.error, 'red')
+      return
+    }
+    onShowToast('Indexing Apple Mail...', 'emerald')
+    onStartProgress()
   }
 
   const handleSignIn = async () => {
     onShowToast('Opening Google Sign-In in browser...', 'blue')
-    setIsSigningIn(true)
     try {
-      const res = await fetchGoogleAuthUrl()
-      if (res.url) {
-        try {
-          await launchTarget(res.url)
-        } catch {
-          window.open(res.url, '_blank')
-        }
-
-        let attempts = 0
-        const maxAttempts = 60
-        const pollInterval = window.setInterval(async () => {
-          attempts++
-          try {
-            const currentStatus = await fetchGoogleStatus()
-            if (currentStatus.connected && currentStatus.user) {
-              window.clearInterval(pollInterval)
-              setIsSigningIn(false)
-              onShowToast(`Connected as ${currentStatus.user.name || currentStatus.user.email}!`, 'emerald')
-              onRefreshStatus()
-            } else if (attempts >= maxAttempts) {
-              window.clearInterval(pollInterval)
-              setIsSigningIn(false)
-              onShowToast('Sign-in timed out. Please try again.', 'amber')
-            }
-          } catch {
-            if (attempts >= maxAttempts) {
-              window.clearInterval(pollInterval)
-              setIsSigningIn(false)
-            }
-          }
-        }, 1500)
-      } else if (res.error) {
-        setIsSigningIn(false)
-        onShowToast(res.error, 'red')
-        setShowCreds(true)
-      }
-    } catch (err: any) {
-      setIsSigningIn(false)
-      onShowToast(`Login error: ${err.message}`, 'red')
-    }
-  }
-
-  const handleSaveCreds = async () => {
-    if (!clientId.trim() || !clientSecret.trim()) {
-      onShowToast('Please enter both Client ID and Client Secret.', 'amber')
-      return
-    }
-    try {
-      await saveGoogleConfig(clientId.trim(), clientSecret.trim())
-      onShowToast('Google credentials saved!', 'emerald')
-      setShowCreds(false)
+      const st = await signIn()
+      onShowToast(`Connected as ${st.user?.name || st.user?.email || 'Google user'}!`, 'emerald')
       onRefreshStatus()
     } catch (err: any) {
-      onShowToast(`Error saving credentials: ${err.message}`, 'red')
+      onShowToast(err.message, 'red')
     }
   }
 
@@ -137,18 +97,23 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
   }
 
   const handleSyncPhotos = async () => {
-    onShowToast('Starting Google Photos cloud sync...', 'blue')
     try {
       const res = await syncCloudPhotos()
-      if (res.status === 'started') {
-        onShowToast('Syncing Google Photos library...', 'emerald')
-        onStartProgress()
-      } else {
-        onShowToast(res.message || 'Error starting Photos sync', 'amber')
+      if (res.error) {
+        onShowToast(res.error, 'red')
+        return
       }
+      onShowToast('Pick the photos to index in the Google Photos window that just opened.', 'blue')
+      onStartProgress()
     } catch (err: any) {
       onShowToast(`Sync error: ${err.message}`, 'red')
     }
+  }
+
+  const handleSyncGmail = async () => {
+    await syncGmail()
+    onShowToast('Syncing Gmail...', 'emerald')
+    onStartProgress()
   }
 
   const handleDisconnect = async () => {
@@ -162,143 +127,164 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
     }
   }
 
-  if (status.connected && status.user) {
-    const user = status.user
-    const pic = user.picture || 'https://www.gstatic.com/images/branding/product/2x/avatar_square_grey_96dp.png'
+  const cloudJob =
+    indexStatus && ['google_photos_cloud', 'google_drive_cloud', 'gmail_cloud'].includes(indexStatus.current_source)
+      ? indexStatus
+      : null
 
-    return (
-      <div className={styles.card}>
-        <div className={styles.row}>
-          <div className={styles.leftGroup}>
-            <img src={pic} className={styles.avatar} alt="Avatar" />
-            <div>
-              <div className={styles.nameRow}>
-                <span className={styles.userName}>{user.name || 'Google User'}</span>
-                <span className={styles.connectedPill}>● Connected</span>
-              </div>
-              <div className={styles.userEmail}>{user.email || ''}</div>
-            </div>
-          </div>
+  const renderSection = (rows: React.ReactNode) => (
+    <section className={ui.section} aria-labelledby="settings-google">
+      <h2 id="settings-google" className={ui.sectionHeader}>
+        Google
+      </h2>
+      <div className={ui.group}>{rows}</div>
+    </section>
+  )
 
-          <div className={styles.actionsGroup}>
-            <button className={styles.syncDriveBtn} onClick={handleSyncDrive}>
-              <CloudIcon className="w-3.5 h-3.5" />
-              <span>Sync Drive</span>
+  const user = status.connected ? status.user : undefined
+
+  return renderSection(
+    <>
+      <div className={ui.row}>
+        <div className={ui.rowText}>
+          <span className={ui.rowTitle}>Google Drive</span>
+          <span className={ui.rowSubtitle}>
+            {driveLocations.length
+              ? `Drive for desktop · ${driveLocations.map((l) => l.account || l.name).join(', ')}`
+              : 'Install Drive for desktop to search your Drive files.'}
+          </span>
+        </div>
+        <div className={ui.rowControls}>
+          {driveLocations.length ? (
+            <button className={ui.button} onClick={handleIndexDrive}>
+              Index
             </button>
-            <button className={styles.syncPhotosBtn} onClick={handleSyncPhotos}>
-              <PhotoIcon className="w-3.5 h-3.5" />
-              <span>Sync Photos</span>
-            </button>
-            <button className={styles.disconnectBtn} onClick={handleDisconnect} title="Disconnect Account">
-              &times;
-            </button>
+          ) : (
+            <>
+              <button className={ui.button} onClick={loadDriveLocations}>
+                Check Again
+              </button>
+              <button className={ui.button} onClick={() => launchTarget('https://www.google.com/drive/download/')}>
+                Download…
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className={ui.row}>
+        <div className={ui.rowText}>
+          <span className={ui.rowTitle}>Gmail</span>
+          <span className={ui.rowSubtitle}>Add your Google account to Apple Mail, then index Mail.</span>
+        </div>
+        <div className={ui.rowControls}>
+          <button className={ui.button} onClick={() => openInternetAccounts()}>
+            Add Account…
+          </button>
+          <button className={ui.button} onClick={handleIndexMail}>
+            Index Mail
+          </button>
+        </div>
+      </div>
+
+      <div className={ui.row}>
+        <div className={ui.rowLabel}>
+          <span className={styles.logoBadge}>
+            <GoogleLogo className="w-3.5 h-3.5" />
+          </span>
+          <div className={ui.rowText}>
+            <span className={ui.rowTitle}>Google Photos</span>
+            <span className={ui.rowSubtitle}>
+              {user
+                ? 'Search an album name in the picker, then select its photos.'
+                : status.has_client_config
+                  ? 'Sign in, then choose the photos or albums to index.'
+                  : 'Google sign-in is not configured in this build.'}
+            </span>
           </div>
         </div>
-
-        {indexStatus && (indexStatus.current_source === 'google_photos_cloud' || indexStatus.current_source === 'google_drive_cloud') && (
-          <div>
-            {indexStatus.is_running && (
-              <div className={styles.statusBox}>
-                <div className={styles.statusHeader}>
-                  <span className={styles.statusText}>{indexStatus.status}</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{Math.round(indexStatus.percent)}%</span>
-                </div>
-                <div className={styles.progressBarContainer}>
-                  <div className={styles.progressBar} style={{ width: `${indexStatus.percent}%` }} />
-                </div>
-              </div>
-            )}
-            {!indexStatus.is_running && indexStatus.status.toLowerCase().includes('error') && (
-              <div className={styles.errorBox}>
-                <div className={styles.errorHeader}>
-                  <span>⚠️ Sync Error</span>
-                </div>
-                <div>{indexStatus.status.replace('Error during indexing: ', '')}</div>
-                {indexStatus.status.toLowerCase().includes('permission not granted') && (
-                  <button
-                    className={styles.errorActionBtn}
-                    onClick={handleSignIn}
-                    disabled={isSigningIn}
-                  >
-                    {isSigningIn ? 'Waiting for browser...' : 'Sign in with Google to Authorize'}
-                  </button>
-                )}
-              </div>
-            )}
-            {!indexStatus.is_running && indexStatus.status.toLowerCase().includes('finished') && (
-              <div style={{ marginTop: '0.5rem', fontSize: '0.6875rem', color: '#15803d', fontWeight: 600 }}>
-                ✓ {indexStatus.status}
-              </div>
-            )}
-          </div>
+        {user ? (
+          <button className={ui.button} onClick={handleSyncPhotos}>
+            Choose Photos…
+          </button>
+        ) : (
+          <button
+            className={`${ui.button} ${ui.primary}`}
+            onClick={handleSignIn}
+            disabled={isSigningIn || !status.has_client_config}
+          >
+            {isSigningIn ? 'Waiting for browser...' : 'Sign in with Google'}
+          </button>
         )}
       </div>
-    )
-  }
 
-  return (
-    <div className={styles.card}>
-      <div className={styles.row}>
-        <div className={styles.leftGroup}>
-          <div className={styles.googleLogoBadge}>
-            <GoogleLogo className="w-4 h-4" />
-          </div>
-          <div>
-            <div className={styles.userName}>Google Drive & Google Photos</div>
-            <div className={styles.userEmail}>Sign in to search cloud Drive docs & Photos library.</div>
-          </div>
-        </div>
-
-        <div className={styles.actionsGroup}>
-          <button className={styles.quickLinkBtn} onClick={handleQuickLink} title="Link active Mac Google account">
-            <span>⚡ Quick Link</span>
-          </button>
-          <button
-            className={styles.signInBtn}
-            onClick={handleSignIn}
-            disabled={isSigningIn}
-          >
-            <span>{isSigningIn ? 'Waiting for browser...' : 'Sign in with Google'}</span>
-          </button>
-          <button
-            className={styles.configToggleBtn}
-            onClick={() => setShowCreds(!showCreds)}
-            title="OAuth Credentials Config"
-          >
-            <SettingsIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {showCreds && (
-        <div className={styles.credsPanel}>
-          <div style={{ fontSize: '0.625rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-            OAuth 2.0 Client Credentials
-          </div>
-          <div className={styles.credsInputs}>
-            <input
-              type="text"
-              placeholder="Google Client ID"
-              className={styles.inputField}
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Google Client Secret"
-              className={styles.inputField}
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-            />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>Default: Google Desktop App / ADC</span>
-            <button className={styles.saveCredsBtn} onClick={handleSaveCreds}>
-              Save Credentials
+      {user && status.full_access && (
+        <>
+          <div className={ui.row}>
+            <span className={ui.rowTitle}>Google Drive (API)</span>
+            <button className={ui.button} onClick={handleSyncDrive}>
+              Sync
             </button>
+          </div>
+          <div className={ui.row}>
+            <span className={ui.rowTitle}>Gmail (API)</span>
+            <button className={ui.button} onClick={handleSyncGmail}>
+              Sync
+            </button>
+          </div>
+        </>
+      )}
+
+      {cloudJob?.is_running && (
+        <div className={`${ui.row} ${ui.rowStacked}`} role="status">
+          <div className={styles.progressHeader}>
+            <span className={styles.progressText}>{cloudJob.status}</span>
+            <span className={styles.progressPercent}>{Math.round(cloudJob.percent)}%</span>
+          </div>
+          <div className={styles.progressTrack}>
+            <div className={styles.progressBar} style={{ width: `${cloudJob.percent}%` }} />
           </div>
         </div>
       )}
-    </div>
+      {cloudJob && !cloudJob.is_running && cloudJob.status.toLowerCase().includes('error') && (
+        <div className={`${ui.row} ${ui.rowStacked} ${styles.error}`} role="alert">
+          <span className={styles.errorTitle}>Sync error</span>
+          <span>{cloudJob.status.replace('Error during indexing: ', '')}</span>
+          {cloudJob.status.toLowerCase().includes('permission not granted') && (
+            <button
+              className={`${ui.button} ${ui.primary} ${styles.fitContent}`}
+              onClick={handleSignIn}
+              disabled={isSigningIn}
+            >
+              {isSigningIn ? 'Waiting for browser...' : 'Sign in with Google to Authorize'}
+            </button>
+          )}
+        </div>
+      )}
+      {cloudJob && !cloudJob.is_running && cloudJob.status.toLowerCase().includes('finished') && (
+        <div className={`${ui.row} ${styles.success}`} role="status">
+          ✓ {cloudJob.status}
+        </div>
+      )}
+
+      {user && (
+        <div className={ui.row}>
+          <div className={ui.rowLabel}>
+            <img
+              src={user.picture || 'https://www.gstatic.com/images/branding/product/2x/avatar_square_grey_96dp.png'}
+              className={styles.avatar}
+              alt=""
+            />
+            <div className={ui.rowText}>
+              <span className={ui.rowTitle}>{user.name || 'Google User'}</span>
+              <span className={ui.rowSubtitle}>{user.email || ''}</span>
+            </div>
+          </div>
+          <button className={`${ui.button} ${ui.destructive}`} onClick={handleDisconnect}>
+            Disconnect
+          </button>
+        </div>
+      )}
+    </>
   )
 }

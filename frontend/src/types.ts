@@ -2,6 +2,7 @@ export interface SearchResult {
   id: string
   path: string
   filename: string
+  type?: string
   file_type?: string
   source?: string
   content?: string
@@ -29,6 +30,7 @@ export interface GoogleUser {
 export interface GoogleStatus {
   connected: boolean
   has_client_config: boolean
+  full_access?: boolean
   client_id?: string
   user?: GoogleUser
 }

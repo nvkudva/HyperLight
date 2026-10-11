@@ -50,6 +50,7 @@ class IndexJobManager:
         self.indexed_items = 0
         self.status = "Idle"
         self.thread: Optional[threading.Thread] = None
+        self.pending: List[tuple] = []
 
     def get_status(self) -> Dict[str, Any]:
         with self.lock:
@@ -65,13 +66,20 @@ class IndexJobManager:
                 "percent": round(self.percent, 1),
                 "indexed_items": self.indexed_items,
                 "status": self.status,
+                "queued": [job[2] for job in self.pending],
             }
 
-    def start_indexing(self, path: Path, source: str, name: str) -> bool:
+    def start_indexing(self, path: Path, source: str, name: str, options: Optional[Dict[str, Any]] = None) -> None:
         with self.lock:
             if self.is_running:
-                return False
+                if not any(job[0] == path and job[1] == source for job in self.pending):
+                    self.pending.append((path, source, name, options or {}))
+                return
             self.is_running = True
+        self._launch(path, source, name, options or {})
+
+    def _launch(self, path: Path, source: str, name: str, options: Dict[str, Any]) -> None:
+        with self.lock:
             self.cancel_requested = False
             self.current_folder = name
             self.current_path = str(path)
@@ -85,19 +93,19 @@ class IndexJobManager:
 
         self.thread = threading.Thread(
             target=self._worker,
-            args=(path, source, name),
+            args=(path, source, name, options),
             daemon=True,
         )
         self.thread.start()
-        return True
 
     def stop_indexing(self) -> None:
         with self.lock:
+            self.pending.clear()
             if self.is_running:
                 self.cancel_requested = True
                 self.status = "Stopping scan..."
 
-    def _worker(self, path: Path, source: str, name: str) -> None:
+    def _worker(self, path: Path, source: str, name: str, options: Dict[str, Any]) -> None:
         def on_progress(filename: str, current: int, total: int) -> None:
             with self.lock:
                 self.current_file = filename
@@ -122,9 +130,15 @@ class IndexJobManager:
                 cache_dir_str = str(google_auth.PHOTOS_CACHE_DIR)
                 initial_count = store.count_items_by_path(cache_dir_str)
                 storage.save_configured_source("Google Photos", cache_dir_str, "google_photos", initial_count)
-                google_auth.sync_google_photos(emb, store, on_progress=on_progress, cancel_check=cancel_check)
+                google_auth.sync_google_photos(emb, store, options["session_id"], on_progress=on_progress, cancel_check=cancel_check)
                 total_items = store.count_items_by_path(cache_dir_str)
                 storage.save_configured_source("Google Photos", cache_dir_str, "google_photos", total_items)
+            elif source == "gmail_cloud":
+                gmail_path = "https://mail.google.com"
+                storage.save_configured_source("Gmail", gmail_path, "gmail", store.count_items_by_path(gmail_path))
+                google_auth.sync_gmail(emb, store, on_progress=on_progress, cancel_check=cancel_check)
+                total_items = store.count_items_by_path(gmail_path)
+                storage.save_configured_source("Gmail", gmail_path, "gmail", total_items)
             else:
                 initial_count = store.count_items_by_path(str(path))
                 storage.save_configured_source(name, str(path), source, initial_count)
@@ -145,8 +159,11 @@ class IndexJobManager:
                 self.status = f"Error during indexing: {e}"
         finally:
             with self.lock:
-                self.is_running = False
                 self.cancel_requested = False
+                next_job = self.pending.pop(0) if self.pending else None
+                self.is_running = next_job is not None
+            if next_job:
+                self._launch(*next_job)
 
 job_manager = IndexJobManager()
 
@@ -167,10 +184,6 @@ class SpotlightRequest(pydantic.BaseModel):
 
 class LaunchRequest(pydantic.BaseModel):
     path: str
-
-class GoogleConfigRequest(pydantic.BaseModel):
-    client_id: str
-    client_secret: str
 
 class GoogleTokenRequest(pydantic.BaseModel):
     access_token: str
@@ -245,11 +258,6 @@ def api_drive_locations() -> Dict[str, Any]:
 
 @app.get("/api/auth/google/status")
 def api_google_status() -> Dict[str, Any]:
-    return google_auth.get_status()
-
-@app.post("/api/auth/google/config")
-def api_google_config(req: GoogleConfigRequest) -> Dict[str, Any]:
-    google_auth.save_client_config(req.client_id, req.client_secret)
     return google_auth.get_status()
 
 @app.get("/api/auth/google/login")
@@ -396,18 +404,6 @@ def api_google_token(req: GoogleTokenRequest) -> Dict[str, Any]:
     except Exception as e:
         return fastapi.responses.JSONResponse(status_code=400, content={"error": str(e)})
 
-@app.post("/api/auth/google/quick-connect")
-def api_google_quick_connect() -> Dict[str, Any]:
-    try:
-        res = subprocess.run(["gcloud", "auth", "print-access-token"], capture_output=True, text=True, timeout=5)
-        if res.returncode == 0 and res.stdout.strip():
-            token = res.stdout.strip()
-            data = google_auth.save_direct_token(token)
-            return {"status": "success", "user": data.get("user", {})}
-        return {"status": "error", "error": "No active gcloud token found"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
 @app.post("/api/auth/google/disconnect")
 def api_google_disconnect() -> Dict[str, str]:
     google_auth.disconnect()
@@ -415,17 +411,44 @@ def api_google_disconnect() -> Dict[str, str]:
 
 @app.post("/api/auth/google/sync-drive")
 def api_google_sync_drive() -> Dict[str, Any]:
-    started = job_manager.start_indexing(Path.home(), "google_drive_cloud", "Google Drive")
-    if not started:
-        return {"status": "busy", "message": "An indexing job is already in progress."}
+    job_manager.start_indexing(Path.home(), "google_drive_cloud", "Google Drive")
     return {"status": "started", "name": "Google Drive"}
 
 @app.post("/api/auth/google/sync-photos")
-def api_google_sync_photos() -> Dict[str, Any]:
-    started = job_manager.start_indexing(Path.home(), "google_photos_cloud", "Google Photos")
-    if not started:
-        return {"status": "busy", "message": "An indexing job is already in progress."}
-    return {"status": "started", "name": "Google Photos"}
+def api_google_sync_photos() -> Any:
+    try:
+        session = google_auth.create_photos_picker_session()
+    except Exception as e:
+        return fastapi.responses.JSONResponse(status_code=400, content={"error": str(e)})
+    job_manager.start_indexing(Path.home(), "google_photos_cloud", "Google Photos", {"session_id": session["id"]})
+    connectors.launch_target(session["picker_uri"])
+    return {"status": "started", "name": "Google Photos", "picker_uri": session["picker_uri"]}
+
+@app.post("/api/auth/google/sync-gmail")
+def api_google_sync_gmail() -> Dict[str, Any]:
+    job_manager.start_indexing(Path.home(), "gmail_cloud", "Gmail")
+    return {"status": "started", "name": "Gmail"}
+
+@app.post("/api/sources/apple-mail")
+def api_index_apple_mail() -> Any:
+    mail_dir = Path.home() / "Library" / "Mail"
+    try:
+        next(mail_dir.iterdir(), None)
+    except PermissionError:
+        return fastapi.responses.JSONResponse(status_code=403, content={
+            "error": "full_disk_access",
+            "message": "Grant Full Disk Access to Smart Personal Search in System Settings > Privacy & Security, then retry.",
+        })
+    job_manager.start_indexing(mail_dir, "apple_mail", "Apple Mail")
+    return {"status": "started", "name": "Apple Mail"}
+
+@app.post("/api/open-full-disk-access")
+def api_open_full_disk_access() -> Dict[str, bool]:
+    return {"success": connectors.launch_target("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")}
+
+@app.post("/api/open-internet-accounts")
+def api_open_internet_accounts() -> Dict[str, bool]:
+    return {"success": connectors.launch_target("x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension")}
 
 
 @app.post("/api/index-apps")
@@ -587,9 +610,7 @@ def api_index(req: IndexRequest) -> Dict[str, Any]:
             content={"error": f"Path '{req.path}' does not exist on disk."},
         )
     folder_name = req.name or target.name or str(target)
-    started = job_manager.start_indexing(target, req.source, folder_name)
-    if not started:
-        return {"status": "busy", "message": "An indexing job is already in progress."}
+    job_manager.start_indexing(target, req.source, folder_name)
     return {"status": "started", "path": str(target), "source": req.source, "name": folder_name}
 
 @app.get("/api/indexing-status")

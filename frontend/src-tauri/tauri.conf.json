@@ -21,12 +21,18 @@
         "resizable": true,
         "fullscreen": false,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "transparent": true,
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 26
+        }
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

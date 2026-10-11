@@ -2,11 +2,11 @@
   position: fixed;
   z-index: 9999;
   width: 13rem;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(var(--surface-rgb), 0.78);
   backdrop-filter: blur(48px) saturate(190%);
   -webkit-backdrop-filter: blur(48px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 0.875rem;
+  border: 1px solid rgba(var(--surface-rgb), 0.9);
+  border-radius: var(--r-md);
   box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.04);
   padding: 0.25rem;
   user-select: none;
@@ -15,11 +15,9 @@
 
 .title {
   padding: 0.375rem 0.5rem;
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #94a3b8;
-  letter-spacing: 0.05em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--label-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -27,7 +25,7 @@
 
 .divider {
   height: 1px;
-  background: rgba(226, 232, 240, 0.7);
+  background: rgba(var(--fill-rgb), 0.7);
   margin: 0.125rem 0;
 }
 
@@ -37,18 +35,18 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.375rem 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-sm);
   background: transparent;
   border: none;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--label);
   cursor: pointer;
   transition: all 0.1s ease;
 }
 
 .item:hover {
-  background: #0071e3;
+  background: var(--accent);
   color: #fff;
 }
 
@@ -59,7 +57,7 @@
 }
 
 .shortcut {
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   font-family: ui-monospace, SFMono-Regular, monospace;
   opacity: 0.6;
 }

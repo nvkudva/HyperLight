@@ -90,10 +90,37 @@ class Storage:
             query = query.where(f"type != '{exclude_type}'")
 
         results = query.to_arrow().to_pylist()
-        formatted = []
-        q_terms = [t.lower() for t in (query_text or "").split() if len(t) > 1]
+        if not results:
+            return []
 
-        for row in results:
+        q_terms = [t.lower() for t in (query_text or "").split() if len(t) > 1]
+        is_lookup = bool(q_terms and all(
+            any(c.isdigit() for c in t) and (any(c.isalpha() for c in t) or len(t) >= 4)
+            for t in q_terms
+        ))
+
+        sims = [1.0 - float(r.get("_distance", 1.0)) for r in results]
+        mods = ["photo" if r.get("type") == "photo" else "text" for r in results]
+        global_mean = sum(sims) / len(sims)
+        by_mod: Dict[str, List[float]] = {}
+        for m, s in zip(mods, sims):
+            by_mod.setdefault(m, []).append(s)
+        modality_means = {
+            m: sum(v) / len(v) if len(v) >= 5 else global_mean
+            for m, v in by_mod.items()
+        }
+
+        centered_sims = [s - modality_means[m] for m, s in zip(mods, sims)]
+        c_mean = sum(centered_sims) / len(centered_sims)
+        variance = sum((c - c_mean) ** 2 for c in centered_sims) / len(centered_sims)
+        deviation = max(variance ** 0.5, 0.02)
+        z_scores = [(c - c_mean) / deviation for c in centered_sims]
+
+        z_weight, cov_weight, fn_weight = (0.04, 0.40, 1.5) if is_lookup else (0.12, 0.20, 1.0)
+
+        formatted = []
+        gated = []
+        for row, z in zip(results, z_scores):
             meta = {}
             if row.get("metadata"):
                 try:
@@ -105,17 +132,23 @@ class Storage:
             fn_lower = row["filename"].lower()
             content_lower = row["content"].lower()
 
-            bonus = 0.0
+            coverage = 0.0
+            fn_bonus = 0.0
             if q_terms:
+                matched_terms = sum(1 for t in q_terms if t in fn_lower or t in content_lower)
+                coverage = matched_terms / len(q_terms)
                 if any(t == fn_lower or fn_lower.startswith(t) for t in q_terms):
-                    bonus += 0.35
+                    fn_bonus = 0.35
                 elif any(t in fn_lower for t in q_terms):
-                    bonus += 0.20
-                if all(t in content_lower for t in q_terms):
-                    bonus += 0.15
+                    fn_bonus = 0.20
 
-            adjusted_score = max(0.0, distance - bonus)
-            formatted.append({
+            z_boost = max(0.0, z * z_weight)
+            word_bonus = cov_weight * (coverage ** 1.5) + fn_bonus * fn_weight
+
+            adjusted_score = max(0.0, distance - z_boost - word_bonus)
+            passes_gate = (z >= 1.5) or (coverage >= 0.5) or (fn_bonus > 0.0)
+
+            item = {
                 "id": row["id"],
                 "type": row["type"],
                 "path": row["path"],
@@ -126,10 +159,14 @@ class Storage:
                 "metadata": meta,
                 "score": adjusted_score,
                 "raw_distance": distance,
-            })
+            }
+            if passes_gate:
+                gated.append(item)
+            formatted.append(item)
 
-        formatted.sort(key=lambda x: x["score"])
-        return formatted[:limit]
+        candidates = gated or formatted
+        candidates.sort(key=lambda x: x["score"])
+        return candidates[:limit]
 
     def get_stats(self) -> Dict[str, Any]:
         count = len(self.table)

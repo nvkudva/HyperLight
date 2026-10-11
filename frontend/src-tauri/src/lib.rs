@@ -22,6 +22,10 @@ pub fn run() {
               nswindow_ptr.setMovableByWindowBackground_(cocoa::base::YES);
             }
           }
+          use window_vibrancy::{LiquidGlassOptions, NSGlassEffectViewStyle, NSVisualEffectMaterial};
+          if window_vibrancy::apply_liquid_glass(&win, LiquidGlassOptions::new(NSGlassEffectViewStyle::Regular)).is_err() {
+            let _ = window_vibrancy::apply_vibrancy(&win, NSVisualEffectMaterial::Sidebar, None, None);
+          }
         }
       }
 

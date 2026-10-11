@@ -1,0 +1,147 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(var(--label-rgb), 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  width: 100%;
+  max-width: 28rem;
+  background: rgba(var(--surface-rgb), 0.86);
+  backdrop-filter: blur(48px) saturate(190%);
+  -webkit-backdrop-filter: blur(48px) saturate(190%);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-lg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: popIn 0.25s var(--ease-spring);
+}
+
+.dots {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.dot,
+.dotActive {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+
+.dotActive {
+  background: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--label);
+  text-align: center;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--label-2);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  font-size: 0.8125rem;
+  color: var(--label);
+  cursor: pointer;
+}
+
+.notice {
+  font-size: 0.75rem;
+  color: var(--orange);
+  background: var(--orange-tint);
+  border-radius: var(--r-sm);
+  padding: 0.5rem 0.75rem;
+  line-height: 1.5;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  border: none;
+  border-radius: var(--r-capsule);
+  min-height: 1.75rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: var(--accent);
+  color: #fff;
+}
+
+.primaryBtn:disabled {
+  background: var(--fill);
+  color: var(--label-3);
+  cursor: default;
+}
+
+.secondaryBtn {
+  background: rgba(var(--fill-rgb), 0.9);
+  color: var(--label);
+}
+
+.linkBtn {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

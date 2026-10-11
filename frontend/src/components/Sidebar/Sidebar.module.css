@@ -5,11 +5,17 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  border-right: 1px solid rgba(226, 232, 240, 0.7);
-  background: rgba(255, 255, 255, 0.55);
+  border-right: 1px solid var(--separator);
+  background: rgba(var(--surface-rgb), 0.55);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   user-select: none;
+}
+
+:global(html.tauri) .sidebar {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .topSection {
@@ -27,25 +33,25 @@
 .brandIcon {
   width: 2rem;
   height: 2rem;
-  border-radius: 0.625rem;
-  background: linear-gradient(135deg, #0071e3 0%, #4338ca 100%);
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--indigo) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 10px rgba(0, 113, 227, 0.25);
+  box-shadow: 0 4px 10px rgba(var(--accent-rgb), 0.25);
 }
 
 .brandTitle {
   font-size: 0.8125rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--label);
   letter-spacing: -0.015em;
 }
 
 .brandSubtitle {
-  font-size: 0.625rem;
-  color: #64748b;
+  font-size: 0.6875rem;
+  color: var(--label-2);
   font-weight: 500;
 }
 
@@ -62,10 +68,10 @@
   justify-content: space-between;
   width: 100%;
   padding: 0.4375rem 0.625rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-sm);
   font-size: 0.75rem;
   font-weight: 500;
-  color: #334155;
+  color: var(--label);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -74,32 +80,30 @@
 }
 
 .navButton:hover {
-  background: rgba(255, 255, 255, 0.75);
-  color: #0f172a;
+  background: rgba(var(--surface-rgb), 0.75);
+  color: var(--label);
 }
 
 .navButtonActive {
-  background: rgba(255, 255, 255, 0.95);
-  color: #0071e3;
+  background: rgba(var(--surface-rgb), 0.95);
+  color: var(--accent);
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .shortcutPill {
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  background: rgba(226, 232, 240, 0.6);
-  color: #64748b;
+  border-radius: var(--r-xs);
+  background: rgba(var(--fill-rgb), 0.6);
+  color: var(--label-2);
 }
 
 .sectionHeader {
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #94a3b8;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--label-2);
   padding: 0 0.5rem;
   margin-bottom: 0.375rem;
 }
@@ -117,15 +121,15 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.3125rem 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-sm);
   font-size: 0.6875rem;
-  color: #334155;
+  color: var(--label);
   cursor: default;
   transition: background 0.15s ease;
 }
 
 .sourceItem:hover {
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(var(--surface-rgb), 0.65);
 }
 
 .sourceLeft {
@@ -143,23 +147,23 @@
 }
 
 .sourceCount {
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-family: ui-monospace, SFMono-Regular, monospace;
-  color: #94a3b8;
+  color: var(--label-3);
 }
 
 .footerSection {
   padding: 0.75rem 1rem;
-  border-top: 1px solid rgba(226, 232, 240, 0.6);
+  border-top: 1px solid rgba(var(--fill-rgb), 0.6);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(var(--surface-rgb), 0.4);
 }
 
 .statsText {
   font-size: 0.6875rem;
-  color: #64748b;
+  color: var(--label-2);
   font-weight: 500;
 }
 
@@ -167,9 +171,9 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #64748b;
+  color: var(--label-2);
   padding: 0.25rem;
-  border-radius: 0.375rem;
+  border-radius: var(--r-xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -177,6 +181,6 @@
 }
 
 .settingsTrigger:hover {
-  color: #0f172a;
-  background: rgba(255, 255, 255, 0.8);
+  color: var(--label);
+  background: rgba(var(--surface-rgb), 0.8);
 }

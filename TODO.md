@@ -35,3 +35,27 @@
 - [x] Configure unified macOS Apple Glass design with `titleBarStyle: "Overlay"`, seamless sidebar backdrop, and `data-tauri-drag-region`
 - [x] Fix Google Sign-In in Settings: launch system browser, auto-poll auth status, return clean callback HTML, handle token refresh
 - [x] Migrate embedder and storage to EmbeddingGemma 2 (768-d multimodal, task prompts)
+- [x] Implement cross-modal score calibration and statistical z-score relevance gating in storage.py
+- [x] Implement query lookup intent detection with adaptive keyword vs semantic weighting in storage.py
+- [x] Implement scanned PDF fallback via page rendering and embedding in scanner.py
+- [x] Implement screenshot OCR text extraction for keyword matching without polluting image vector in scanner.py
+- [x] Implement block-aware code chunking with definition detection and repo-relative path titles in scanner.py
+- [x] Fix Google sign-in: use the user's own Desktop OAuth client (pasted JSON), drop the borrowed gcloud ADC client and quick-connect
+- [x] Add Gmail sync (gmail.readonly, metadata + snippet) and Google Photos Picker API sync
+- [x] Index local Apple Mail (.emlx) via scanner with Full Disk Access check
+- [x] Queue indexing jobs instead of rejecting while busy
+- [x] Add 3-screen onboarding wizard (Mac sources, Google, ready)
+- [ ] Learn from the reference codebase the user mentioned (path not yet provided)
+- [ ] Sign in with a new Desktop OAuth client and verify Drive, Gmail and Photos Picker sync end to end
+- [x] Phase 1: make onboarding local-only (Mac folders, Apple Mail, Drive for desktop); move Google sign-in to Settings
+- [x] Index cloud-only (dataless) Drive-for-desktop files by name without downloading them
+- [ ] Phase 2: verify Apple Mail indexing on a real mailbox after granting Full Disk Access
+- [ ] Phase 3: decide Google Photos route (Takeout import for full library vs Picker sign-in)
+- [x] UI P1: native Liquid Glass window, system color tokens with dark mode, focus rings, reduced motion/transparency, 11px min text
+- [ ] UI P1: verify light/dark and glass look in Tauri window on macOS 27
+- [x] UI P2: solid content cards, Spotlight HUD (no scrim, 22px field, accent selected row, arrow keys, aria), capsule buttons/composer, 8pt onboarding spacing, Lucide icons at 1.5 stroke
+- [x] UI P3: delete unused App.css, radius tokens, spring easing, sentence-case section headers
+- [ ] Evaluate Konsta UI for future iOS/Android Tauri builds
+- [x] Google v1: bundled OAuth client (google_client.json at repo root), Photos Picker-only scopes, Drive via Drive for desktop, Gmail via Apple Mail
+- [ ] Create Google Cloud project + Desktop OAuth client, enable Photos Picker API, save JSON as google_client.json at repo root
+- [ ] Submit OAuth consent screen for verification (Photos Picker scope: privacy policy, homepage, demo video)
