@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 import email
 import email.policy
+import functools
 import hashlib
 import html
 import os
@@ -131,13 +132,32 @@ def build_photo_record(path: Path, vec: List[float]) -> Dict[str, Any]:
 
 REPO_MARKERS = (".git", "package.json", "pyproject.toml")
 
+def embed_and_store(emb: Any, store: Any, doc_records: List[Dict[str, Any]], source: str, batch_size: int = 32) -> int:
+    if not doc_records:
+        return 0
+    unembedded = [r for r in doc_records if "vector" not in r]
+    if unembedded:
+        texts = [r["content"] for r in unembedded]
+        titles = [r.get("repo_path") or r.get("filename", "") for r in unembedded]
+        vectors = emb.embed_texts(texts, titles=titles, batch_size=batch_size)
+        for r, vec in zip(unembedded, vectors):
+            r["vector"] = vec
+    for r in doc_records:
+        r["source"] = source
+    return store.add_items(doc_records)
+
+@functools.lru_cache(maxsize=4096)
+def _repo_root(directory: Path) -> Optional[Path]:
+    if directory == Path.home() or directory == directory.parent:
+        return None
+    if any((directory / m).exists() for m in REPO_MARKERS):
+        return directory
+    return _repo_root(directory.parent)
+
 def find_repo_relative_path(path: Path) -> str:
-    home = Path.home()
-    for curr in path.parents:
-        if curr == home or curr == curr.parent:
-            break
-        if any((curr / m).exists() for m in REPO_MARKERS):
-            return f"{curr.name}/{path.relative_to(curr)}"
+    root = _repo_root(path.parent)
+    if root:
+        return f"{root.name}/{path.relative_to(root)}"
     return f"{path.parent.name}/{path.name}"
 
 CODE_DEFINERS = (
@@ -560,7 +580,7 @@ class Scanner:
 
         def flush_docs():
             nonlocal indexed_items, doc_buffer
-            indexed_items += self._embed_and_store_docs(doc_buffer, source, batch_size=BATCH_SIZE)
+            indexed_items += embed_and_store(self.embedder, self.storage, doc_buffer, source, batch_size=BATCH_SIZE)
             doc_buffer = []
 
         def flush_images():
@@ -643,16 +663,3 @@ class Scanner:
             return ("doc", file_path, self.parse_text_file(file_path))
         return ("unknown", file_path, [])
 
-    def _embed_and_store_docs(self, doc_records: List[Dict[str, Any]], source: str, batch_size: int = 32) -> int:
-        if not doc_records:
-            return 0
-        unembedded = [r for r in doc_records if "vector" not in r]
-        if unembedded:
-            texts = [r["content"] for r in unembedded]
-            titles = [r.get("repo_path") or r.get("filename", "") for r in unembedded]
-            vectors = self.embedder.embed_texts(texts, titles=titles, batch_size=batch_size)
-            for r, vec in zip(unembedded, vectors):
-                r["vector"] = vec
-        for r in doc_records:
-            r["source"] = source
-        return self.storage.add_items(doc_records)

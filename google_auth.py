@@ -140,11 +140,17 @@ def fetch_userinfo(access_token: str) -> Dict[str, Any]:
         return resp.json()
     return {}
 
-def get_valid_access_token() -> Optional[str]:
-    if not TOKENS_PATH.exists():
+def _read_tokens() -> Optional[Dict[str, Any]]:
+    try:
+        return json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+def get_valid_access_token(data: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    data = data or _read_tokens()
+    if not data:
         return None
     try:
-        data = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
         access_token = data.get("access_token")
         refresh_token = data.get("refresh_token")
         expires_at = data.get("expires_at", 0)
@@ -209,35 +215,18 @@ def disconnect() -> None:
 def get_status() -> Dict[str, Any]:
     cfg = get_client_config()
     client_id = cfg.get("client_id", "")
-    has_client_config = bool(client_id and cfg.get("client_secret"))
-
-    if not TOKENS_PATH.exists():
-        return {
-            "connected": False,
-            "has_client_config": has_client_config,
-            "full_access": FULL_ACCESS,
-            "client_id": client_id[:12] + "..." if client_id else "",
-            "user": {},
-        }
+    data = _read_tokens()
     try:
-        data = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
-        user = data.get("user", {})
-        valid_token = get_valid_access_token()
-        return {
-            "connected": bool(valid_token),
-            "has_client_config": has_client_config,
-            "full_access": FULL_ACCESS,
-            "client_id": client_id[:12] + "..." if client_id else "",
-            "user": user if valid_token else {},
-        }
+        valid_token = get_valid_access_token(data) if data else None
     except Exception:
-        return {
-            "connected": False,
-            "has_client_config": has_client_config,
-            "full_access": FULL_ACCESS,
-            "client_id": "",
-            "user": {},
-        }
+        valid_token = None
+    return {
+        "connected": bool(valid_token),
+        "has_client_config": bool(client_id and cfg.get("client_secret")),
+        "full_access": FULL_ACCESS,
+        "client_id": client_id[:12] + "..." if client_id else "",
+        "user": data.get("user", {}) if valid_token else {},
+    }
 
 def sync_google_drive(
     emb: Any,
@@ -246,11 +235,7 @@ def sync_google_drive(
     cancel_check: Optional[Callable[[], bool]] = None,
     max_files: int = 200,
 ) -> int:
-    token = get_valid_access_token()
-    if not token:
-        raise ValueError("Google account is not connected.")
-
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _require_token()
     files_url = "https://www.googleapis.com/drive/v3/files"
     params = {
         "pageSize": min(max_files, 100),
@@ -268,13 +253,9 @@ def sync_google_drive(
             params["pageToken"] = page_token
         resp = requests.get(files_url, headers=headers, params=params, timeout=15)
         if resp.status_code != 200:
-            err_data = resp.json() if "application/json" in resp.headers.get("Content-Type", "") else {}
-            err_msg = err_data.get("error", {}).get("message", resp.text)
-            logger.error(f"Google Drive API error ({resp.status_code}): {err_msg}")
+            err = _api_error(resp, "Google Drive")
             if not all_files:
-                if resp.status_code == 403 and "insufficient" in err_msg.lower():
-                    raise ValueError("Google Drive permission not granted. Please click 'Sign in with Google' to authorize Drive access.")
-                raise ValueError(f"Google Drive API error ({resp.status_code}): {err_msg}")
+                raise err
             break
         data = resp.json()
         items = data.get("files", [])
@@ -328,6 +309,9 @@ def sync_google_drive(
 
 PICKER_API = "https://photospicker.googleapis.com/v1"
 
+class GoogleScopeError(ValueError):
+    """The signed-in account did not grant the scope this sync needs."""
+
 def _api_error(resp: requests.Response, service: str) -> ValueError:
     try:
         msg = resp.json().get("error", {}).get("message", resp.text)
@@ -335,7 +319,7 @@ def _api_error(resp: requests.Response, service: str) -> ValueError:
         msg = resp.text
     logger.error(f"{service} API error ({resp.status_code}): {msg}")
     if resp.status_code == 403 and ("insufficient" in msg.lower() or "scope" in msg.lower()):
-        return ValueError(f"{service} permission not granted. Sign in with Google again to allow {service} access.")
+        return GoogleScopeError(f"{service} permission not granted. Sign in with Google again to allow {service} access.")
     if resp.status_code == 403 and "has not been used" in msg.lower():
         return ValueError(f"Enable the {service} API in your Google Cloud project, then retry. ({msg})")
     return ValueError(f"{service} API error ({resp.status_code}): {msg}")
@@ -452,8 +436,11 @@ def sync_gmail(
         params["pageToken"] = data["nextPageToken"]
     ids = ids[:max_messages]
 
+    session = requests.Session()
+    session.mount("https://", requests.adapters.HTTPAdapter(pool_maxsize=8))
+
     def fetch(mid: str) -> Optional[Dict[str, Any]]:
-        resp = requests.get(
+        resp = session.get(
             f"{GMAIL_API}/messages/{mid}",
             headers=headers,
             params={"format": "metadata", "metadataHeaders": ["Subject", "From", "To", "Date"]},
@@ -463,7 +450,8 @@ def sync_gmail(
 
     total = len(ids)
     records: List[Dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    pool = ThreadPoolExecutor(max_workers=8)
+    try:
         for idx, msg in enumerate(pool.map(fetch, ids)):
             if cancel_check and cancel_check():
                 break
@@ -484,10 +472,7 @@ def sync_gmail(
                 body=html.unescape(msg.get("snippet", "")),
                 modified_at=int(msg.get("internalDate", "0")) / 1000.0,
             ))
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
-    if not records:
-        return 0
-    vectors = emb.embed_texts([r["content"] for r in records], titles=[r["filename"] for r in records])
-    for r, v in zip(records, vectors):
-        r["vector"] = v
-    return store.add_items(records)
+    return scanner.embed_and_store(emb, store, records, "gmail")

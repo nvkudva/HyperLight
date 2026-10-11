@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import * as api from '../../api'
+import { DRIVE_DOWNLOAD_URL, useDriveLocations } from '../../hooks/useDriveLocations'
 import styles from './OnboardingWizard.module.css'
 
 const LOCAL_FOLDERS = [
@@ -8,10 +9,6 @@ const LOCAL_FOLDERS = [
   { key: 'downloads', label: 'Downloads', path: '~/Downloads' },
   { key: 'pictures', label: 'Pictures', path: '~/Pictures' },
 ]
-
-const DRIVE_DOWNLOAD_URL = 'https://www.google.com/drive/download/'
-
-type DriveLocation = { name: string; path: string; account: string }
 
 interface OnboardingWizardProps {
   onStartProgress: () => void
@@ -25,18 +22,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
     desktop: true,
     appleMail: true,
   })
-  const [driveLocations, setDriveLocations] = useState<DriveLocation[] | null>(null)
+  const { locations: driveLocations, reload: checkDrive } = useDriveLocations()
   const [needsDiskAccess, setNeedsDiskAccess] = useState(false)
 
-  const checkDrive = async () => {
-    const res = await api.fetchDriveLocations()
-    setDriveLocations(res.locations)
-    setPicked((p) => ({ ...p, ...Object.fromEntries(res.locations.map((l) => [l.path, true])) }))
-  }
-
   useEffect(() => {
-    checkDrive()
-  }, [])
+    if (driveLocations) setPicked((p) => ({ ...p, ...Object.fromEntries(driveLocations.map((l) => [l.path, true])) }))
+  }, [driveLocations])
 
   const toggle = (key: string) => setPicked((p) => ({ ...p, [key]: !p[key] }))
 
@@ -56,12 +47,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
         return
       }
     }
-    for (const f of LOCAL_FOLDERS) {
-      if (picked[f.key]) await api.startIndex(f.path, 'local', f.label)
-    }
-    for (const loc of driveLocations ?? []) {
-      if (picked[loc.path]) await api.startIndex(loc.path, 'google_drive', loc.name)
-    }
+    await Promise.all([
+      ...LOCAL_FOLDERS.filter((f) => picked[f.key]).map((f) => api.startIndex(f.path, 'local', f.label)),
+      api.indexDriveLocations((driveLocations ?? []).filter((l) => picked[l.path])),
+    ])
     onStartProgress()
     setStep(2)
   }
@@ -86,7 +75,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
             {needsDiskAccess && (
               <div className={styles.notice}>
                 Apple Mail needs Full Disk Access. Turn it on for Smart Personal Search, then continue.
-                <button className={styles.linkBtn} onClick={() => api.openFullDiskAccess()}>
+                <button className={styles.linkBtn} onClick={() => api.openSettingsPane('full-disk-access')}>
                   Open Privacy Settings
                 </button>
               </div>
@@ -113,7 +102,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
                   Install Google Drive for desktop and sign in. Your Drive then appears as a folder on this Mac, and I can
                   search it without any extra permissions.
                 </p>
-                <div className={styles.footer} style={{ justifyContent: 'center' }}>
+                <div className={`${styles.footer} ${styles.footerCentered}`}>
                   <button className={styles.secondaryBtn} onClick={() => api.launchTarget(DRIVE_DOWNLOAD_URL)}>
                     Get Google Drive
                   </button>

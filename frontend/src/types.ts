@@ -47,6 +47,18 @@ export interface IndexJobStatus {
   percent: number
   indexed_items: number
   status: string
+  state: 'idle' | 'running' | 'finished' | 'cancelled' | 'error'
+  error_code: string
+  is_cloud: boolean
+  queued: string[]
+}
+
+export type JobStart = 'started' | 'queued'
+
+export interface DriveLocation {
+  name: string
+  path: string
+  account: string
 }
 
 export interface ChatMessage {

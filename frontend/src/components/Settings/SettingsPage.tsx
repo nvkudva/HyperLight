@@ -4,6 +4,7 @@ import {
   clearDatabase,
   fetchNetworkVolumes,
   removeSource,
+  indexApps,
   startIndex,
 } from '../../api'
 import type { ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
@@ -66,16 +67,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     showToast(`Adding '${manualPath.trim()}'...`, 'blue')
     try {
       const res = await startIndex(manualPath.trim(), 'local')
-      if (res.status === 'started') {
-        setManualPath('')
-        showToast(`Indexing started for '${res.name}'!`, 'emerald')
-        onStartProgress()
-        onRefreshSources()
-      } else if (res.message) {
-        showToast(res.message, 'amber')
-      } else if (res.error) {
+      if (res.error) {
         showToast(res.error, 'red')
+        return
       }
+      setManualPath('')
+      showToast(res.status === 'queued' ? `Queued '${res.name}'.` : `Indexing started for '${res.name}'!`, 'emerald')
+      onStartProgress()
+      onRefreshSources()
     } catch (err: any) {
       showToast(`Error: ${err.message}`, 'red')
     }
@@ -143,8 +142,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleIndexApps = async () => {
     showToast('Indexing macOS applications...', 'blue')
     try {
-      const res = await fetch('/api/index-apps', { method: 'POST' })
-      const data = await res.json()
+      const data = await indexApps()
       showToast(`Indexed ${data.indexed_apps} macOS applications!`, 'emerald')
       onRefreshSources()
     } catch (err: any) {

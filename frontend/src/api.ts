@@ -1,4 +1,4 @@
-import type { ConfiguredSource, GoogleStatus, IndexJobStatus, SearchResult } from './types'
+import type { ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchResult } from './types'
 
 export async function fetchStatus(): Promise<{ total: number; photos: number; documents: number; sources: Record<string, number> }> {
   const res = await fetch('/api/status')
@@ -10,7 +10,7 @@ export async function fetchSources(): Promise<{ sources: ConfiguredSource[] }> {
   return res.json()
 }
 
-export async function fetchDriveLocations(): Promise<{ locations: Array<{ name: string; path: string; account: string }> }> {
+export async function fetchDriveLocations(): Promise<{ locations: DriveLocation[] }> {
   const res = await fetch('/api/drive-locations')
   return res.json()
 }
@@ -29,7 +29,7 @@ export async function browseFolder(prompt?: string): Promise<{ path: string; nam
   return res.json()
 }
 
-export async function startIndex(path: string, source = 'local', name?: string): Promise<{ status: string; path?: string; name?: string; message?: string; error?: string }> {
+export async function startIndex(path: string, source = 'local', name?: string): Promise<{ status?: JobStart; path?: string; name?: string; error?: string }> {
   const res = await fetch('/api/index', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -117,7 +117,7 @@ export async function disconnectGoogle(): Promise<{ status: string }> {
   return res.json()
 }
 
-export async function syncCloudDrive(): Promise<{ status: string; name?: string; message?: string }> {
+export async function syncCloudDrive(): Promise<{ status: JobStart; name: string }> {
   const res = await fetch('/api/auth/google/sync-drive', { method: 'POST' })
   return res.json()
 }
@@ -127,7 +127,7 @@ export async function syncCloudPhotos(): Promise<{ status?: string; picker_uri?:
   return res.json()
 }
 
-export async function syncGmail(): Promise<{ status: string }> {
+export async function syncGmail(): Promise<{ status: JobStart; name: string }> {
   const res = await fetch('/api/auth/google/sync-gmail', { method: 'POST' })
   return res.json()
 }
@@ -137,12 +137,16 @@ export async function indexAppleMail(): Promise<{ status?: string; error?: strin
   return res.json()
 }
 
-export async function openFullDiskAccess(): Promise<{ success: boolean }> {
-  const res = await fetch('/api/open-full-disk-access', { method: 'POST' })
+export function indexDriveLocations(locations: DriveLocation[]) {
+  return Promise.all(locations.map((loc) => startIndex(loc.path, 'google_drive', loc.name)))
+}
+
+export async function indexApps(): Promise<{ status: string; indexed_apps: number }> {
+  const res = await fetch('/api/index-apps', { method: 'POST' })
   return res.json()
 }
 
-export async function openInternetAccounts(): Promise<{ success: boolean }> {
-  const res = await fetch('/api/open-internet-accounts', { method: 'POST' })
+export async function openSettingsPane(pane: 'full-disk-access' | 'internet-accounts'): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/open-settings/${pane}`, { method: 'POST' })
   return res.json()
 }

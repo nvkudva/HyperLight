@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { revealTarget, searchSpotlight } from '../../api'
 import type { SearchResult } from '../../types'
 import { AppIcon, BookmarkIcon, CalendarIcon, ContactIcon, DocumentIcon, PhotoIcon, SearchIcon } from '../common/Icons'
@@ -19,7 +19,6 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
 }) => {
   const [query, setQuery] = useState('')
   const [categories, setCategories] = useState<Record<string, SearchResult[]>>({})
-  const [totalMatches, setTotalMatches] = useState(0)
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceTimer = useRef<number | null>(null)
@@ -30,7 +29,6 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
     } else {
       setQuery('')
       setCategories({})
-      setTotalMatches(0)
     }
   }, [isOpen])
 
@@ -42,7 +40,6 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
 
     if (!val.trim()) {
       setCategories({})
-      setTotalMatches(0)
       return
     }
 
@@ -50,7 +47,6 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
       try {
         const res = await searchSpotlight(val.trim(), 30)
         setCategories(res.categories || {})
-        setTotalMatches(res.total_matches || 0)
         setSelected(0)
       } catch (err) {
         console.error('Spotlight search error:', err)
@@ -58,7 +54,16 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
     }, 100)
   }
 
-  const flatItems = Object.values(categories).flatMap((items) => items || [])
+  const { flatItems, offsets } = useMemo(() => {
+    const offsets: Record<string, number> = {}
+    const flatItems: SearchResult[] = []
+    for (const [key, items] of Object.entries(categories)) {
+      offsets[key] = flatItems.length
+      flatItems.push(...(items || []))
+    }
+    return { flatItems, offsets }
+  }, [categories])
+  const totalMatches = flatItems.length
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -136,7 +141,7 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
             ) : (
               Object.entries(categories).map(([catKey, items]) => {
                 if (!items || items.length === 0) return null
-                const offset = flatItems.indexOf(items[0])
+                const offset = offsets[catKey]
                 return (
                   <div key={catKey} role="group" aria-label={categoryLabels[catKey] || catKey} className={styles.categoryGroup}>
                     <div className={styles.categoryTitle}>{categoryLabels[catKey] || catKey}</div>
@@ -149,7 +154,7 @@ export const SpotlightHud: React.FC<SpotlightHudProps> = ({
                           role="option"
                           aria-selected={index === selected}
                           className={`${styles.itemRow} ${index === selected ? styles.itemSelected : ''}`}
-                          onMouseMove={() => setSelected(index)}
+                          onMouseEnter={() => setSelected(index)}
                           onClick={() => onSelectResult(item)}
                           onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
                         >

@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, NamedTuple, Optional
 import fastapi
 from fastapi.responses import HTMLResponse, Response
 import fastapi.staticfiles
@@ -35,6 +35,27 @@ engine = qa_engine.QAEngine()
 live_watcher = watcher.LiveWatcher(emb, store, sc)
 live_watcher.start()
 
+class Job(NamedTuple):
+    path: Path
+    source: str
+    name: str
+    options: Dict[str, Any]
+
+class CloudSource(NamedTuple):
+    name: str
+    path: str
+    kind: str
+    run: Callable[..., Any]
+
+CLOUD_SOURCES: Dict[str, CloudSource] = {
+    "google_drive_cloud": CloudSource("Google Drive", "https://drive.google.com", "google_drive",
+        lambda progress, cancel, opts: google_auth.sync_google_drive(emb, store, on_progress=progress, cancel_check=cancel)),
+    "google_photos_cloud": CloudSource("Google Photos", str(google_auth.PHOTOS_CACHE_DIR), "google_photos",
+        lambda progress, cancel, opts: google_auth.sync_google_photos(emb, store, opts["session_id"], on_progress=progress, cancel_check=cancel)),
+    "gmail_cloud": CloudSource("Gmail", "https://mail.google.com", "gmail",
+        lambda progress, cancel, opts: google_auth.sync_gmail(emb, store, on_progress=progress, cancel_check=cancel)),
+}
+
 class IndexJobManager:
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -49,8 +70,10 @@ class IndexJobManager:
         self.percent = 0.0
         self.indexed_items = 0
         self.status = "Idle"
+        self.state = "idle"
+        self.error_code = ""
         self.thread: Optional[threading.Thread] = None
-        self.pending: List[tuple] = []
+        self.pending: List[Job] = []
 
     def get_status(self) -> Dict[str, Any]:
         with self.lock:
@@ -66,20 +89,28 @@ class IndexJobManager:
                 "percent": round(self.percent, 1),
                 "indexed_items": self.indexed_items,
                 "status": self.status,
-                "queued": [job[2] for job in self.pending],
+                "state": self.state,
+                "error_code": self.error_code,
+                "is_cloud": self.current_source in CLOUD_SOURCES,
+                "queued": [job.name for job in self.pending],
             }
 
-    def start_indexing(self, path: Path, source: str, name: str, options: Optional[Dict[str, Any]] = None) -> None:
+    def start_indexing(self, path: Path, source: str, name: str, options: Optional[Dict[str, Any]] = None) -> str:
+        job = Job(path, source, name, options or {})
         with self.lock:
             if self.is_running:
-                if not any(job[0] == path and job[1] == source for job in self.pending):
-                    self.pending.append((path, source, name, options or {}))
-                return
+                if not any(j.path == path and j.source == source for j in self.pending):
+                    self.pending.append(job)
+                return "queued"
             self.is_running = True
-        self._launch(path, source, name, options or {})
+        self._launch(job)
+        return "started"
 
-    def _launch(self, path: Path, source: str, name: str, options: Dict[str, Any]) -> None:
+    def _launch(self, job: Job) -> None:
+        path, source, name = job.path, job.source, job.name
         with self.lock:
+            self.state = "running"
+            self.error_code = ""
             self.cancel_requested = False
             self.current_folder = name
             self.current_path = str(path)
@@ -93,7 +124,7 @@ class IndexJobManager:
 
         self.thread = threading.Thread(
             target=self._worker,
-            args=(path, source, name, options),
+            args=(job,),
             daemon=True,
         )
         self.thread.start()
@@ -105,7 +136,7 @@ class IndexJobManager:
                 self.cancel_requested = True
                 self.status = "Stopping scan..."
 
-    def _worker(self, path: Path, source: str, name: str, options: Dict[str, Any]) -> None:
+    def _worker(self, job: Job) -> None:
         def on_progress(filename: str, current: int, total: int) -> None:
             with self.lock:
                 self.current_file = filename
@@ -118,44 +149,35 @@ class IndexJobManager:
             with self.lock:
                 return self.cancel_requested
 
+        cloud = CLOUD_SOURCES.get(job.source)
+        if cloud:
+            name, track_path, kind = cloud.name, cloud.path, cloud.kind
+        else:
+            name, track_path, kind = job.name, str(job.path), job.source
         try:
-            if source == "google_drive_cloud":
-                cloud_path = "https://drive.google.com"
-                initial_count = store.count_items_by_path(cloud_path)
-                storage.save_configured_source("Google Drive", cloud_path, "google_drive", initial_count)
-                google_auth.sync_google_drive(emb, store, on_progress=on_progress, cancel_check=cancel_check)
-                total_items = store.count_items_by_path(cloud_path)
-                storage.save_configured_source("Google Drive", cloud_path, "google_drive", total_items)
-            elif source == "google_photos_cloud":
-                cache_dir_str = str(google_auth.PHOTOS_CACHE_DIR)
-                initial_count = store.count_items_by_path(cache_dir_str)
-                storage.save_configured_source("Google Photos", cache_dir_str, "google_photos", initial_count)
-                google_auth.sync_google_photos(emb, store, options["session_id"], on_progress=on_progress, cancel_check=cancel_check)
-                total_items = store.count_items_by_path(cache_dir_str)
-                storage.save_configured_source("Google Photos", cache_dir_str, "google_photos", total_items)
-            elif source == "gmail_cloud":
-                gmail_path = "https://mail.google.com"
-                storage.save_configured_source("Gmail", gmail_path, "gmail", store.count_items_by_path(gmail_path))
-                google_auth.sync_gmail(emb, store, on_progress=on_progress, cancel_check=cancel_check)
-                total_items = store.count_items_by_path(gmail_path)
-                storage.save_configured_source("Gmail", gmail_path, "gmail", total_items)
+            storage.save_configured_source(name, track_path, kind, store.count_items_by_path(track_path))
+            if cloud:
+                cloud.run(on_progress, cancel_check, job.options)
             else:
-                initial_count = store.count_items_by_path(str(path))
-                storage.save_configured_source(name, str(path), source, initial_count)
                 live_watcher.sync_sources()
-                sc.scan_path(path, source=source, on_progress=on_progress, cancel_check=cancel_check)
-                total_items = store.count_items_by_path(str(path))
-                storage.save_configured_source(name, str(path), source, total_items)
+                sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check)
+            total_items = store.count_items_by_path(track_path)
+            storage.save_configured_source(name, track_path, kind, total_items)
+            if not cloud:
                 live_watcher.sync_sources()
             with self.lock:
                 if self.cancel_requested:
+                    self.state = "cancelled"
                     self.status = f"Scan stopped. Indexed {total_items} items so far."
                 else:
+                    self.state = "finished"
                     self.percent = 100.0
                     self.status = f"Finished! Indexed {total_items} items from '{name}'."
                 self.indexed_items = total_items
         except Exception as e:
             with self.lock:
+                self.state = "error"
+                self.error_code = "reauth_required" if isinstance(e, google_auth.GoogleScopeError) else ""
                 self.status = f"Error during indexing: {e}"
         finally:
             with self.lock:
@@ -163,7 +185,7 @@ class IndexJobManager:
                 next_job = self.pending.pop(0) if self.pending else None
                 self.is_running = next_job is not None
             if next_job:
-                self._launch(*next_job)
+                self._launch(next_job)
 
 job_manager = IndexJobManager()
 
@@ -411,8 +433,7 @@ def api_google_disconnect() -> Dict[str, str]:
 
 @app.post("/api/auth/google/sync-drive")
 def api_google_sync_drive() -> Dict[str, Any]:
-    job_manager.start_indexing(Path.home(), "google_drive_cloud", "Google Drive")
-    return {"status": "started", "name": "Google Drive"}
+    return {"status": job_manager.start_indexing(Path.home(), "google_drive_cloud", "Google Drive"), "name": "Google Drive"}
 
 @app.post("/api/auth/google/sync-photos")
 def api_google_sync_photos() -> Any:
@@ -420,14 +441,13 @@ def api_google_sync_photos() -> Any:
         session = google_auth.create_photos_picker_session()
     except Exception as e:
         return fastapi.responses.JSONResponse(status_code=400, content={"error": str(e)})
-    job_manager.start_indexing(Path.home(), "google_photos_cloud", "Google Photos", {"session_id": session["id"]})
+    status = job_manager.start_indexing(Path.home(), "google_photos_cloud", "Google Photos", {"session_id": session["id"]})
     connectors.launch_target(session["picker_uri"])
-    return {"status": "started", "name": "Google Photos", "picker_uri": session["picker_uri"]}
+    return {"status": status, "name": "Google Photos", "picker_uri": session["picker_uri"]}
 
 @app.post("/api/auth/google/sync-gmail")
 def api_google_sync_gmail() -> Dict[str, Any]:
-    job_manager.start_indexing(Path.home(), "gmail_cloud", "Gmail")
-    return {"status": "started", "name": "Gmail"}
+    return {"status": job_manager.start_indexing(Path.home(), "gmail_cloud", "Gmail"), "name": "Gmail"}
 
 @app.post("/api/sources/apple-mail")
 def api_index_apple_mail() -> Any:
@@ -439,16 +459,18 @@ def api_index_apple_mail() -> Any:
             "error": "full_disk_access",
             "message": "Grant Full Disk Access to Smart Personal Search in System Settings > Privacy & Security, then retry.",
         })
-    job_manager.start_indexing(mail_dir, "apple_mail", "Apple Mail")
-    return {"status": "started", "name": "Apple Mail"}
+    return {"status": job_manager.start_indexing(mail_dir, "apple_mail", "Apple Mail"), "name": "Apple Mail"}
 
-@app.post("/api/open-full-disk-access")
-def api_open_full_disk_access() -> Dict[str, bool]:
-    return {"success": connectors.launch_target("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")}
+SETTINGS_PANES = {
+    "full-disk-access": "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+    "internet-accounts": "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension",
+}
 
-@app.post("/api/open-internet-accounts")
-def api_open_internet_accounts() -> Dict[str, bool]:
-    return {"success": connectors.launch_target("x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension")}
+@app.post("/api/open-settings/{pane}")
+def api_open_settings(pane: str) -> Any:
+    if pane not in SETTINGS_PANES:
+        return fastapi.responses.JSONResponse(status_code=404, content={"error": f"Unknown settings pane '{pane}'"})
+    return {"success": connectors.launch_target(SETTINGS_PANES[pane])}
 
 
 @app.post("/api/index-apps")
@@ -610,8 +632,8 @@ def api_index(req: IndexRequest) -> Dict[str, Any]:
             content={"error": f"Path '{req.path}' does not exist on disk."},
         )
     folder_name = req.name or target.name or str(target)
-    job_manager.start_indexing(target, req.source, folder_name)
-    return {"status": "started", "path": str(target), "source": req.source, "name": folder_name}
+    status = job_manager.start_indexing(target, req.source, folder_name)
+    return {"status": status, "path": str(target), "source": req.source, "name": folder_name}
 
 @app.get("/api/indexing-status")
 def api_indexing_status() -> Dict[str, Any]:

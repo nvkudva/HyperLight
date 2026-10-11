@@ -34,6 +34,15 @@
   --r-xl: 26px;
   --r-capsule: 9999px;
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --app-bg: var(--window-bg);
+  --sidebar-bg: rgba(var(--surface-rgb), 0.55);
+  --sidebar-blur: blur(40px) saturate(180%);
+}
+
+html.tauri {
+  --app-bg: transparent;
+  --sidebar-bg: transparent;
+  --sidebar-blur: none;
 }
 
 @media (prefers-color-scheme: dark) {

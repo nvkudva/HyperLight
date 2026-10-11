@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className={styles.sectionHeader}>Indexed Locations</div>
         <div className={`${styles.sourcesList} custom-scroll`}>
           {sources.length === 0 ? (
-            <div style={{ padding: '0.5rem', fontSize: '0.6875rem', color: 'var(--label-3)' }}>
+            <div className={styles.emptyHint}>
               No sources added.
             </div>
           ) : (

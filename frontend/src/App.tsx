@@ -15,6 +15,7 @@ import { OnboardingWizard } from './components/Onboarding/OnboardingWizard'
 import { PhotoLightbox } from './components/Lightbox/PhotoLightbox'
 import { SettingsPage } from './components/Settings/SettingsPage'
 import { Sidebar } from './components/Sidebar/Sidebar'
+import { ProgressBar } from './components/common/ProgressBar'
 import { SpotlightHud } from './components/Spotlight/SpotlightHud'
 import type {
   ChatMessage,
@@ -140,6 +141,10 @@ export const App: React.FC = () => {
       percent: 0,
       indexed_items: 0,
       status: 'Starting index...',
+      state: 'running',
+      error_code: '',
+      is_cloud: false,
+      queued: [],
     })
   }
 
@@ -213,20 +218,11 @@ export const App: React.FC = () => {
       {/* Background Indexing Banner */}
       {indexStatus && indexStatus.is_running && (
         <div className={styles.progressBanner}>
-          <div className={styles.progressHeader}>
-            <span className={styles.progressStatus}>{indexStatus.status}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.6875rem', fontFamily: 'monospace', color: 'var(--label-2)' }}>
-                {Math.round(indexStatus.percent)}%
-              </span>
-              <button className={styles.stopButton} onClick={() => stopIndex()}>
-                Stop
-              </button>
-            </div>
-          </div>
-          <div className={styles.progressBarContainer}>
-            <div className={styles.progressBar} style={{ width: `${indexStatus.percent}%` }} />
-          </div>
+          <ProgressBar status={indexStatus.status} percent={indexStatus.percent}>
+            <button className={styles.stopButton} onClick={() => stopIndex()}>
+              Stop
+            </button>
+          </ProgressBar>
         </div>
       )}
 
