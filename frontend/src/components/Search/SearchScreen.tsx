@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { API_BASE } from '../../api'
 import { useLiveSearch } from '../../hooks/useLiveSearch'
 import type { SearchResult } from '../../types'
 import {
@@ -117,67 +116,70 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
           ref={inputRef}
           type="text"
           className={styles.searchInput}
-          placeholder="Search anything with Hyperlight..."
+          placeholder="Search files, photos, mail and apps"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
+          role="combobox"
+          aria-expanded={flatItems.length > 0}
+          aria-controls="search-results"
+          aria-activedescendant={current ? `search-item-${selected}` : undefined}
         />
         {accessory}
         <button
-          className={styles.iconButton}
-          onClick={onOpenSettings}
-          title="Settings (⌘,)"
-          aria-label="Open settings"
+          className={styles.chatButton}
+          onClick={() => onAskChat(query.trim())}
+          title="Open chat (⌘↩ asks this query)"
         >
-          <SettingsIcon className="w-4 h-4" />
+          {hasQuery ? 'Ask in Chat' : 'Chat'}
+        </button>
+        <button className={styles.iconButton} onClick={onOpenSettings} aria-label="Settings" title="Settings">
+          <SettingsIcon className={styles.settingsIcon} />
         </button>
       </header>
 
-      {flatItems.length === 0 ? (
+      {!hasQuery ? (
         <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>
-            {hasQuery
-              ? isSearching
-                ? 'Searching…'
-                : `No results for “${query}”`
-              : 'Search files, photos, mail and apps'}
+          <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>
+          <p className={styles.emptyHint}>
+            Try “tax invoice 2025”, “photos of the beach” or “flight to Munich”. Press ⌘↩ to ask the question in chat.
           </p>
-          <p className={styles.emptySubtitle}>
-            {hasQuery
-              ? 'Try different keywords or press ⌘↩ to ask the AI'
-              : 'Type keywords or press ⌘↩ to start a conversation'}
-          </p>
+        </div>
+      ) : flatItems.length === 0 ? (
+        <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>{isSearching ? 'Searching…' : `No results for “${query}”`}</p>
+          {!isSearching && (
+            <button className={styles.linkButton} onClick={() => onAskChat(query.trim())}>
+              Ask in chat instead
+            </button>
+          )}
         </div>
       ) : (
         <div className={styles.body}>
-          <div className={`${styles.resultsList} custom-scroll`}>
+          <div id="search-results" role="listbox" className={`${styles.results} custom-scroll`}>
             {Object.entries(categories).map(([catKey, items]) => {
-              const baseOffset = offsets[catKey] ?? 0
+              if (!items?.length) return null
               return (
-                <div key={catKey} className={styles.categorySection}>
-                  <div className={styles.categoryHeader}>
-                    {CATEGORY_LABELS[catKey] ?? catKey}
-                  </div>
-                  {items.map((item, localIdx) => {
-                    const globalIdx = baseOffset + localIdx
-                    const isSelected = globalIdx === selected
+                <div key={catKey} role="group" aria-label={CATEGORY_LABELS[catKey] || catKey}>
+                  <div className={styles.categoryTitle}>{CATEGORY_LABELS[catKey] || catKey}</div>
+                  {items.map((item, idx) => {
+                    const index = offsets[catKey] + idx
+                    const isSelected = index === selected
                     return (
                       <div
-                        id={`search-item-${globalIdx}`}
-                        key={item.id ?? `${item.path}-${globalIdx}`}
-                        className={`${styles.itemRow} ${isSelected ? styles.selected : ''}`}
-                        onClick={() => {
-                          setSelected(globalIdx)
-                          onOpen(item)
-                        }}
+                        key={item.path || idx}
+                        id={`search-item-${index}`}
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`${styles.itemRow} ${isSelected ? styles.itemSelected : ''}`}
+                        onMouseEnter={() => setSelected(index)}
+                        onClick={() => onOpen(item)}
                         onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
                       >
-                        {renderIcon(kindOf(item))}
-                        <div className={styles.itemMeta}>
-                          <span className={styles.itemTitle}>{item.filename}</span>
-                          <span className={styles.itemSnippet}>
-                            {item.content ? item.content.slice(0, 100) : item.path}
-                          </span>
+                        {renderIcon(catKey)}
+                        <div className={styles.itemText}>
+                          <div className={styles.itemTitle}>{item.filename}</div>
+                          <div className={styles.itemDesc}>{item.excerpt || item.path}</div>
                         </div>
                       </div>
                     )
@@ -188,11 +190,38 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
           </div>
 
           {current && (
-            <aside className={styles.previewPanel}>
-              {kindOf(current) === 'photo' && !failedPreviews.has(current.path) ? (
-                <img
-                  src={`${API_BASE}/api/preview?path=${encodeURIComponent(current.path)}`}
+            <aside className={`${styles.preview} custom-scroll`} aria-label="Preview">
+              {kindOf(current) === 'video' ? (
+                <video
+                  key={current.path}
                   className={styles.previewImage}
+                  src={`/api/media?path=${encodeURIComponent(current.path)}`}
+                  poster={`/api/preview?path=${encodeURIComponent(current.path)}`}
+                  controls
+                  preload="metadata"
+                />
+              ) : kindOf(current) === 'audio' ? (
+                <>
+                  <div className={styles.previewIconWrap}>{renderIcon('audio', styles.previewIcon)}</div>
+                  <audio
+                    key={current.path}
+                    className={styles.previewAudio}
+                    src={`/api/media?path=${encodeURIComponent(current.path)}`}
+                    controls
+                    preload="metadata"
+                  />
+                </>
+              ) : kindOf(current) === 'photo' ? (
+                <img
+                  className={styles.previewImage}
+                  src={`/api/thumbnail?path=${encodeURIComponent(current.path)}`}
+                  alt={current.filename}
+                />
+              ) : VISUAL_PREVIEW.test(current.path) && !failedPreviews.has(current.path) ? (
+                <img
+                  key={current.path}
+                  className={styles.previewImage}
+                  src={`/api/preview?path=${encodeURIComponent(current.path)}`}
                   alt={`Preview of ${current.filename}`}
                   onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}
                 />
@@ -208,7 +237,11 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                 <button className={`${styles.actionButton} ${styles.primary}`} onClick={() => onOpen(current)}>
                   Open
                 </button>
-                {!current.path.startsWith('http') && (\n                  <button className={styles.actionButton} onClick={() => onReveal(current.path)}>\n                    Show in Finder\n                  </button>\n                )}
+                {!current.path.startsWith('http') && (
+                  <button className={styles.actionButton} onClick={() => onReveal(current.path)}>
+                    Show in Finder
+                  </button>
+                )}
               </div>
             </aside>
           )}
@@ -216,11 +249,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
       )}
 
       <footer className={styles.statusBar}>
-        <span className={styles.brandStatus}>
-          <img src="/hyperlight-icon.png" alt="" className={styles.statusIcon} />
-          {hasQuery ? `${flatItems.length} results` : 'Hyperlight'}
-        </span>
-        <span>↑↓ Select · ↵ Open · ⌘R Show in Finder · ⌘↵ Ask in Chat</span>
+        <span>{hasQuery ? `${flatItems.length} results` : 'Local search'}</span>
+        <span>↑↓ Select · ↵ Open · ⌘R Show in Finder · ⌘↩ Ask in Chat</span>
       </footer>
     </div>
   )
