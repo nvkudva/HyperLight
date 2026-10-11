@@ -6,7 +6,7 @@ import pyarrow as pa
 
 SCHEMA = pa.schema([
     pa.field("id", pa.string()),
-    pa.field("vector", pa.list_(pa.float32(), 512)),
+    pa.field("vector", pa.list_(pa.float32(), 768)),
     pa.field("type", pa.string()),
     pa.field("path", pa.string()),
     pa.field("filename", pa.string()),
@@ -27,6 +27,10 @@ class Storage:
             self.table = self.db.create_table(self.table_name, schema=SCHEMA)
         else:
             self.table = self.db.open_table(self.table_name)
+            vec_type = self.table.schema.field("vector").type
+            if getattr(vec_type, "list_size", None) != 768:
+                self.db.drop_table(self.table_name)
+                self.table = self.db.create_table(self.table_name, schema=SCHEMA)
 
     def add_items(self, items: List[Dict[str, Any]]) -> int:
         if not items:
@@ -55,7 +59,7 @@ class Storage:
         if ids:
             batch = pa.RecordBatch.from_arrays([
                 pa.array(ids, type=pa.string()),
-                pa.array(vectors, type=pa.list_(pa.float32(), 512)),
+                pa.array(vectors, type=pa.list_(pa.float32(), 768)),
                 pa.array(types, type=pa.string()),
                 pa.array(paths, type=pa.string()),
                 pa.array(filenames, type=pa.string()),

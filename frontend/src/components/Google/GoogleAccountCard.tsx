@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   disconnectGoogle,
   fetchGoogleAuthUrl,
+  fetchGoogleStatus,
+  launchTarget,
   quickConnectGoogle,
   saveGoogleConfig,
   syncCloudDrive,
@@ -29,6 +31,19 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
   const [showCreds, setShowCreds] = useState(false)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [isSigningIn, setIsSigningIn] = useState(false)
+
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+        setIsSigningIn(false)
+        onShowToast('Google account connected!', 'emerald')
+        onRefreshStatus()
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onRefreshStatus, onShowToast])
 
   const handleQuickLink = async () => {
     onShowToast('Linking active Mac Google account...', 'blue')
@@ -46,16 +61,47 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
   }
 
   const handleSignIn = async () => {
-    onShowToast('Opening Google Sign-In...', 'blue')
+    onShowToast('Opening Google Sign-In in browser...', 'blue')
+    setIsSigningIn(true)
     try {
       const res = await fetchGoogleAuthUrl()
       if (res.url) {
-        window.open(res.url, '_blank', 'width=550,height=650')
+        try {
+          await launchTarget(res.url)
+        } catch {
+          window.open(res.url, '_blank')
+        }
+
+        let attempts = 0
+        const maxAttempts = 60
+        const pollInterval = window.setInterval(async () => {
+          attempts++
+          try {
+            const currentStatus = await fetchGoogleStatus()
+            if (currentStatus.connected && currentStatus.user) {
+              window.clearInterval(pollInterval)
+              setIsSigningIn(false)
+              onShowToast(`Connected as ${currentStatus.user.name || currentStatus.user.email}!`, 'emerald')
+              onRefreshStatus()
+            } else if (attempts >= maxAttempts) {
+              window.clearInterval(pollInterval)
+              setIsSigningIn(false)
+              onShowToast('Sign-in timed out. Please try again.', 'amber')
+            }
+          } catch {
+            if (attempts >= maxAttempts) {
+              window.clearInterval(pollInterval)
+              setIsSigningIn(false)
+            }
+          }
+        }, 1500)
       } else if (res.error) {
+        setIsSigningIn(false)
         onShowToast(res.error, 'red')
         setShowCreds(true)
       }
     } catch (err: any) {
+      setIsSigningIn(false)
       onShowToast(`Login error: ${err.message}`, 'red')
     }
   }
@@ -169,8 +215,12 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
                 </div>
                 <div>{indexStatus.status.replace('Error during indexing: ', '')}</div>
                 {indexStatus.status.toLowerCase().includes('permission not granted') && (
-                  <button className={styles.errorActionBtn} onClick={handleSignIn}>
-                    Sign in with Google to Authorize
+                  <button
+                    className={styles.errorActionBtn}
+                    onClick={handleSignIn}
+                    disabled={isSigningIn}
+                  >
+                    {isSigningIn ? 'Waiting for browser...' : 'Sign in with Google to Authorize'}
                   </button>
                 )}
               </div>
@@ -203,8 +253,12 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({
           <button className={styles.quickLinkBtn} onClick={handleQuickLink} title="Link active Mac Google account">
             <span>⚡ Quick Link</span>
           </button>
-          <button className={styles.signInBtn} onClick={handleSignIn}>
-            <span>Sign in with Google</span>
+          <button
+            className={styles.signInBtn}
+            onClick={handleSignIn}
+            disabled={isSigningIn}
+          >
+            <span>{isSigningIn ? 'Waiting for browser...' : 'Sign in with Google'}</span>
           </button>
           <button
             className={styles.configToggleBtn}

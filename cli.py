@@ -32,7 +32,7 @@ def cmd_search(args: argparse.Namespace) -> None:
     emb = embedder.Embedder()
     store = storage.Storage()
 
-    query_vec = emb.embed_text(args.query)
+    query_vec = emb.embed_query(args.query)
     results = store.search(query_vec, query_text=args.query, item_type=args.type, limit=args.limit)
 
     if not results:
@@ -60,7 +60,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
     engine = qa_engine.QAEngine()
 
     print(f"Searching indexed files for context...")
-    query_vec = emb.embed_text(args.question)
+    query_vec = emb.embed_query(args.question)
     docs = store.search(query_vec, query_text=args.question, limit=args.limit)
 
     print(f"Generating answer using Gemma 2...\n")

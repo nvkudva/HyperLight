@@ -357,7 +357,8 @@ class Scanner:
             if not doc_buffer:
                 return
             texts = [r["content"] for r in doc_buffer]
-            vectors = self.embedder.embed_texts(texts, batch_size=BATCH_SIZE)
+            titles = [r.get("filename", "") for r in doc_buffer]
+            vectors = self.embedder.embed_texts(texts, titles=titles, batch_size=BATCH_SIZE)
             for r, vec in zip(doc_buffer, vectors):
                 r["vector"] = vec
                 r["source"] = source
@@ -455,7 +456,8 @@ class Scanner:
         if not doc_records:
             return 0
         texts = [r["content"] for r in doc_records]
-        vectors = self.embedder.embed_texts(texts)
+        titles = [r.get("filename", "") for r in doc_records]
+        vectors = self.embedder.embed_texts(texts, titles=titles)
         for r, vec in zip(doc_records, vectors):
             r["vector"] = vec
             r["source"] = source

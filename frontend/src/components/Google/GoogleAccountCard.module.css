@@ -171,6 +171,11 @@
   background: #f8fafc;
 }
 
+.signInBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .configToggleBtn {
   background: transparent;
   border: none;
@@ -285,5 +290,10 @@
   font-weight: 600;
   cursor: pointer;
   width: fit-content;
+}
+
+.errorActionBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 

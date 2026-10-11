@@ -57,7 +57,11 @@ def save_client_config(client_id: str, client_secret: str) -> None:
         encoding="utf-8",
     )
 
+_last_redirect_uri: str = "http://localhost:8585/api/auth/google/callback"
+
 def get_auth_url(redirect_uri: str, state: str = "google_auth") -> str:
+    global _last_redirect_uri
+    _last_redirect_uri = redirect_uri
     cfg = get_client_config()
     client_id = cfg.get("client_id")
     if not client_id:
@@ -74,22 +78,29 @@ def get_auth_url(redirect_uri: str, state: str = "google_auth") -> str:
     }
     return f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
 
-def exchange_code(code: str, redirect_uri: str) -> Dict[str, Any]:
+def exchange_code(code: str, redirect_uri: Optional[str] = None) -> Dict[str, Any]:
+    global _last_redirect_uri
     cfg = get_client_config()
     client_id = cfg.get("client_id")
     client_secret = cfg.get("client_secret")
     if not client_id or not client_secret:
         raise ValueError("Google Client ID or Client Secret missing.")
 
+    target_redirect_uri = redirect_uri or _last_redirect_uri
     token_url = "https://oauth2.googleapis.com/token"
     data = {
         "code": code,
         "client_id": client_id,
         "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
+        "redirect_uri": target_redirect_uri,
         "grant_type": "authorization_code",
     }
     resp = requests.post(token_url, data=data, timeout=15)
+    if resp.status_code != 200 and "redirect_uri_mismatch" in resp.text:
+        alt_uri = target_redirect_uri.replace("localhost", "127.0.0.1") if "localhost" in target_redirect_uri else target_redirect_uri.replace("127.0.0.1", "localhost")
+        data["redirect_uri"] = alt_uri
+        resp = requests.post(token_url, data=data, timeout=15)
+
     if resp.status_code != 200:
         raise ValueError(f"Failed to exchange code: {resp.text}")
 
@@ -98,11 +109,18 @@ def exchange_code(code: str, redirect_uri: str) -> Dict[str, Any]:
     refresh_token = token_data.get("refresh_token")
     expires_in = token_data.get("expires_in", 3600)
 
+    if not refresh_token and TOKENS_PATH.exists():
+        try:
+            prev_data = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
+            refresh_token = prev_data.get("refresh_token")
+        except Exception:
+            pass
+
     userinfo = fetch_userinfo(access_token)
 
     saved_payload = {
         "access_token": access_token,
-        "refresh_token": refresh_token,
+        "refresh_token": refresh_token or "",
         "expires_at": time.time() + expires_in,
         "user": userinfo,
     }
@@ -152,6 +170,8 @@ def get_valid_access_token() -> Optional[str]:
                     data["expires_at"] = time.time() + expires_in
                     TOKENS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
                     return new_access
+        if access_token and time.time() >= (expires_at - 60):
+            return None
         return access_token
     except Exception as e:
         logger.error(f"Error checking access token: {e}")
@@ -159,9 +179,25 @@ def get_valid_access_token() -> Optional[str]:
 
 def save_direct_token(access_token: str, refresh_token: str = "") -> Dict[str, Any]:
     userinfo = fetch_userinfo(access_token)
+    final_refresh = refresh_token.strip()
+    if not final_refresh and TOKENS_PATH.exists():
+        try:
+            prev = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
+            final_refresh = prev.get("refresh_token", "").strip()
+        except Exception:
+            pass
+    if not final_refresh:
+        adc_path = Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+        if adc_path.exists():
+            try:
+                adc_data = json.loads(adc_path.read_text(encoding="utf-8"))
+                final_refresh = adc_data.get("refresh_token", "").strip()
+            except Exception:
+                pass
+
     payload = {
         "access_token": access_token.strip(),
-        "refresh_token": refresh_token.strip(),
+        "refresh_token": final_refresh,
         "expires_at": time.time() + 3600,
         "user": userinfo,
     }
@@ -188,11 +224,12 @@ def get_status() -> Dict[str, Any]:
     try:
         data = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
         user = data.get("user", {})
+        valid_token = get_valid_access_token()
         return {
-            "connected": bool(data.get("access_token")),
+            "connected": bool(valid_token),
             "has_client_config": has_client_config,
             "client_id": client_id[:12] + "..." if client_id else "",
-            "user": user,
+            "user": user if valid_token else {},
         }
     except Exception:
         return {
@@ -267,7 +304,7 @@ def sync_google_drive(
 
         content_repr = f"Google Drive File: {name}\nType: {mime}\nModified: {mod_time}\nDescription: {desc}"
 
-        vec = emb.embed_text(content_repr)
+        vec = emb.embed_text(content_repr, title=name)
         batch_items.append({
             "id": f"gdrive_{fid}",
             "path": web_link,

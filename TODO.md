@@ -33,3 +33,5 @@
 - [x] Wire live indexing progress and permission error state down into Google Account Card in Settings
 - [x] Replaced custom Swift Cocoa wrapper with standard Tauri v2 application wrapper (`frontend/src-tauri`)
 - [x] Configure unified macOS Apple Glass design with `titleBarStyle: "Overlay"`, seamless sidebar backdrop, and `data-tauri-drag-region`
+- [x] Fix Google Sign-In in Settings: launch system browser, auto-poll auth status, return clean callback HTML, handle token refresh
+- [x] Migrate embedder and storage to EmbeddingGemma 2 (768-d multimodal, task prompts)

@@ -57,7 +57,8 @@ def index_applications(emb: embedder.Embedder, store: storage.Storage) -> int:
     if not apps:
         return 0
     texts = [a["content"] for a in apps]
-    vectors = emb.embed_texts(texts)
+    titles = [a["filename"] for a in apps]
+    vectors = emb.embed_texts(texts, titles=titles)
     for app_item, vec in zip(apps, vectors):
         app_item["vector"] = vec
         app_item["source"] = "macos_system"
