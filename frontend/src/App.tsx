@@ -187,10 +187,26 @@ export const App: React.FC = () => {
     })
   }
 
+  const handleDragMouseDown = async (e: React.MouseEvent) => {
+    // Only primary mouse button and not on controls
+    if (e.button !== 0) return
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      const win = getCurrentWindow()
+      await win.startDragging()
+    } catch {
+      // Ignore if not in Tauri webview
+    }
+  }
+
   return (
     <div className={styles.appContainer}>
       {/* Unified Apple Glass Header Drag Region */}
-      <div className={styles.unifiedHeaderDragStrip} data-tauri-drag-region />
+      <div
+        className={styles.unifiedHeaderDragStrip}
+        data-tauri-drag-region
+        onMouseDown={handleDragMouseDown}
+      />
 
       {/* Background Indexing Banner */}
       {indexStatus && indexStatus.is_running && (
