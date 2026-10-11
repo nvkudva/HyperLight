@@ -23,7 +23,12 @@ CONTACT_EXTENSIONS = {".vcf"}
 CALENDAR_EXTENSIONS = {".ics"}
 BOOKMARK_EXTENSIONS = {".webloc", ".url"}
 EMAIL_EXTENSIONS = {".emlx", ".eml"}
-ALL_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | CONTACT_EXTENSIONS | CALENDAR_EXTENSIONS | BOOKMARK_EXTENSIONS | EMAIL_EXTENSIONS
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".wav", ".aac", ".flac", ".aiff", ".ogg"}
+ALL_EXTENSIONS = (
+    IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | CONTACT_EXTENSIONS | CALENDAR_EXTENSIONS
+    | BOOKMARK_EXTENSIONS | EMAIL_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
+)
 
 IGNORED_DIRS = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".cache",
@@ -209,17 +214,24 @@ def is_dataless(path: Path) -> bool:
     except (OSError, AttributeError):
         return False
 
-def cloud_placeholder_record(path: Path) -> Dict[str, Any]:
+def metadata_record(path: Path, record_type: str, label: str, id_prefix: str, **extra_meta: Any) -> Dict[str, Any]:
+    """Index a file by name, folder and file details when its content can't or shouldn't be read."""
     file_meta = get_file_metadata(path)
     return {
-        "id": hashlib.sha256(f"cloud:{path}".encode()).hexdigest()[:16],
-        "type": "document",
+        "id": hashlib.sha256(f"{id_prefix}:{path}".encode()).hexdigest()[:16],
+        "type": record_type,
         "path": str(path),
         "filename": path.name,
-        "content": f"File: {path.name}\nFolder: {path.parent}\nType: {file_meta['file_type']}\nModified: {file_meta['modified_str']}",
+        "content": (
+            f"{label}: {path.stem}\nFolder: {path.parent}\nType: {file_meta['file_type']}\n"
+            f"Size: {file_meta['size_human']}\nModified: {file_meta['modified_str']}"
+        ),
         "modified_at": file_meta["modified_at"],
-        "metadata": {**file_meta, "cloud_only": True},
+        "metadata": {**file_meta, **extra_meta},
     }
+
+def cloud_placeholder_record(path: Path) -> Dict[str, Any]:
+    return metadata_record(path, "document", "File", "cloud", cloud_only=True)
 
 def email_record(record_id: str, source: str, path: str, subject: str, sender: str, to: str, date: str, body: str, modified_at: float) -> Dict[str, Any]:
     return {
@@ -661,5 +673,9 @@ class Scanner:
             return ("doc", file_path, self.parse_code_file(file_path))
         elif ext in TEXT_EXTENSIONS:
             return ("doc", file_path, self.parse_text_file(file_path))
+        elif ext in VIDEO_EXTENSIONS:
+            return ("doc", file_path, [metadata_record(file_path, "video", "Video", "media")])
+        elif ext in AUDIO_EXTENSIONS:
+            return ("doc", file_path, [metadata_record(file_path, "audio", "Audio", "media")])
         return ("unknown", file_path, [])
 

@@ -1,6 +1,6 @@
 .sidebar {
-  width: 240px;
-  min-width: 240px;
+  position: relative;
+  flex-shrink: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -13,41 +13,16 @@
 }
 
 .topSection {
-  padding: 3.25rem 1rem 1rem 1rem;
-}
-
-.brandRow {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  margin-bottom: 1.25rem;
-  padding-left: 0.25rem;
+  flex-direction: column;
+  padding: 3.25rem 0.75rem 0.5rem;
 }
 
-.brandIcon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--r-sm);
-  background: linear-gradient(135deg, var(--accent) 0%, var(--indigo) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  box-shadow: 0 4px 10px rgba(var(--accent-rgb), 0.25);
-}
 
-.brandTitle {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--label);
-  letter-spacing: -0.015em;
-}
 
-.brandSubtitle {
-  font-size: 0.6875rem;
-  color: var(--label-2);
-  font-weight: 500;
-}
+
 
 .navGroup {
   display: flex;
@@ -102,49 +77,11 @@
   margin-bottom: 0.375rem;
 }
 
-.sourcesList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  max-height: 260px;
-  overflow-y: auto;
-}
 
-.sourceItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.3125rem 0.5rem;
-  border-radius: var(--r-sm);
-  font-size: 0.6875rem;
-  color: var(--label);
-  cursor: default;
-  transition: background 0.15s ease;
-}
 
-.sourceItem:hover {
-  background: rgba(var(--surface-rgb), 0.65);
-}
 
-.sourceLeft {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  overflow: hidden;
-}
 
-.sourceName {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 500;
-}
 
-.sourceCount {
-  font-size: 0.6875rem;
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  color: var(--label-3);
-}
 
 .footerSection {
   padding: 0.75rem 1rem;
@@ -183,4 +120,102 @@
   padding: 0.5rem;
   font-size: 0.6875rem;
   color: var(--label-3);
+}
+
+.navLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.navIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.history {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+}
+
+.historyGroup + .historyGroup {
+  margin-top: 0.75rem;
+}
+
+.historyItem {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-xs);
+}
+
+.historyItem:hover {
+  background: rgba(var(--label-rgb), 0.06);
+}
+
+.historyItemActive,
+.historyItemActive:hover {
+  background: rgba(var(--label-rgb), 0.1);
+}
+
+.historyTitle {
+  flex: 1;
+  min-width: 0;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: none;
+  background: none;
+  color: var(--label);
+  font-size: 0.8125rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.deleteButton {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.125rem;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--label-3);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.historyItem:hover .deleteButton,
+.deleteButton:focus-visible {
+  opacity: 1;
+}
+
+.deleteButton:hover {
+  color: var(--label);
+  background: rgba(var(--label-rgb), 0.08);
+}
+
+.settingsActive {
+  color: var(--accent);
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  z-index: 22;
+  cursor: col-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resizeHandle:hover,
+.resizeHandle:focus-visible {
+  background: rgba(var(--accent-rgb), 0.35);
+  box-shadow: none;
 }

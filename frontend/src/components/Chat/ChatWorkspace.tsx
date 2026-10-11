@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import type { ChatMessage } from '../../types'
-import { AppIcon, BookmarkIcon, CalendarIcon, ContactIcon, DocumentIcon, SearchIcon } from '../common/Icons'
+import { useLiveSearch } from '../../hooks/useLiveSearch'
+import type { ChatMessage, SearchResult } from '../../types'
+import { AppIcon, AudioIcon, BookmarkIcon, CalendarIcon, ContactIcon, DocumentIcon, SearchIcon, VideoIcon } from '../common/Icons'
 import styles from './ChatWorkspace.module.css'
 
 interface ChatWorkspaceProps {
@@ -11,6 +12,7 @@ interface ChatWorkspaceProps {
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
   onRevealTarget: (path: string) => void
   onLaunchTarget: (path: string) => void
+  onOpenResult: (item: SearchResult) => void
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
@@ -21,14 +23,35 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onContextMenu,
   onRevealTarget,
   onLaunchTarget,
+  onOpenResult,
 }) => {
   const [inputText, setInputText] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(true)
+  const [selected, setSelected] = useState(-1)
+  const { flatItems } = useLiveSearch(inputText, 8)
+  const suggestions = showSuggestions ? flatItems.slice(0, 6) : []
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (!suggestions.length) return
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      const n = suggestions.length
+      setSelected((cur) => (e.key === 'ArrowDown' ? (cur + 1 >= n ? -1 : cur + 1) : cur - 1 < -1 ? n - 1 : cur - 1))
+    } else if (e.key === 'Enter' && selected >= 0) {
+      e.preventDefault()
+      onOpenResult(suggestions[selected])
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+      setSelected(-1)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!inputText.trim() || isLoading) return
     onSendMessage(inputText.trim())
     setInputText('')
+    setSelected(-1)
   }
 
   const renderEntityIcon = (type?: string, filename = '') => {
@@ -37,6 +60,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     if (t === 'app' || fn.endsWith('.app')) return <AppIcon className="w-3.5 h-3.5 text-indigo-500" />
     if (t === 'contact' || fn.endsWith('.vcf')) return <ContactIcon className="w-3.5 h-3.5 text-emerald-500" />
     if (t === 'calendar' || fn.endsWith('.ics')) return <CalendarIcon className="w-3.5 h-3.5 text-rose-500" />
+    if (t === 'video') return <VideoIcon className="w-3.5 h-3.5 text-rose-500" />
+    if (t === 'audio') return <AudioIcon className="w-3.5 h-3.5 text-indigo-500" />
     if (t === 'webloc' || fn.endsWith('.webloc')) return <BookmarkIcon className="w-3.5 h-3.5 text-sky-500" />
     return <DocumentIcon className="w-3.5 h-3.5 text-blue-500" />
   }
@@ -153,13 +178,44 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       </div>
 
       <div className={styles.inputBarWrapper}>
+        {suggestions.length > 0 && (
+          <div id="chat-suggestions" role="listbox" aria-label="Matching files" className={styles.suggestions}>
+            <div className={styles.suggestionsHeader}>Matching files · ↑↓ to pick, ↵ opens · Esc hides</div>
+            {suggestions.map((item, idx) => (
+              <div
+                key={item.path || idx}
+                id={`chat-suggestion-${idx}`}
+                role="option"
+                aria-selected={idx === selected}
+                className={`${styles.suggestion} ${idx === selected ? styles.suggestionSelected : ''}`}
+                onMouseEnter={() => setSelected(idx)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onOpenResult(item)}
+                onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
+              >
+                {renderEntityIcon(item.type ?? item.file_type, item.filename)}
+                <span className={styles.suggestionTitle}>{item.filename}</span>
+                <span className={styles.suggestionPath}>{item.excerpt || item.path}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <form className={styles.inputBar} onSubmit={handleSubmit}>
           <input
             type="text"
             className={styles.textInput}
             placeholder="Ask anything, find photos, or search files..."
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => {
+              setInputText(e.target.value)
+              setShowSuggestions(true)
+              setSelected(-1)
+            }}
+            onKeyDown={handleInputKeyDown}
+            role="combobox"
+            aria-expanded={suggestions.length > 0}
+            aria-controls="chat-suggestions"
+            aria-activedescendant={selected >= 0 ? `chat-suggestion-${selected}` : undefined}
           />
           <button type="submit" className={styles.sendButton} disabled={!inputText.trim() || isLoading}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">

@@ -72,7 +72,9 @@ class LiveWatcher:
         self.on_indexed = on_indexed
         self.observer = watchdog.observers.Observer()
         self.handler = DebouncedHandler(self._handle_file_event)
+        self.watches: Dict[str, Any] = {}
         self.watched_paths: Set[str] = set()
+        self.lock = threading.Lock()
 
     def _handle_file_event(self, file_path: str, event_type: str) -> None:
         p = Path(file_path)
@@ -96,17 +98,41 @@ class LiveWatcher:
             self.on_indexed(p.name, "indexed")
 
     def sync_sources(self) -> None:
-        sources = storage.get_configured_sources()
-        target_paths = {s["path"] for s in sources if s.get("source_type") != "macos_system" and os.path.exists(s["path"])}
+        with self.lock:
+            settings = storage.get_app_settings()
+            always_on = settings.get("always_on_scanning", True)
 
-        # Add new sources
-        for path in target_paths:
-            if path not in self.watched_paths:
+            if not always_on:
+                target_paths: Set[str] = set()
+            else:
+                sources = storage.get_configured_sources()
+                target_paths = {
+                    s["path"]
+                    for s in sources
+                    if s.get("source_type") != "macos_system"
+                    and s.get("watch_enabled", True)
+                    and os.path.exists(s["path"])
+                }
+
+            # Unschedule paths that should no longer be watched
+            current_paths = set(self.watches.keys())
+            for path in current_paths - target_paths:
+                watch = self.watches.pop(path, None)
+                if watch:
+                    try:
+                        self.observer.unschedule(watch)
+                    except Exception:
+                        pass
+
+            # Schedule new paths
+            for path in target_paths - current_paths:
                 try:
-                    self.observer.schedule(self.handler, path, recursive=True)
-                    self.watched_paths.add(path)
+                    w = self.observer.schedule(self.handler, path, recursive=True)
+                    self.watches[path] = w
                 except Exception:
                     pass
+
+            self.watched_paths = set(self.watches.keys())
 
     def start(self) -> None:
         self.sync_sources()

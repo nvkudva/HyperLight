@@ -1,0 +1,42 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 15rem;
+  height: 1.5rem;
+  padding: 0 0.625rem 0 0.375rem;
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-capsule);
+  background: rgba(var(--surface-rgb), 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  color: var(--label-2);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.pill:hover {
+  color: var(--label);
+}
+
+.ring {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) var(--p), var(--fill) 0);
+  mask: radial-gradient(circle, transparent 3.5px, #000 4px);
+  -webkit-mask: radial-gradient(circle, transparent 3.5px, #000 4px);
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+}

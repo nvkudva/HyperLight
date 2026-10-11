@@ -1,10 +1,13 @@
 import glob
+import hashlib
 import html
 import json
 import mimetypes
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
@@ -210,6 +213,14 @@ class LaunchRequest(pydantic.BaseModel):
 class GoogleTokenRequest(pydantic.BaseModel):
     access_token: str
     refresh_token: Optional[str] = ""
+
+class SettingsUpdateRequest(pydantic.BaseModel):
+    always_on_scanning: Optional[bool] = None
+
+class SourceWatchRequest(pydantic.BaseModel):
+    path: str
+    enabled: bool
+
 
 FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "index.html"
@@ -523,6 +534,34 @@ def api_chat(req: ChatRequest) -> Dict[str, Any]:
         "sources": qa_result["sources"],
     }
 
+
+@app.get("/api/settings")
+def api_get_settings() -> Dict[str, Any]:
+    settings = storage.get_app_settings()
+    return {
+        "always_on_scanning": settings.get("always_on_scanning", True),
+        "watched_paths_count": len(getattr(live_watcher, "watches", {})),
+    }
+
+@app.post("/api/settings")
+def api_update_settings(req: SettingsUpdateRequest) -> Dict[str, Any]:
+    updates = {}
+    if req.always_on_scanning is not None:
+        updates["always_on_scanning"] = req.always_on_scanning
+    if updates:
+        storage.update_app_settings(updates)
+        live_watcher.sync_sources()
+    return api_get_settings()
+
+@app.post("/api/sources/watch")
+def api_set_source_watch(req: SourceWatchRequest) -> Dict[str, Any]:
+    storage.set_source_watch(req.path, req.enabled)
+    live_watcher.sync_sources()
+    return {
+        "success": True,
+        "sources": storage.get_configured_sources(),
+    }
+
 @app.get("/api/sources")
 def api_get_sources() -> Dict[str, Any]:
     sources = storage.get_configured_sources()
@@ -666,6 +705,39 @@ def api_thumbnail(path: str) -> Response:
         return Response(content=content, media_type=mime)
     except Exception:
         return Response(status_code=500)
+
+PREVIEW_CACHE_DIR = Path.home() / ".smart_personal_search" / "previews"
+
+@app.get("/api/media")
+def api_media(path: str) -> Response:
+    file_path = Path(path).resolve()
+    if not file_path.is_file() or file_path.suffix.lower() not in scanner.VIDEO_EXTENSIONS | scanner.AUDIO_EXTENSIONS:
+        return Response(status_code=404)
+    return fastapi.responses.FileResponse(file_path)
+
+@app.get("/api/preview")
+def api_preview(path: str, size: int = 800) -> Response:
+    file_path = Path(path).resolve()
+    if not file_path.is_file():
+        return Response(status_code=404)
+    stat = file_path.stat()
+    key = hashlib.sha1(f"{file_path}:{stat.st_mtime_ns}:{size}".encode()).hexdigest()
+    cached = PREVIEW_CACHE_DIR / f"{key}.png"
+    if not cached.exists():
+        PREVIEW_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                subprocess.run(
+                    ["qlmanage", "-t", "-s", str(size), "-o", tmp, str(file_path)],
+                    capture_output=True, timeout=10, check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return Response(status_code=404)
+            produced = next(Path(tmp).glob("*.png"), None)
+            if not produced:
+                return Response(status_code=404)
+            shutil.move(str(produced), cached)
+    return Response(content=cached.read_bytes(), media_type="image/png", headers={"Cache-Control": "max-age=3600"})
 
 def main() -> None:
     uvicorn.run(app, host="127.0.0.1", port=8585)

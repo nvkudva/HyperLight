@@ -17,6 +17,12 @@ export interface ConfiguredSource {
   source_type: string
   items_count: number
   last_scanned?: number
+  watch_enabled?: boolean
+}
+
+export interface AppSettings {
+  always_on_scanning: boolean
+  watched_paths_count?: number
 }
 
 export interface GoogleUser {
@@ -76,4 +82,11 @@ export interface ContextMenuState {
   y: number
   path: string
   filename: string
+}
+
+export interface Conversation {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  updatedAt: number
 }

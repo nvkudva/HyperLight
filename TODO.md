@@ -45,17 +45,8 @@
 - [x] Index local Apple Mail (.emlx) via scanner with Full Disk Access check
 - [x] Queue indexing jobs instead of rejecting while busy
 - [x] Add 3-screen onboarding wizard (Mac sources, Google, ready)
+- [x] Eliminate terminal popup on icon click: updated Dock to target proper `.app` bundle and added background daemon spawning in native app wrappers
+- [x] Per-source Always-on scanning controls: added global toggle, per-folder continuous sync toggles, and dynamic watcher scheduling
+- [x] Complete Settings page redesign: replaced monolithic list with intuitive segmented categories (Sources, Real-Time Scanning, Cloud & Accounts, Maintenance), Apple-style switches, and quick-add action grid
 - [ ] Learn from the reference codebase the user mentioned (path not yet provided)
 - [ ] Sign in with a new Desktop OAuth client and verify Drive, Gmail and Photos Picker sync end to end
-- [x] Phase 1: make onboarding local-only (Mac folders, Apple Mail, Drive for desktop); move Google sign-in to Settings
-- [x] Index cloud-only (dataless) Drive-for-desktop files by name without downloading them
-- [ ] Phase 2: verify Apple Mail indexing on a real mailbox after granting Full Disk Access
-- [ ] Phase 3: decide Google Photos route (Takeout import for full library vs Picker sign-in)
-- [x] UI P1: native Liquid Glass window, system color tokens with dark mode, focus rings, reduced motion/transparency, 11px min text
-- [ ] UI P1: verify light/dark and glass look in Tauri window on macOS 27
-- [x] UI P2: solid content cards, Spotlight HUD (no scrim, 22px field, accent selected row, arrow keys, aria), capsule buttons/composer, 8pt onboarding spacing, Lucide icons at 1.5 stroke
-- [x] UI P3: delete unused App.css, radius tokens, spring easing, sentence-case section headers
-- [ ] Evaluate Konsta UI for future iOS/Android Tauri builds
-- [x] Google v1: bundled OAuth client (google_client.json at repo root), Photos Picker-only scopes, Drive via Drive for desktop, Gmail via Apple Mail
-- [ ] Create Google Cloud project + Desktop OAuth client, enable Photos Picker API, save JSON as google_client.json at repo root
-- [ ] Submit OAuth consent screen for verification (Photos Picker scope: privacy policy, homepage, demo video)

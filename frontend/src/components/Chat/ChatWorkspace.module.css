@@ -227,6 +227,7 @@
 
 .inputBarWrapper {
   position: absolute;
+  z-index: 5;
   bottom: 1.25rem;
   left: 2rem;
   right: 2rem;
@@ -261,6 +262,10 @@
   outline: none;
 }
 
+.textInput:focus-visible {
+  box-shadow: none;
+}
+
 .textInput::placeholder {
   color: var(--label-3);
 }
@@ -283,4 +288,74 @@
 .sendButton:disabled {
   background: var(--label-3);
   cursor: default;
+}
+
+.suggestions {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: calc(100% + 0.5rem);
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 0.375rem;
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-md);
+  background: rgba(var(--surface-rgb), 0.92);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.3);
+}
+
+.suggestionsHeader {
+  padding: 0.25rem 0.5rem 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--r-sm);
+  font-size: 0.8125rem;
+  cursor: default;
+}
+
+.suggestionSelected {
+  background: var(--accent);
+}
+
+.suggestionSelected,
+.suggestionSelected .suggestionPath,
+.suggestionSelected svg {
+  color: #fff;
+}
+
+.suggestionTitle {
+  flex-shrink: 0;
+  max-width: 45%;
+  font-weight: 500;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionPath {
+  min-width: 0;
+  font-size: 0.6875rem;
+  color: var(--label-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion svg,
+.entityLeft svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
 }

@@ -1,4 +1,4 @@
-import type { ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchResult } from './types'
+import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchResult } from './types'
 
 export async function fetchStatus(): Promise<{ total: number; photos: number; documents: number; sources: Record<string, number> }> {
   const res = await fetch('/api/status')
@@ -7,6 +7,29 @@ export async function fetchStatus(): Promise<{ total: number; photos: number; do
 
 export async function fetchSources(): Promise<{ sources: ConfiguredSource[] }> {
   const res = await fetch('/api/sources')
+  return res.json()
+}
+
+export async function fetchAppSettings(): Promise<AppSettings> {
+  const res = await fetch('/api/settings')
+  return res.json()
+}
+
+export async function updateAppSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
+  const res = await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+  return res.json()
+}
+
+export async function toggleSourceWatch(path: string, enabled: boolean): Promise<{ success: boolean; sources: ConfiguredSource[] }> {
+  const res = await fetch('/api/sources/watch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, enabled }),
+  })
   return res.json()
 }
 
