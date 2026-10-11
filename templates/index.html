@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Personal Search</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --glass-bg: rgba(255, 255, 255, 0.70);
+      --glass-border: rgba(255, 255, 255, 0.75);
+      --card-bg: rgba(255, 255, 255, 0.62);
+      --card-border: rgba(255, 255, 255, 0.85);
+      --apple-blue: #0071e3;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", -apple-system-subheadline, sans-serif;
+      background: radial-gradient(circle at 10% 20%, #f0f4f9 0%, #e2e8f2 50%, #d5dde9 100%);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* macOS 27 Specular Liquid Glass */
+    .apple-glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(48px) saturate(210%);
+      -webkit-backdrop-filter: blur(48px) saturate(210%);
+      border: 1px solid var(--glass-border);
+      box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 20px 48px -12px rgba(15, 23, 42, 0.08);
+    }
+
+    .apple-glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border: 1px solid var(--card-border);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.9), 0 2px 8px -2px rgba(15, 23, 42, 0.03);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .apple-glass-card:hover {
+      transform: translateY(-1px);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 1), 0 8px 24px -4px rgba(15, 23, 42, 0.07);
+      border-color: rgba(0, 113, 227, 0.35);
+    }
+
+    .icon-squircle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.55);
+    }
+
+    #appleContextMenu {
+      box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), 0 20px 40px -8px rgba(15, 23, 42, 0.16);
+    }
+  </style>
+</head>
+<body class="h-screen flex overflow-hidden p-2.5 md:p-3 select-none">
+
+  <!-- Main Window Glass Container -->
+  <div class="apple-glass w-full h-full rounded-2xl flex overflow-hidden relative shadow-2xl">
+
+    <!-- Minimalist macOS 27 Sidebar -->
+    <aside class="w-64 border-r border-slate-200/50 flex flex-col justify-between hidden md:flex shrink-0 bg-white/30 backdrop-blur-2xl">
+      <div class="p-3.5 flex flex-col flex-1 overflow-hidden">
+        
+        <!-- App Title Header -->
+        <div class="flex items-center space-x-2.5 px-2 py-2 mb-3">
+          <div class="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#0071e3] to-[#4338ca] flex items-center justify-center text-white text-xs font-semibold shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h1 class="text-xs font-semibold text-slate-900 tracking-tight truncate">Smart Search</h1>
+            <p class="text-[10px] text-slate-500 font-medium truncate">Apple Silicon &bull; Gemma 2</p>
+          </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="space-y-1 mb-4">
+          <button
+            onclick="openSpotlight()"
+            class="w-full flex items-center justify-between text-xs font-medium text-slate-700 hover:text-[#0071e3] hover:bg-white/70 px-2.5 py-1.5 rounded-xl transition group"
+          >
+            <div class="flex items-center space-x-2">
+              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-[#0071e3] transition" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5"></path>
+              </svg>
+              <span>Spotlight</span>
+            </div>
+            <kbd class="text-[9px] bg-slate-100/90 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+          </button>
+
+          <button
+            onclick="startNewChat()"
+            class="w-full flex items-center space-x-2 text-xs font-medium text-slate-700 hover:text-[#0071e3] hover:bg-white/70 px-2.5 py-1.5 rounded-xl transition group"
+          >
+            <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-[#0071e3] transition" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+            </svg>
+            <span>New Search</span>
+          </button>
+        </div>
+
+        <!-- Sources Section Header -->
+        <div class="flex items-center justify-between px-2 mb-1.5">
+          <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Sources</span>
+          <button
+            onclick="openSettingsModal()"
+            title="Add Source"
+            class="w-5 h-5 rounded-md hover:bg-white/80 flex items-center justify-center text-slate-500 hover:text-slate-800 transition"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Sources List -->
+        <div id="sidebarSourcesList" class="flex-1 overflow-y-auto custom-scroll space-y-0.5 pr-1 text-xs">
+          <div class="text-slate-400 text-[11px] py-1 px-2">Loading...</div>
+        </div>
+
+      </div>
+
+      <!-- Footer: Live Status & Settings -->
+      <div class="p-2.5 border-t border-slate-200/40 bg-white/20 flex items-center justify-between text-xs">
+        <div class="flex items-center space-x-2 min-w-0 px-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+          <span id="sidebarStats" class="text-[11px] font-medium text-slate-600 truncate">Syncing...</span>
+        </div>
+        <button
+          onclick="openSettingsModal()"
+          title="Settings & Sources"
+          class="w-7 h-7 rounded-xl hover:bg-white/80 flex items-center justify-center text-slate-500 hover:text-slate-800 transition shrink-0"
+        >
+          <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col bg-white/40 backdrop-blur-md relative overflow-hidden">
+
+      <!-- Top Glass Navbar -->
+      <header class="h-12 border-b border-slate-200/40 flex items-center justify-between px-5 bg-white/25 backdrop-blur-lg shrink-0">
+        <div class="flex items-center space-x-3">
+          <button onclick="openSettingsModal()" class="md:hidden text-slate-600 hover:text-slate-900">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path>
+            </svg>
+          </button>
+          <span class="font-semibold text-xs text-slate-800">Personal Search</span>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button
+            onclick="openSpotlight()"
+            class="flex items-center space-x-1.5 bg-white/70 hover:bg-white text-slate-600 text-xs font-medium px-2.5 py-1 rounded-xl border border-slate-200/60 shadow-2xs transition"
+          >
+            <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5"></path>
+            </svg>
+            <span>Spotlight</span>
+            <kbd class="text-[9px] text-slate-400 font-mono">⌘K</kbd>
+          </button>
+          <button
+            onclick="openSettingsModal()"
+            class="bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-medium px-2.5 py-1 rounded-xl shadow-2xs transition flex items-center space-x-1"
+          >
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+            </svg>
+            <span>Add</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Background Indexing Progress Bar -->
+      <div id="indexingProgressBanner" class="hidden bg-blue-50/80 border-b border-blue-100 px-5 py-2 flex items-center justify-between shrink-0 transition-all">
+        <div class="flex-1 mr-4">
+          <div class="flex items-center justify-between text-xs text-blue-900 mb-1 font-medium">
+            <span id="indexingStatusText" class="truncate text-[11px]">Indexing...</span>
+            <span id="indexingPercentText" class="font-mono text-blue-700 ml-2 font-bold text-[11px]">0%</span>
+          </div>
+          <div class="w-full bg-blue-200/50 h-1 rounded-full overflow-hidden">
+            <div id="indexingProgressBar" class="bg-[#0071e3] h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+        <button
+          onclick="stopIndexingJob()"
+          class="text-red-600 hover:text-red-700 text-xs font-medium px-2 py-0.5 rounded transition shrink-0"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <!-- Messages / Results Scroll Canvas -->
+      <div id="chatMessages" class="flex-1 overflow-y-auto custom-scroll p-5 space-y-5">
+
+        <!-- Minimalist Apple Hero State -->
+        <div id="welcomeBanner" class="max-w-xl mx-auto my-14 text-center">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0071e3] to-[#4338ca] text-white shadow-md mb-3.5">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold text-slate-900 tracking-tight">Search anything on your Mac</h2>
+          <p class="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+            Instant semantic search across files, photos, contacts, calendars, and apps.
+          </p>
+
+          <!-- Clean Suggestion Chips with SF Vector Icons -->
+          <div class="flex flex-wrap items-center justify-center gap-2 mt-5">
+            <button
+              onclick="submitQuickPrompt('Find documents modified this week')"
+              class="apple-glass-card px-3 py-1.5 rounded-full text-xs text-slate-700 hover:text-[#0071e3] flex items-center space-x-1.5 transition"
+            >
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5M9 13h6M9 17h4"></path>
+              </svg>
+              <span>Recent documents</span>
+            </button>
+            <button
+              onclick="submitQuickPrompt('Find photos and images')"
+              class="apple-glass-card px-3 py-1.5 rounded-full text-xs text-slate-700 hover:text-[#0071e3] flex items-center space-x-1.5 transition"
+            >
+              <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"></path>
+              </svg>
+              <span>Photos & Images</span>
+            </button>
+            <button
+              onclick="submitQuickPrompt('Find meetings or calendar events')"
+              class="apple-glass-card px-3 py-1.5 rounded-full text-xs text-slate-700 hover:text-[#0071e3] flex items-center space-x-1.5 transition"
+            >
+              <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"></path>
+              </svg>
+              <span>Calendar events</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Sleek Floating Input Bar -->
+      <div class="p-3.5 bg-white/40 backdrop-blur-lg border-t border-slate-200/40 shrink-0">
+        <form id="chatForm" onsubmit="handleChatSubmit(event)" class="max-w-2xl mx-auto flex items-center space-x-2">
+          <div class="flex-1 relative">
+            <input
+              type="text"
+              id="chatInput"
+              placeholder="Search files, photos, contacts, or ask anything..."
+              class="w-full bg-white/80 border border-slate-200/70 rounded-xl pl-3.5 pr-9 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0071e3]/30 focus:border-[#0071e3] shadow-2xs transition"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              onclick="openSpotlight()"
+              title="Spotlight HUD (⌘K)"
+              class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 transition text-[11px] font-mono"
+            >
+              ⌘K
+            </button>
+          </div>
+          <button
+            type="submit"
+            id="sendBtn"
+            class="bg-[#0071e3] hover:bg-[#0077ed] text-white font-medium p-2.5 rounded-xl shadow-2xs transition flex items-center justify-center shrink-0"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Native Apple Right-Click Context Menu -->
+  <div
+    id="appleContextMenu"
+    class="fixed hidden z-50 w-52 apple-glass rounded-xl shadow-xl p-1 text-xs text-slate-800 select-none border border-white/80"
+  >
+    <div class="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate" id="ctxMenuTitle">
+      Item Actions
+    </div>
+    <div class="h-px bg-slate-200/60 my-0.5"></div>
+    <button onclick="ctxRevealInFinder()" class="w-full flex items-center space-x-2 px-2 py-1.5 rounded-lg hover:bg-[#0071e3] hover:text-white transition group text-left">
+      <svg class="w-3.5 h-3.5 opacity-80" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+      </svg>
+      <span class="flex-1 font-medium">Reveal in Finder</span>
+      <span class="text-[9px] opacity-60 font-mono">⌘R</span>
+    </button>
+    <button onclick="ctxOpenDefault()" class="w-full flex items-center space-x-2 px-2 py-1.5 rounded-lg hover:bg-[#0071e3] hover:text-white transition group text-left">
+      <svg class="w-3.5 h-3.5 opacity-80" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+      </svg>
+      <span class="flex-1 font-medium">Open File</span>
+      <span class="text-[9px] opacity-60 font-mono">↵</span>
+    </button>
+    <button onclick="ctxCopyPath()" class="w-full flex items-center space-x-2 px-2 py-1.5 rounded-lg hover:bg-[#0071e3] hover:text-white transition group text-left">
+      <svg class="w-3.5 h-3.5 opacity-80" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+      </svg>
+      <span class="flex-1 font-medium">Copy Full Path</span>
+      <span class="text-[9px] opacity-60 font-mono">⌘C</span>
+    </button>
+  </div>
+
+  <!-- Spotlight HUD Floating Overlay (macOS Spotlight Style) -->
+  <div id="spotlightOverlay" class="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50 flex items-start justify-center pt-24 hidden" onclick="closeSpotlightOnBackdrop(event)">
+    <div class="apple-glass rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-white/80 animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Search Input -->
+      <div class="p-3.5 border-b border-slate-200/50 flex items-center space-x-2.5 bg-white/50">
+        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5"></path>
+        </svg>
+        <input
+          type="text"
+          id="spotlightInput"
+          placeholder="Spotlight Search..."
+          class="flex-1 bg-transparent text-sm font-medium text-slate-900 focus:outline-none placeholder-slate-400"
+          autocomplete="off"
+          oninput="handleSpotlightInput(event)"
+          onkeydown="handleSpotlightKeydown(event)"
+        />
+        <kbd class="text-[9px] bg-slate-200/70 text-slate-600 px-1.5 py-0.5 rounded font-mono">ESC</kbd>
+      </div>
+
+      <!-- Results List -->
+      <div id="spotlightResults" class="max-h-80 overflow-y-auto custom-scroll p-2.5 space-y-2">
+        <div class="text-xs text-slate-400 py-6 text-center">
+          Type to search apps, contacts, events, files, and photos...
+        </div>
+      </div>
+
+      <!-- Status Bar -->
+      <div class="px-3.5 py-2 bg-slate-50/60 border-t border-slate-200/50 flex items-center justify-between text-[11px] text-slate-400">
+        <span id="spotlightMatchSummary">0 items</span>
+        <span>↵ Open &bull; ⌘R Reveal &bull; Esc Close</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Settings / Sources Sheet Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-slate-900/25 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden" onclick="closeSettingsOnBackdrop(event)">
+    <div class="apple-glass rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto custom-scroll border border-white/80 p-5 animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200/50 mb-4">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900">Connected Sources</h2>
+          <p class="text-[11px] text-slate-500">Folders and services indexed for instant search.</p>
+        </div>
+        <button onclick="closeSettingsModal()" class="w-6 h-6 rounded-full hover:bg-slate-200/60 flex items-center justify-center text-slate-500 text-sm font-bold transition">
+          &times;
+        </button>
+      </div>
+
+      <!-- Direct Path Input & Add Bar -->
+      <div class="mb-4">
+        <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Add Folder / Cloud / Network Share</label>
+        <div class="flex items-center space-x-2">
+          <input
+            type="text"
+            id="manualPathInput"
+            placeholder="Type or paste path (e.g. ~/Documents, /Volumes/Share, ~/Drive)..."
+            class="flex-1 bg-white/85 border border-slate-200/80 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0071e3]/30 focus:border-[#0071e3] transition"
+            onkeydown="if(event.key === 'Enter'){ addManualFolder(); }"
+          />
+          <button
+            onclick="addManualFolder()"
+            class="bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xs transition shrink-0"
+          >
+            Add
+          </button>
+        </div>
+        <div id="settingsToast" class="text-[11px] p-2 rounded-xl mt-2 hidden font-medium transition-all"></div>
+      </div>
+
+      <!-- Google Account (Drive & Photos Cloud) Section -->
+      <div id="googleAccountSection" class="apple-glass-card p-3 rounded-2xl mb-4 border border-white/70">
+        <div class="flex items-center justify-between text-xs text-slate-400 py-1">
+          <span>Loading Google Account status...</span>
+        </div>
+      </div>
+
+      <!-- Quick Connect Buttons with SF Symbols -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        <button
+          onclick="browseLocalFolder()"
+          class="apple-glass-card p-3 rounded-xl text-center hover:border-[#0071e3] transition flex flex-col items-center justify-center group"
+        >
+          <div class="w-8 h-8 icon-squircle bg-blue-50/70 text-blue-600 mb-1.5 group-hover:scale-105 transition">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M2.5 5A2.5 2.5 0 0 1 5 2.5h3.697a2.5 2.5 0 0 1 1.768.732l1.303 1.304c.47.469 1.106.732 1.768.732H19A2.5 2.5 0 0 1 21.5 7.768V18A2.5 2.5 0 0 1 19 20.5H5A2.5 2.5 0 0 1 2.5 18V5z"/>
+            </svg>
+          </div>
+          <div class="font-semibold text-slate-800 text-[11px]">Browse Finder</div>
+        </button>
+
+        <button
+          onclick="connectGoogleDriveAuto()"
+          class="apple-glass-card p-3 rounded-xl text-center hover:border-[#0071e3] transition flex flex-col items-center justify-center group"
+        >
+          <div class="w-8 h-8 icon-squircle bg-sky-50/70 text-sky-600 mb-1.5 group-hover:scale-105 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 003.535-5.88A4.5 4.5 0 0014 6.05 4.988 4.988 0 008.5 9 4.498 4.498 0 003 15z"></path>
+            </svg>
+          </div>
+          <div class="font-semibold text-slate-800 text-[11px]">Google Drive</div>
+          <div class="text-[9px] text-slate-400 truncate max-w-full" id="gdriveDetectLabel">Connect Drive</div>
+        </button>
+
+        <button
+          onclick="connectNetworkVolumes()"
+          class="apple-glass-card p-3 rounded-xl text-center hover:border-[#0071e3] transition flex flex-col items-center justify-center group"
+        >
+          <div class="w-8 h-8 icon-squircle bg-slate-100/70 text-slate-700 mb-1.5 group-hover:scale-105 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <rect x="2" y="4" width="20" height="6" rx="2"></rect>
+              <rect x="2" y="14" width="20" height="6" rx="2"></rect>
+              <circle cx="6" cy="7" r="1" fill="currentColor"></circle>
+              <circle cx="6" cy="17" r="1" fill="currentColor"></circle>
+            </svg>
+          </div>
+          <div class="font-semibold text-slate-800 text-[11px]">Network Share</div>
+          <div class="text-[9px] text-slate-400 truncate max-w-full" id="networkVolLabel">Scan /Volumes</div>
+        </button>
+
+        <button
+          onclick="indexInstalledApps()"
+          class="apple-glass-card p-3 rounded-xl text-center hover:border-[#0071e3] transition flex flex-col items-center justify-center group"
+        >
+          <div class="w-8 h-8 icon-squircle bg-indigo-50/70 text-indigo-600 mb-1.5 group-hover:scale-105 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="2"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="2"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+            </svg>
+          </div>
+          <div class="font-semibold text-slate-800 text-[11px]">macOS Apps</div>
+          <div class="text-[9px] text-slate-400 truncate max-w-full">Index Apps</div>
+        </button>
+      </div>
+
+      <!-- Quick Presets -->
+      <div class="flex items-center space-x-1.5 mb-4 overflow-x-auto pb-1 text-xs">
+        <span class="text-[10px] text-slate-400 uppercase font-semibold shrink-0 mr-1">Presets:</span>
+        <button onclick="addPresetFolder('~/Documents', 'Documents')" class="bg-white/80 hover:bg-white text-slate-600 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 transition shrink-0">
+          Documents
+        </button>
+        <button onclick="addPresetFolder('~/Desktop', 'Desktop')" class="bg-white/80 hover:bg-white text-slate-600 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 transition shrink-0">
+          Desktop
+        </button>
+        <button onclick="addPresetFolder('~/Downloads', 'Downloads')" class="bg-white/80 hover:bg-white text-slate-600 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 transition shrink-0">
+          Downloads
+        </button>
+        <button onclick="addPresetFolder('~/Pictures', 'Pictures')" class="bg-white/80 hover:bg-white text-slate-600 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 transition shrink-0">
+          Pictures
+        </button>
+      </div>
+
+      <!-- Active Sources List -->
+      <div class="mb-4">
+        <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Locations</div>
+        <div id="configuredSourcesList" class="space-y-1.5 max-h-48 overflow-y-auto custom-scroll pr-1">
+          <div class="text-xs text-slate-400 text-center py-4">No sources configured.</div>
+        </div>
+      </div>
+
+      <!-- Reset Database Action -->
+      <div class="pt-3 border-t border-slate-200/50 flex items-center justify-between text-xs">
+        <span class="text-[11px] text-slate-400">Wipe search index to start fresh</span>
+        <button
+          onclick="clearDatabase()"
+          class="text-red-500 hover:text-red-600 text-[11px] font-medium px-2 py-1 rounded transition"
+        >
+          Reset Database
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Photo Lightbox Modal -->
+  <div id="imageLightbox" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden" onclick="closeLightbox()">
+    <div class="max-w-4xl max-h-[90vh] flex flex-col items-center relative" onclick="event.stopPropagation()">
+      <button onclick="closeLightbox()" class="absolute -top-10 right-0 text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      <img id="lightboxImg" src="" alt="Full preview" class="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl" />
+      <div class="mt-3 flex items-center space-x-3 text-white text-xs">
+        <span id="lightboxCaption" class="font-medium truncate max-w-md"></span>
+        <button onclick="copyLightboxPath()" class="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg transition">Copy Path</button>
+        <button onclick="revealLightboxInFinder()" class="bg-[#0071e3] hover:bg-[#0077ed] px-2.5 py-1 rounded-lg transition">Reveal in Finder</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentLightboxPath = '';
+    let currentContextPath = '';
+    let currentContextFilename = '';
+    let spotlightDebounce = null;
+
+    // --- SF Symbol Vector Icons Registry ---
+    const ICONS = {
+      app: `<div class="w-6 h-6 icon-squircle bg-indigo-50/70 text-indigo-600 shrink-0"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect></svg></div>`,
+      contact: `<div class="w-6 h-6 icon-squircle bg-amber-50/70 text-amber-600 shrink-0"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path stroke-linecap="round" stroke-linejoin="round" d="M6 20v-1a6 6 0 0112 0v1"></path></svg></div>`,
+      calendar: `<div class="w-6 h-6 icon-squircle bg-rose-50/70 text-rose-600 shrink-0"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"></rect><path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"></path></svg></div>`,
+      document: `<div class="w-6 h-6 icon-squircle bg-blue-50/70 text-blue-600 shrink-0"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5M9 13h6M9 17h4"></path></svg></div>`,
+      webloc: `<div class="w-6 h-6 icon-squircle bg-sky-50/70 text-sky-600 shrink-0"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a14.3 14.3 0 010 18M12 3a14.3 14.3 0 000 18"></path></svg></div>`,
+      folder: `<div class="w-6 h-6 icon-squircle bg-blue-50/70 text-blue-600 shrink-0"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.5 5A2.5 2.5 0 0 1 5 2.5h3.697a2.5 2.5 0 0 1 1.768.732l1.303 1.304c.47.469 1.106.732 1.768.732H19A2.5 2.5 0 0 1 21.5 7.768V18A2.5 2.5 0 0 1 19 20.5H5A2.5 2.5 0 0 1 2.5 18V5z"/></svg></div>`
+    };
+
+    // --- Native Context Menu Logic ---
+    window.addEventListener('click', (e) => {
+      document.getElementById('appleContextMenu').classList.add('hidden');
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.getElementById('appleContextMenu').classList.add('hidden');
+        closeSpotlight();
+        closeSettingsModal();
+        closeLightbox();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openSpotlight();
+      }
+    });
+
+    function showContextMenu(e, path, filename) {
+      e.preventDefault();
+      e.stopPropagation();
+      currentContextPath = path;
+      currentContextFilename = filename;
+
+      const menu = document.getElementById('appleContextMenu');
+      document.getElementById('ctxMenuTitle').innerText = filename;
+      
+      menu.style.left = `${Math.min(e.clientX, window.innerWidth - 220)}px`;
+      menu.style.top = `${Math.min(e.clientY, window.innerHeight - 150)}px`;
+      menu.classList.remove('hidden');
+    }
+
+    async function ctxRevealInFinder() {
+      if (!currentContextPath) return;
+      await fetch('/api/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: currentContextPath })
+      });
+      document.getElementById('appleContextMenu').classList.add('hidden');
+    }
+
+    async function ctxOpenDefault() {
+      if (!currentContextPath) return;
+      await fetch('/api/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: currentContextPath })
+      });
+      document.getElementById('appleContextMenu').classList.add('hidden');
+    }
+
+    function ctxCopyPath() {
+      if (!currentContextPath) return;
+      navigator.clipboard.writeText(currentContextPath);
+      document.getElementById('appleContextMenu').classList.add('hidden');
+    }
+
+    // --- Chat Submissions ---
+    async function handleChatSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      if (!message) return;
+
+      appendUserBubble(message);
+      input.value = '';
+      document.getElementById('welcomeBanner')?.remove();
+
+      const typingId = appendTypingIndicator();
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message })
+        });
+        const data = await res.json();
+        removeTypingIndicator(typingId);
+        appendAssistantResponse(data);
+      } catch (err) {
+        removeTypingIndicator(typingId);
+        appendAssistantBubble("Error: " + err.message);
+      }
+    }
+
+    function submitQuickPrompt(promptText) {
+      document.getElementById('chatInput').value = promptText;
+      document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+    }
+
+    function appendUserBubble(text) {
+      const chat = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = 'flex justify-end';
+      div.innerHTML = `
+        <div class="bg-[#0071e3] text-white rounded-2xl rounded-tr-xs px-3.5 py-2 max-w-lg text-xs leading-relaxed shadow-2xs">
+          ${escapeHtml(text)}
+        </div>
+      `;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function appendTypingIndicator() {
+      const chat = document.getElementById('chatMessages');
+      const id = 'typing_' + Date.now();
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = 'flex justify-start items-center space-x-2 text-slate-400 text-xs';
+      div.innerHTML = `
+        <div class="w-6 h-6 rounded-lg bg-slate-200/80 flex items-center justify-center text-slate-600 text-[10px] font-bold">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5"></path></svg>
+        </div>
+        <div class="apple-glass-card px-3 py-1.5 rounded-xl flex items-center space-x-1">
+          <span class="w-1 h-1 rounded-full bg-slate-400 animate-bounce"></span>
+          <span class="w-1 h-1 rounded-full bg-slate-400 animate-bounce" style="animation-delay: 0.15s"></span>
+          <span class="w-1 h-1 rounded-full bg-slate-400 animate-bounce" style="animation-delay: 0.3s"></span>
+        </div>
+      `;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return id;
+    }
+
+    function removeTypingIndicator(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function appendAssistantResponse(data) {
+      const chat = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = 'flex justify-start';
+
+      let html = `
+        <div class="flex items-start space-x-2.5 max-w-2xl w-full">
+          <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-[#0071e3] to-[#4338ca] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 shadow-2xs">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5"></path></svg>
+          </div>
+          <div class="flex-1 space-y-2.5">
+            <div class="apple-glass-card text-slate-800 rounded-2xl rounded-tl-xs p-3.5 text-xs leading-relaxed border border-white/80">
+              ${formatAnswerWithCitations(data.answer)}
+            </div>
+      `;
+
+      // Photos
+      if (data.photos && data.photos.length > 0) {
+        html += `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">`;
+        data.photos.forEach(p => {
+          const encPath = encodeURIComponent(p.path);
+          html += `
+            <div
+              oncontextmenu="showContextMenu(event, '${escapeHtml(p.path)}', '${escapeHtml(p.filename)}')"
+              onclick="openLightbox('${encPath}', '${escapeHtml(p.filename)}', '${escapeHtml(p.path)}')"
+              class="cursor-pointer aspect-square apple-glass-card rounded-xl overflow-hidden relative group border border-white/80"
+            >
+              <img src="/api/thumbnail?path=${encPath}" alt="${escapeHtml(p.filename)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition p-2 flex flex-col justify-end text-white">
+                <span class="text-[11px] font-semibold truncate">${escapeHtml(p.filename)}</span>
+              </div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+      }
+
+      // Sources
+      if (data.sources && data.sources.length > 0) {
+        html += `
+          <div class="apple-glass rounded-xl p-2.5 border border-white/70">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-1">
+              Sources (${data.sources.length})
+            </div>
+            <div class="space-y-1.5">
+        `;
+        data.sources.forEach(src => {
+          html += renderEntityCard(src);
+        });
+        html += `
+            </div>
+          </div>
+        `;
+      }
+
+      html += `
+          </div>
+        </div>
+      `;
+
+      div.innerHTML = html;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function renderEntityCard(item) {
+      const t = item.file_type || item.type || 'document';
+      const path = item.path || '';
+      const filename = item.filename || '';
+
+      if (t === 'app') {
+        return `
+          <div
+            oncontextmenu="showContextMenu(event, '${escapeHtml(path)}', '${escapeHtml(filename)}')"
+            class="apple-glass-card p-2 rounded-xl flex items-center justify-between text-xs hover:border-[#0071e3] group cursor-pointer"
+            onclick="launchTarget('${escapeHtml(path)}')"
+          >
+            <div class="flex items-center space-x-2.5 overflow-hidden">
+              ${ICONS.app}
+              <div class="overflow-hidden">
+                <div class="font-semibold text-slate-900 truncate">${escapeHtml(filename.replace('.app', ''))}</div>
+                <div class="text-[10px] text-slate-400 truncate">${escapeHtml(item.excerpt || path)}</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-medium text-[#0071e3] opacity-0 group-hover:opacity-100 transition px-2 py-0.5 rounded bg-blue-50/80">Open</span>
+          </div>
+        `;
+      }
+
+      if (t === 'contact' || filename.endsWith('.vcf')) {
+        return `
+          <div
+            oncontextmenu="showContextMenu(event, '${escapeHtml(path)}', '${escapeHtml(filename)}')"
+            class="apple-glass-card p-2 rounded-xl flex items-center justify-between text-xs hover:border-[#0071e3] group cursor-pointer"
+            onclick="revealTarget('${escapeHtml(path)}')"
+          >
+            <div class="flex items-center space-x-2.5 overflow-hidden">
+              ${ICONS.contact}
+              <div class="overflow-hidden">
+                <div class="font-semibold text-slate-900 truncate">${escapeHtml(item.metadata?.name || filename)}</div>
+                <div class="text-[10px] text-slate-400 truncate">${escapeHtml(item.excerpt || '')}</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-medium text-slate-600 opacity-0 group-hover:opacity-100 transition px-2 py-0.5 rounded bg-slate-100">Reveal</span>
+          </div>
+        `;
+      }
+
+      if (t === 'calendar' || filename.endsWith('.ics')) {
+        return `
+          <div
+            oncontextmenu="showContextMenu(event, '${escapeHtml(path)}', '${escapeHtml(filename)}')"
+            class="apple-glass-card p-2 rounded-xl flex items-center justify-between text-xs hover:border-[#0071e3] group cursor-pointer"
+            onclick="revealTarget('${escapeHtml(path)}')"
+          >
+            <div class="flex items-center space-x-2.5 overflow-hidden">
+              ${ICONS.calendar}
+              <div class="overflow-hidden">
+                <div class="font-semibold text-slate-900 truncate">${escapeHtml(item.metadata?.summary || filename)}</div>
+                <div class="text-[10px] text-slate-400 truncate">${escapeHtml(item.excerpt || '')}</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-medium text-slate-600 opacity-0 group-hover:opacity-100 transition px-2 py-0.5 rounded bg-slate-100">Reveal</span>
+          </div>
+        `;
+      }
+
+      if (t === 'webloc' || t === 'url' || filename.endsWith('.webloc')) {
+        return `
+          <div
+            oncontextmenu="showContextMenu(event, '${escapeHtml(path)}', '${escapeHtml(filename)}')"
+            class="apple-glass-card p-2 rounded-xl flex items-center justify-between text-xs hover:border-[#0071e3] group cursor-pointer"
+            onclick="launchTarget('${escapeHtml(path)}')"
+          >
+            <div class="flex items-center space-x-2.5 overflow-hidden">
+              ${ICONS.webloc}
+              <div class="overflow-hidden">
+                <div class="font-semibold text-slate-900 truncate">${escapeHtml(filename.replace('.webloc', ''))}</div>
+                <div class="text-[10px] text-sky-600 truncate">${escapeHtml(item.metadata?.url || item.excerpt || '')}</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-medium text-sky-600 opacity-0 group-hover:opacity-100 transition px-2 py-0.5 rounded bg-sky-50/80">Visit</span>
+          </div>
+        `;
+      }
+
+      // Default Document
+      return `
+        <div
+          oncontextmenu="showContextMenu(event, '${escapeHtml(path)}', '${escapeHtml(filename)}')"
+          class="apple-glass-card p-2 rounded-xl flex items-center justify-between text-xs hover:border-[#0071e3] group cursor-pointer"
+          onclick="revealTarget('${escapeHtml(path)}')"
+        >
+          <div class="flex items-center space-x-2.5 overflow-hidden">
+            ${ICONS.document}
+            <div class="overflow-hidden">
+              <div class="font-semibold text-slate-900 truncate">${escapeHtml(filename)}</div>
+              <div class="text-[10px] text-slate-400 truncate">${escapeHtml(item.excerpt || path)}</div>
+            </div>
+          </div>
+          <div class="flex items-center space-x-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+            <button onclick="event.stopPropagation(); revealTarget('${escapeHtml(path)}')" class="text-[10px] font-medium text-slate-600 hover:text-slate-900 px-1.5 py-0.5 rounded hover:bg-slate-100 transition">
+              Reveal
+            </button>
+            <button onclick="event.stopPropagation(); launchTarget('${escapeHtml(path)}')" class="text-[10px] font-medium text-[#0071e3] hover:text-[#0077ed] px-1.5 py-0.5 rounded hover:bg-blue-50/80 transition">
+              Open
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function formatAnswerWithCitations(answer) {
+      if (!answer) return '';
+      return escapeHtml(answer).replace(/\[Source\s*(\d+)\]/g, (match, p1) => {
+        return `<span class="inline-flex items-center justify-center bg-blue-100 text-[#0071e3] text-[9px] font-bold px-1 rounded border border-blue-200/80 ml-0.5">Src ${p1}</span>`;
+      });
+    }
+
+    function appendAssistantBubble(text) {
+      appendAssistantResponse({ answer: text, photos: [], sources: [] });
+    }
+
+    function startNewChat() {
+      const chat = document.getElementById('chatMessages');
+      chat.innerHTML = `
+        <div id="welcomeBanner" class="max-w-xl mx-auto my-14 text-center">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0071e3] to-[#4338ca] text-white shadow-md mb-3.5">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-3.5-3.5"></path></svg>
+          </div>
+          <h2 class="text-xl font-bold text-slate-900 tracking-tight">New Search Session</h2>
+          <p class="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+            Search documents, find photos, or look up contacts across your Mac.
+          </p>
+        </div>
+      `;
+    }
+
+    // --- Spotlight HUD Controller ---
+    function openSpotlight() {
+      document.getElementById('spotlightOverlay').classList.remove('hidden');
+      const input = document.getElementById('spotlightInput');
+      input.focus();
+      input.select();
+    }
+
+    function closeSpotlight() {
+      document.getElementById('spotlightOverlay').classList.add('hidden');
+    }
+
+    function closeSpotlightOnBackdrop(e) {
+      if (e.target.id === 'spotlightOverlay') {
+        closeSpotlight();
+      }
+    }
+
+    function handleSpotlightKeydown(e) {
+      if (e.key === 'Escape') {
+        closeSpotlight();
+      }
+    }
+
+    function handleSpotlightInput(e) {
+      clearTimeout(spotlightDebounce);
+      const query = e.target.value.trim();
+      if (!query) {
+        document.getElementById('spotlightResults').innerHTML = `
+          <div class="text-xs text-slate-400 py-6 text-center">
+            Type to search apps, contacts, events, files, and photos...
+          </div>
+        `;
+        document.getElementById('spotlightMatchSummary').innerText = '0 items';
+        return;
+      }
+
+      spotlightDebounce = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/spotlight', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query, limit: 30 })
+          });
+          const data = await res.json();
+          renderSpotlightResults(data);
+        } catch (err) {
+          console.error("Spotlight error", err);
+        }
+      }, 120);
+    }
+
+    function renderSpotlightResults(data) {
+      const container = document.getElementById('spotlightResults');
+      const summary = document.getElementById('spotlightMatchSummary');
+      const cats = data.categories || {};
+      summary.innerText = `${data.total_matches} items`;
+
+      if (data.total_matches === 0) {
+        container.innerHTML = `
+          <div class="text-xs text-slate-400 py-6 text-center">
+            No matches found for "${escapeHtml(data.query)}".
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+
+      if (cats.app && cats.app.length > 0) {
+        html += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mb-1">Applications</div>`;
+        cats.app.forEach(app => {
+          html += renderEntityCard({ ...app, file_type: 'app' });
+        });
+      }
+
+      if (cats.contact && cats.contact.length > 0) {
+        html += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mt-2 mb-1">Contacts</div>`;
+        cats.contact.forEach(c => {
+          html += renderEntityCard({ ...c, file_type: 'contact' });
+        });
+      }
+
+      if (cats.calendar && cats.calendar.length > 0) {
+        html += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mt-2 mb-1">Calendar & Events</div>`;
+        cats.calendar.forEach(ev => {
+          html += renderEntityCard({ ...ev, file_type: 'calendar' });
+        });
+      }
+
+      if (cats.document && cats.document.length > 0) {
+        html += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mt-2 mb-1">Documents</div>`;
+        cats.document.forEach(doc => {
+          html += renderEntityCard({ ...doc, file_type: 'document' });
+        });
+      }
+
+      if (cats.photo && cats.photo.length > 0) {
+        html += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mt-2 mb-1">Photos</div>`;
+        html += `<div class="grid grid-cols-4 gap-2 mb-1">`;
+        cats.photo.forEach(p => {
+          const encPath = encodeURIComponent(p.path);
+          html += `
+            <div
+              oncontextmenu="showContextMenu(event, '${escapeHtml(p.path)}', '${escapeHtml(p.filename)}')"
+              onclick="openLightbox('${encPath}', '${escapeHtml(p.filename)}', '${escapeHtml(p.path)}')"
+              class="cursor-pointer aspect-square apple-glass-card rounded-xl overflow-hidden group border border-white/80"
+            >
+              <img src="/api/thumbnail?path=${encPath}" alt="${escapeHtml(p.filename)}" class="w-full h-full object-cover group-hover:scale-105 transition" />
+            </div>
+          `;
+        });
+        html += `</div>`;
+      }
+
+      if (cats.bookmark && cats.bookmark.length > 0) {
+        html += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mt-2 mb-1">Bookmarks</div>`;
+        cats.bookmark.forEach(bm => {
+          html += renderEntityCard({ ...bm, file_type: 'webloc' });
+        });
+      }
+
+      container.innerHTML = html;
+    }
+
+    // --- Action Handlers ---
+    async function launchTarget(path) {
+      await fetch('/api/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path })
+      });
+    }
+
+    async function revealTarget(path) {
+      await fetch('/api/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path })
+      });
+    }
+
+    // --- Settings & Sources ---
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+      loadSources();
+      checkQuickConnects();
+      loadGoogleStatus();
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function closeSettingsOnBackdrop(e) {
+      if (e.target.id === 'settingsModal') {
+        closeSettingsModal();
+      }
+    }
+
+    async function checkQuickConnects() {
+      try {
+        const gRes = await fetch('/api/auth/google/status');
+        const gStatus = await gRes.json();
+        const gLabel = document.getElementById('gdriveDetectLabel');
+        if (gStatus.connected) {
+          gLabel.innerText = "Cloud Drive";
+        } else {
+          const driveRes = await fetch('/api/drive-locations');
+          const driveData = await driveRes.json();
+          if (driveData.locations && driveData.locations.length > 0) {
+            gLabel.innerText = driveData.locations[0].name;
+          }
+        }
+
+        const netRes = await fetch('/api/network-volumes');
+        const netData = await netRes.json();
+        const nLabel = document.getElementById('networkVolLabel');
+        if (netData.volumes && netData.volumes.length > 0) {
+          nLabel.innerText = `${netData.volumes.length} volume(s)`;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function showToast(msg, color = 'blue') {
+      const toast = document.getElementById('settingsToast');
+      if (!toast) return;
+      const colors = {
+        blue: 'text-blue-700 bg-blue-50/90 border border-blue-200/80',
+        emerald: 'text-emerald-700 bg-emerald-50/90 border border-emerald-200/80',
+        red: 'text-red-700 bg-red-50/90 border border-red-200/80',
+        amber: 'text-amber-700 bg-amber-50/90 border border-amber-200/80',
+        slate: 'text-slate-700 bg-slate-50/90 border border-slate-200/80',
+      };
+      toast.className = `text-[11px] p-2 rounded-xl mt-2 block font-medium transition-all ${colors[color] || colors.blue}`;
+      toast.innerText = msg;
+      clearTimeout(window._toastTimeout);
+      window._toastTimeout = setTimeout(() => {
+        toast.className = 'hidden';
+      }, 5000);
+    }
+
+    async function addManualFolder() {
+      const input = document.getElementById('manualPathInput');
+      const rawPath = input.value.trim();
+      if (!rawPath) {
+        showToast("Please enter or paste a valid folder path.", "red");
+        return;
+      }
+      showToast(`Validating path '${rawPath}'...`, "blue");
+      try {
+        const res = await fetch('/api/index', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: rawPath, source: 'local' })
+        });
+        const data = await res.json();
+        if (data.status === 'started') {
+          input.value = '';
+          showToast(`Indexing started for '${data.name}'!`, "emerald");
+          startPollingProgress();
+        } else if (data.status === 'busy') {
+          showToast(data.message, "amber");
+        } else if (data.error) {
+          showToast(data.error, "red");
+        }
+      } catch (err) {
+        showToast("Error adding path: " + err.message, "red");
+      }
+    }
+
+    async function browseFolderWithPrompt(promptText, source = 'local', fallbackName = 'Folder') {
+      showToast("Opening Finder folder picker...", "blue");
+      try {
+        const res = await fetch('/api/browse-folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText })
+        });
+        const data = await res.json();
+        if (data.path && !data.canceled) {
+          const name = data.name || fallbackName;
+          showToast(`Selected '${name}'. Starting index...`, "emerald");
+          startIndexing(data.path, source, name);
+        } else if (data.canceled) {
+          showToast("Folder selection canceled.", "slate");
+        } else if (data.error) {
+          showToast("Finder error: " + data.error, "red");
+        }
+      } catch (err) {
+        showToast("Error opening Finder: " + err.message, "red");
+      }
+    }
+
+    async function browseLocalFolder() {
+      await browseFolderWithPrompt("Select a Mac folder to index in Smart Personal Search", "local", "Mac Folder");
+    }
+
+    async function connectGoogleDriveAuto() {
+      try {
+        const gRes = await fetch('/api/auth/google/status');
+        const gStatus = await gRes.json();
+        if (gStatus.connected) {
+          showToast("Starting cloud Google Drive sync...", "emerald");
+          await syncCloudDrive();
+          return;
+        }
+      } catch (e) {}
+
+      showToast("Searching for Google Drive locations...", "blue");
+      try {
+        const res = await fetch('/api/drive-locations');
+        const data = await res.json();
+        if (data.locations && data.locations.length > 0) {
+          const loc = data.locations[0];
+          showToast(`Found Google Drive (${loc.name}). Starting index...`, "emerald");
+          startIndexing(loc.path, 'google_drive', loc.name);
+        } else {
+          showToast("Google Drive not auto-detected. Sign in with Google above or select folder in Finder...", "blue");
+          await browseFolderWithPrompt("Select your Google Drive folder or any synced cloud folder to index", "google_drive", "Google Drive");
+        }
+      } catch (err) {
+        showToast("Error checking Drive: " + err.message, "red");
+      }
+    }
+
+    // --- Google Cloud & Account Handlers ---
+    async function loadGoogleStatus() {
+      const sec = document.getElementById('googleAccountSection');
+      if (!sec) return;
+      try {
+        const res = await fetch('/api/auth/google/status');
+        const data = await res.json();
+        renderGoogleAccountCard(data);
+      } catch (err) {
+        console.error("Error loading Google status:", err);
+      }
+    }
+
+    function renderGoogleAccountCard(status) {
+      const sec = document.getElementById('googleAccountSection');
+      if (!sec) return;
+
+      if (status.connected && status.user) {
+        const user = status.user;
+        const pic = user.picture || 'https://www.gstatic.com/images/branding/product/2x/avatar_square_grey_96dp.png';
+        sec.innerHTML = `
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div class="flex items-center space-x-3 overflow-hidden">
+              <img src="${escapeHtml(pic)}" class="w-9 h-9 rounded-full border border-white shadow-2xs shrink-0 object-cover" alt="Avatar" />
+              <div class="overflow-hidden">
+                <div class="flex items-center space-x-1.5">
+                  <span class="font-bold text-slate-900 text-xs truncate">${escapeHtml(user.name || 'Google User')}</span>
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-100 text-emerald-700">● Connected</span>
+                </div>
+                <div class="text-[11px] text-slate-500 truncate">${escapeHtml(user.email || '')}</div>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1.5 shrink-0">
+              <button onclick="syncCloudDrive()" class="bg-blue-50/90 hover:bg-blue-100 text-[#0071e3] text-[11px] font-semibold px-2.5 py-1.5 rounded-xl transition flex items-center space-x-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 003.535-5.88A4.5 4.5 0 0014 6.05 4.988 4.988 0 008.5 9 4.498 4.498 0 003 15z"></path></svg>
+                <span>Sync Drive</span>
+              </button>
+              <button onclick="syncCloudPhotos()" class="bg-amber-50/90 hover:bg-amber-100 text-amber-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl transition flex items-center space-x-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                <span>Sync Photos</span>
+              </button>
+              <button onclick="disconnectGoogle()" class="text-slate-400 hover:text-red-600 text-xs px-2 py-1.5 rounded-lg hover:bg-red-50 transition" title="Disconnect Google Account">
+                &times;
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        sec.innerHTML = `
+          <div>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+              <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-xl bg-white shadow-2xs flex items-center justify-center shrink-0 border border-slate-100">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="font-bold text-slate-800 text-xs">Google Drive & Google Photos</div>
+                  <div class="text-[10px] text-slate-500">Sign in to search cloud Drive documents and Photos library.</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1.5 shrink-0">
+                <button onclick="quickConnectGoogle()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl transition flex items-center space-x-1" title="Link active Mac Google account">
+                  <span>⚡ Quick Link</span>
+                </button>
+                <button onclick="initiateGoogleLogin()" class="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200/90 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-2xs transition flex items-center space-x-1.5">
+                  <span>Sign in with Google</span>
+                </button>
+                <button onclick="toggleGoogleCreds()" class="text-slate-400 hover:text-slate-600 text-xs p-1" title="API Credentials Configuration">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+              </div>
+            </div>
+            <div id="googleCredsPanel" class="hidden mt-3 pt-3 border-t border-slate-200/50 text-[11px] space-y-2">
+              <div class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">OAuth 2.0 Client Credentials</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input id="googleClientIdInput" type="text" placeholder="Google Client ID" class="bg-white/90 border border-slate-200/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800" />
+                <input id="googleClientSecretInput" type="password" placeholder="Google Client Secret" class="bg-white/90 border border-slate-200/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800" />
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] text-slate-400">Default: ADC / Standard Google App</span>
+                <button onclick="saveGoogleCreds()" class="bg-[#0071e3] text-white text-[10px] font-semibold px-2.5 py-1 rounded-lg">Save Credentials</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function toggleGoogleCreds() {
+      const panel = document.getElementById('googleCredsPanel');
+      if (panel) panel.classList.toggle('hidden');
+    }
+
+    async function saveGoogleCreds() {
+      const cid = document.getElementById('googleClientIdInput').value.trim();
+      const sec = document.getElementById('googleClientSecretInput').value.trim();
+      if (!cid || !sec) {
+        showToast("Please enter both Client ID and Client Secret.", "amber");
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/google/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: cid, client_secret: sec })
+        });
+        const data = await res.json();
+        showToast("Google credentials saved!", "emerald");
+        loadGoogleStatus();
+      } catch (err) {
+        showToast("Error saving credentials: " + err.message, "red");
+      }
+    }
+
+    async function initiateGoogleLogin() {
+      showToast("Opening Google Sign-In...", "blue");
+      try {
+        const res = await fetch('/api/auth/google/auth-url');
+        const data = await res.json();
+        if (data.url) {
+          window.open(data.url, '_blank', 'width=550,height=650');
+        } else if (data.error) {
+          showToast(data.error, "red");
+          toggleGoogleCreds();
+        }
+      } catch (err) {
+        showToast("Login error: " + err.message, "red");
+      }
+    }
+
+    async function quickConnectGoogle() {
+      showToast("Linking active Mac Google account...", "blue");
+      try {
+        const res = await fetch('/api/auth/google/quick-connect', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success' && data.user) {
+          showToast(`Connected as ${data.user.name || data.user.email}!`, "emerald");
+          loadGoogleStatus();
+          loadSources();
+        } else {
+          showToast(data.error || "No active account found. Please sign in via Google.", "amber");
+        }
+      } catch (err) {
+        showToast("Quick link error: " + err.message, "red");
+      }
+    }
+
+    async function syncCloudDrive() {
+      showToast("Starting Google Drive cloud sync...", "blue");
+      try {
+        const res = await fetch('/api/auth/google/sync-drive', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'started') {
+          showToast("Syncing Google Drive files...", "emerald");
+          startPollingProgress();
+        } else {
+          showToast(data.message || data.error || "Error syncing Drive", "amber");
+        }
+      } catch (err) {
+        showToast("Sync error: " + err.message, "red");
+      }
+    }
+
+    async function syncCloudPhotos() {
+      showToast("Starting Google Photos cloud sync...", "blue");
+      try {
+        const res = await fetch('/api/auth/google/sync-photos', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'started') {
+          showToast("Syncing Google Photos library...", "emerald");
+          startPollingProgress();
+        } else {
+          showToast(data.message || data.error || "Error syncing Photos", "amber");
+        }
+      } catch (err) {
+        showToast("Sync error: " + err.message, "red");
+      }
+    }
+
+    async function disconnectGoogle() {
+      showToast("Disconnecting Google Account...", "blue");
+      try {
+        await fetch('/api/auth/google/disconnect', { method: 'POST' });
+        showToast("Google account disconnected.", "slate");
+        loadGoogleStatus();
+        loadSources();
+      } catch (err) {
+        showToast("Error: " + err.message, "red");
+      }
+    }
+
+    async function connectNetworkVolumes() {
+      showToast("Scanning mounted network volumes in /Volumes...", "blue");
+      try {
+        const res = await fetch('/api/network-volumes');
+        const data = await res.json();
+        if (data.volumes && data.volumes.length > 0) {
+          const vol = data.volumes[0];
+          showToast(`Connecting network volume '${vol.name}'...`, "emerald");
+          startIndexing(vol.path, 'network_volume', vol.name);
+        } else {
+          showToast("No mounted volumes in /Volumes. Opening Finder to select your network share...", "blue");
+          await browseFolderWithPrompt("Select your Network Share folder to index", "network_volume", "Network Share");
+        }
+      } catch (err) {
+        showToast("Error scanning volumes: " + err.message, "red");
+      }
+    }
+
+    function addPresetFolder(path, name) {
+      startIndexing(path, 'local', name);
+    }
+
+    async function indexInstalledApps() {
+      showToast("Indexing macOS applications...", "blue");
+      try {
+        const res = await fetch('/api/index-apps', { method: 'POST' });
+        const data = await res.json();
+        showToast(`Indexed ${data.indexed_apps} macOS applications!`, "emerald");
+        loadStats();
+        loadSources();
+      } catch (err) {
+        showToast("Error indexing apps: " + err.message, "red");
+      }
+    }
+
+    async function startIndexing(path, source, name) {
+      showToast(`Starting index for '${name || path}'...`, "blue");
+      try {
+        const res = await fetch('/api/index', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: path, source: source, name: name })
+        });
+        const data = await res.json();
+        if (data.status === 'started') {
+          showToast(`Indexing started for '${data.name}'!`, "emerald");
+          startPollingProgress();
+        } else if (data.status === 'busy') {
+          showToast(data.message, "amber");
+        } else if (data.error) {
+          showToast(data.error, "red");
+        }
+      } catch (err) {
+        showToast("Error starting index: " + err.message, "red");
+      }
+    }
+
+    async function stopIndexingJob() {
+      await fetch('/api/stop-index', { method: 'POST' });
+      showToast("Stopping indexing job...", "amber");
+    }
+
+    async function removeSource(path) {
+      showToast("Removing source and deleting vectors...", "blue");
+      try {
+        await fetch('/api/remove-source', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: path })
+        });
+        showToast("Source removed successfully.", "emerald");
+        loadSources();
+        loadStats();
+      } catch (err) {
+        showToast("Error removing source: " + err.message, "red");
+      }
+    }
+
+    async function clearDatabase() {
+      showToast("Clearing vector database...", "blue");
+      try {
+        await fetch('/api/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force: true })
+        });
+        showToast("Vector database cleared.", "emerald");
+        loadSources();
+        loadStats();
+      } catch (err) {
+        showToast("Error clearing database: " + err.message, "red");
+      }
+    }
+
+    function startPollingProgress() {
+      const banner = document.getElementById('indexingProgressBanner');
+      banner.classList.remove('hidden');
+
+      const interval = setInterval(async () => {
+        const res = await fetch('/api/indexing-status');
+        const data = await res.json();
+
+        if (data.is_running) {
+          document.getElementById('indexingStatusText').innerText = data.status;
+          document.getElementById('indexingPercentText').innerText = `${Math.round(data.percent)}%`;
+          document.getElementById('indexingProgressBar').style.width = `${data.percent}%`;
+        } else {
+          clearInterval(interval);
+          setTimeout(() => {
+            banner.classList.add('hidden');
+          }, 1200);
+          loadStats();
+          loadSources();
+        }
+      }, 500);
+    }
+
+    async function loadStats() {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      document.getElementById('sidebarStats').innerText = `${data.total} items indexed`;
+    }
+
+    async function loadSources() {
+      const res = await fetch('/api/sources');
+      const data = await res.json();
+      const sources = data.sources || [];
+
+      // Update sidebar
+      const sidebarContainer = document.getElementById('sidebarSourcesList');
+      if (sources.length === 0) {
+        sidebarContainer.innerHTML = '<div class="text-slate-400 text-[11px] py-1 px-2">No sources.</div>';
+      } else {
+        sidebarContainer.innerHTML = sources.map(s => {
+          const isApp = s.source_type === 'macos_system';
+          const icon = isApp
+            ? `<svg class="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect></svg>`
+            : `<svg class="w-3.5 h-3.5 text-blue-500 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M2.5 5A2.5 2.5 0 0 1 5 2.5h3.697a2.5 2.5 0 0 1 1.768.732l1.303 1.304c.47.469 1.106.732 1.768.732H19A2.5 2.5 0 0 1 21.5 7.768V18A2.5 2.5 0 0 1 19 20.5H5A2.5 2.5 0 0 1 2.5 18V5z"/></svg>`;
+          return `
+            <div
+              oncontextmenu="showContextMenu(event, '${escapeHtml(s.path)}', '${escapeHtml(s.name)}')"
+              class="flex items-center justify-between text-[11px] py-1 px-2 rounded-lg hover:bg-white/60 transition group cursor-default"
+            >
+              <div class="flex items-center space-x-1.5 truncate">
+                ${icon}
+                <span class="truncate font-medium text-slate-700">${escapeHtml(s.name)}</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">${s.items_count || 0}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Update Settings Modal Table
+      const modalContainer = document.getElementById('configuredSourcesList');
+      if (sources.length === 0) {
+        modalContainer.innerHTML = '<div class="text-xs text-slate-400 text-center py-4">No sources configured yet.</div>';
+      } else {
+        modalContainer.innerHTML = sources.map(s => {
+          const isApp = s.source_type === 'macos_system';
+          const icon = isApp
+            ? `<div class="w-7 h-7 icon-squircle bg-indigo-50/70 text-indigo-600 shrink-0"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect></svg></div>`
+            : `<div class="w-7 h-7 icon-squircle bg-blue-50/70 text-blue-600 shrink-0"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.5 5A2.5 2.5 0 0 1 5 2.5h3.697a2.5 2.5 0 0 1 1.768.732l1.303 1.304c.47.469 1.106.732 1.768.732H19A2.5 2.5 0 0 1 21.5 7.768V18A2.5 2.5 0 0 1 19 20.5H5A2.5 2.5 0 0 1 2.5 18V5z"/></svg></div>`;
+          return `
+            <div class="apple-glass-card p-2.5 rounded-xl flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-2.5 overflow-hidden">
+                ${icon}
+                <div class="overflow-hidden">
+                  <div class="font-semibold text-slate-900 truncate">${escapeHtml(s.name)}</div>
+                  <div class="text-[10px] text-slate-400 truncate">${escapeHtml(s.path)} &bull; ${s.items_count || 0} items</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1 shrink-0">
+                <button onclick="revealTarget('${escapeHtml(s.path)}')" class="text-[11px] text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded hover:bg-white/80 transition">
+                  Reveal
+                </button>
+                <button onclick="startIndexing('${escapeHtml(s.path)}', '${escapeHtml(s.source_type)}', '${escapeHtml(s.name)}')" class="text-[11px] text-[#0071e3] hover:text-[#0077ed] px-2 py-0.5 rounded hover:bg-blue-50 transition">
+                  Rescan
+                </button>
+                <button onclick="removeSource('${escapeHtml(s.path)}')" class="text-red-400 hover:text-red-600 text-xs px-1.5 py-0.5 rounded transition">
+                  &times;
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // --- Lightbox Handlers ---
+    function openLightbox(encPath, filename, rawPath) {
+      currentLightboxPath = rawPath;
+      document.getElementById('lightboxImg').src = `/api/thumbnail?path=${encPath}`;
+      document.getElementById('lightboxCaption').innerText = filename;
+      document.getElementById('imageLightbox').classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+      document.getElementById('imageLightbox').classList.add('hidden');
+    }
+
+    function copyLightboxPath() {
+      navigator.clipboard.writeText(currentLightboxPath);
+    }
+
+    function revealLightboxInFinder() {
+      revealTarget(currentLightboxPath);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Initial load
+    loadStats();
+    loadSources();
+    loadGoogleStatus();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('google_connected')) {
+      showToast("Google account successfully connected!", "emerald");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      openSettingsModal();
+    }
+    if (urlParams.get('google_error')) {
+      showToast("Google Auth: " + decodeURIComponent(urlParams.get('google_error')), "red");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      openSettingsModal();
+    }
+  </script>
+</body>
+</html>

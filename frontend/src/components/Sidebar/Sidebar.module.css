@@ -1,0 +1,182 @@
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  user-select: none;
+}
+
+.topSection {
+  padding: 3.25rem 1rem 1rem 1rem;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1.25rem;
+  padding-left: 0.25rem;
+}
+
+.brandIcon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.625rem;
+  background: linear-gradient(135deg, #0071e3 0%, #4338ca 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(0, 113, 227, 0.25);
+}
+
+.brandTitle {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+}
+
+.brandSubtitle {
+  font-size: 0.625rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.navButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.4375rem 0.625rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #334155;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.navButton:hover {
+  background: rgba(255, 255, 255, 0.75);
+  color: #0f172a;
+}
+
+.navButtonActive {
+  background: rgba(255, 255, 255, 0.95);
+  color: #0071e3;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.shortcutPill {
+  font-size: 0.5625rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: rgba(226, 232, 240, 0.6);
+  color: #64748b;
+}
+
+.sectionHeader {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  padding: 0 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.sourcesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.sourceItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3125rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.6875rem;
+  color: #334155;
+  cursor: default;
+  transition: background 0.15s ease;
+}
+
+.sourceItem:hover {
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.sourceLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  overflow: hidden;
+}
+
+.sourceName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.sourceCount {
+  font-size: 0.625rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: #94a3b8;
+}
+
+.footerSection {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.statsText {
+  font-size: 0.6875rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.settingsTrigger {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0.25rem;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.settingsTrigger:hover {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.8);
+}

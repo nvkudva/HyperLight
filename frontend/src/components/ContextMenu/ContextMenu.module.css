@@ -1,0 +1,65 @@
+.menu {
+  position: fixed;
+  z-index: 9999;
+  width: 13rem;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(48px) saturate(190%);
+  -webkit-backdrop-filter: blur(48px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 0.875rem;
+  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 0.25rem;
+  user-select: none;
+  font-size: 0.75rem;
+}
+
+.title {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(226, 232, 240, 0.7);
+  margin: 0.125rem 0;
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.item:hover {
+  background: #0071e3;
+  color: #fff;
+}
+
+.itemLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shortcut {
+  font-size: 0.5625rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  opacity: 0.6;
+}

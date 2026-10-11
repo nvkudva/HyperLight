@@ -1,0 +1,35 @@
+- [x] Install remaining dependencies (lancedb, open_clip_torch, pypdf, python-docx, fastapi, uvicorn)
+- [x] Pull Gemma 2 local model in Ollama
+- [x] Build embedder module (multimodal text & image embeddings with MPS support)
+- [x] Build storage module (embedded LanceDB schema and vector operations)
+- [x] Build scanner & parsers for local files, photos, Google Drive/Photos
+- [x] Build answer engine (Gemma 2 RAG synthesis with source citations)
+- [x] Build CLI tool (index, search, ask, status commands)
+- [x] Build Web UI prototype (search, photo grid, document Q&A, folder manager)
+- [x] Verify search and QA with documents and photos
+- [x] Build chat-first Web UI with dedicated Settings page for folders and Google accounts
+- [x] Refine folder addition with macOS Finder folder picker, one-click presets, and active sources management
+- [x] Add background asynchronous indexing job runner with cancel/stop support and real-time progress bar
+- [x] Add rich file metadata (size, type, creation/modified dates) to scanner, storage, and Gemma context, and prevent false positive photo matches
+- [x] Design Siri Search replacement architecture and multi-domain personal knowledge embedding system
+- [x] Build native macOS system connectors (Applications, Safari/Chrome bookmarks, Apple Notes, Contacts, Calendar)
+- [x] Implement Hybrid Search (Lexical keyword + Vector cosine) in storage layer
+- [x] Build macOS Spotlight-style floating HUD interface with instant live search and Gemma answer drawer
+- [x] Verify end-to-end multi-domain Siri Search replacement across all entity types
+- [x] Accelerate scanning pipeline with directory pruning, incremental mtime skipping, batched MPS inference, and batched storage writes
+- [x] Document scanning speedup experiments and conclusions in speedup.md
+- [x] Build native macOS FSEvents real-time background file watcher for instant zero-wait indexing
+- [x] Phase 1: Build non-blocking asynchronous logging and modular systems architecture (logging_config.py)
+- [x] Phase 2: Add network folder and Google Drive auto-discovery connectors with Reveal-in-Finder endpoint
+- [x] Phase 3: Redesign UI with Apple Glass aesthetic (Frosted Vibrancy, SF Pro, entity cards, custom context menu)
+- [x] Phase 4: Build native Swift macOS desktop app wrapper with native vibrancy window
+- [x] Phase 5: End-to-end verification across network folders, Google Drive, context menus, and performance profiling
+- [x] Senior Apple UX polish: eliminate clutter, repetitive instructions, duplicate buttons, and streamline design
+- [x] macOS 27 Apple Glass iconography upgrade: replace all legacy emoji icons with SF Symbol-grade vector SVGs and continuous squircle glass badges
+- [x] Fix Google Drive and connected sources UI buttons: implement WKUIDelegate native dialogs, inline non-blocking toast notifications, path resolution normalization, and manual path entry
+- [x] Connect Google Drive and Google Photos via Google Login (OAuth 2.0 flow, token refresh, Drive & Photos cloud REST sync, and Apple Glass account UI)
+- [x] Decompose UI into modular React + TypeScript components with CSS Modules and Vite pipeline served via FastAPI
+- [x] Fix traffic lights overlap by setting top padding and add window draggable title bar strip
+- [x] Wire live indexing progress and permission error state down into Google Account Card in Settings
+- [x] Replaced custom Swift Cocoa wrapper with standard Tauri v2 application wrapper (`frontend/src-tauri`)
+- [x] Configure unified macOS Apple Glass design with `titleBarStyle: "Overlay"`, seamless sidebar backdrop, and `data-tauri-drag-region`

@@ -1,0 +1,142 @@
+import type { ConfiguredSource, GoogleStatus, IndexJobStatus, SearchResult } from './types'
+
+export async function fetchStatus(): Promise<{ total: number; photos: number; documents: number; sources: Record<string, number> }> {
+  const res = await fetch('/api/status')
+  return res.json()
+}
+
+export async function fetchSources(): Promise<{ sources: ConfiguredSource[] }> {
+  const res = await fetch('/api/sources')
+  return res.json()
+}
+
+export async function fetchDriveLocations(): Promise<{ locations: Array<{ name: string; path: string; account: string }> }> {
+  const res = await fetch('/api/drive-locations')
+  return res.json()
+}
+
+export async function fetchNetworkVolumes(): Promise<{ volumes: Array<{ name: string; path: string; type: string }> }> {
+  const res = await fetch('/api/network-volumes')
+  return res.json()
+}
+
+export async function browseFolder(prompt?: string): Promise<{ path: string; name: string; canceled: boolean; error?: string }> {
+  const res = await fetch('/api/browse-folder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  })
+  return res.json()
+}
+
+export async function startIndex(path: string, source = 'local', name?: string): Promise<{ status: string; path?: string; name?: string; message?: string; error?: string }> {
+  const res = await fetch('/api/index', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, source, name }),
+  })
+  return res.json()
+}
+
+export async function fetchIndexStatus(): Promise<IndexJobStatus> {
+  const res = await fetch('/api/indexing-status')
+  return res.json()
+}
+
+export async function stopIndex(): Promise<{ status: string }> {
+  const res = await fetch('/api/stop-index', { method: 'POST' })
+  return res.json()
+}
+
+export async function removeSource(path: string): Promise<{ status: string }> {
+  const res = await fetch('/api/remove-source', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  return res.json()
+}
+
+export async function clearDatabase(): Promise<{ status: string }> {
+  const res = await fetch('/api/clear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force: true }),
+  })
+  return res.json()
+}
+
+export async function searchSpotlight(query: string, limit = 30): Promise<{ query: string; total_matches: number; categories: Record<string, SearchResult[]> }> {
+  const res = await fetch('/api/spotlight', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, limit }),
+  })
+  return res.json()
+}
+
+export async function sendChat(message: string): Promise<{ answer: string; photos: SearchResult[]; sources: SearchResult[] }> {
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  })
+  return res.json()
+}
+
+export async function launchTarget(path: string): Promise<{ success: boolean; path: string }> {
+  const res = await fetch('/api/launch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  return res.json()
+}
+
+export async function revealTarget(path: string): Promise<{ success: boolean; path: string }> {
+  const res = await fetch('/api/reveal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  return res.json()
+}
+
+export async function fetchGoogleStatus(): Promise<GoogleStatus> {
+  const res = await fetch('/api/auth/google/status')
+  return res.json()
+}
+
+export async function fetchGoogleAuthUrl(): Promise<{ url?: string; error?: string }> {
+  const res = await fetch('/api/auth/google/auth-url')
+  return res.json()
+}
+
+export async function saveGoogleConfig(clientId: string, clientSecret: string): Promise<GoogleStatus> {
+  const res = await fetch('/api/auth/google/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
+  })
+  return res.json()
+}
+
+export async function quickConnectGoogle(): Promise<{ status: string; user?: any; error?: string }> {
+  const res = await fetch('/api/auth/google/quick-connect', { method: 'POST' })
+  return res.json()
+}
+
+export async function disconnectGoogle(): Promise<{ status: string }> {
+  const res = await fetch('/api/auth/google/disconnect', { method: 'POST' })
+  return res.json()
+}
+
+export async function syncCloudDrive(): Promise<{ status: string; name?: string; message?: string }> {
+  const res = await fetch('/api/auth/google/sync-drive', { method: 'POST' })
+  return res.json()
+}
+
+export async function syncCloudPhotos(): Promise<{ status: string; name?: string; message?: string }> {
+  const res = await fetch('/api/auth/google/sync-photos', { method: 'POST' })
+  return res.json()
+}

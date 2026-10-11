@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.smart_personal_search/
+*.app/
+*.DS_Store
+.DS_Store
