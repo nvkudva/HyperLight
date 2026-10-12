@@ -18,6 +18,7 @@ interface SearchScreenProps {
   audioSearching?: boolean
   history: Conversation[]
   feedApiRef: { current: FeedApi | null }
+  feedMode: boolean
 }
 
 export const SearchScreen: React.FC<SearchScreenProps> = ({
@@ -31,6 +32,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   audioSearching = false,
   history,
   feedApiRef,
+  feedMode,
 }) => {
   const feedRef = useRef<HTMLDivElement>(null)
   const q = query.trim()
@@ -55,6 +57,60 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
     feedApiRef.current = { scrollTo }
   })
 
+  const liveCard = hasQuery ? (
+    isAudio ? (
+      <ResultCard
+        cardId="live"
+        title="Voice search"
+        query=""
+        snapshot={audioCategories ?? undefined}
+        snapshotSearching={audioSearching}
+        eager
+        plain={!feedMode}
+        onOpen={onOpen}
+        onReveal={onReveal}
+        onContextMenu={onContextMenu}
+      />
+    ) : (
+      <ResultCard
+        cardId="live"
+        title={q}
+        query={q}
+        eager
+        plain={!feedMode}
+        registerKeyHandler={registerKeyHandler}
+        onQueryChange={onQueryChange}
+        onOpen={onOpen}
+        onReveal={onReveal}
+        onContextMenu={onContextMenu}
+      />
+    )
+  ) : null
+
+  if (!feedMode) {
+    return (
+      <div className={styles.screen}>
+        {!hasQuery ? (
+          <div className={styles.emptyState}>
+            <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>
+            <p className={styles.emptyHint}>
+              Try “tax invoice 2025”, “photos of the beach” or “flight to Munich”.
+            </p>
+          </div>
+        ) : (
+          liveCard
+        )}
+
+        <footer className={styles.statusBar}>
+          <span>{hasQuery ? q : 'Local search'}</span>
+          <span>↑↓ Select · ↵ Open · ⌘R Show in Finder</span>
+        </footer>
+      </div>
+    )
+  }
+
+  const cardCount = cards.length + (hasQuery ? 1 : 0)
+
   return (
     <div className={styles.screen}>
       {!hasQuery && cards.length === 0 ? (
@@ -66,49 +122,23 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         </div>
       ) : (
         <div ref={feedRef} id="search-feed" className={`${styles.feed} custom-scroll`}>
-          {hasQuery &&
-            (isAudio ? (
-              <ResultCard
-                cardId="live"
-                title="Voice search"
-                query=""
-                snapshot={audioCategories ?? undefined}
-                snapshotSearching={audioSearching}
-                eager
-                onOpen={onOpen}
-                onReveal={onReveal}
-                onContextMenu={onContextMenu}
-              />
-            ) : (
-              <ResultCard
-                cardId="live"
-                title={q}
-                query={q}
-                eager
-                registerKeyHandler={registerKeyHandler}
-                onQueryChange={onQueryChange}
-                onOpen={onOpen}
-                onReveal={onReveal}
-                onContextMenu={onContextMenu}
-              />
-            ))}
-          {!hasQuery &&
-            cards.map((c) => (
-              <ResultCard
-                key={c.id}
-                cardId={c.id}
-                title={c.title}
-                query={c.title}
-                onOpen={onOpen}
-                onReveal={onReveal}
-                onContextMenu={onContextMenu}
-              />
-            ))}
+          {liveCard}
+          {cards.map((c) => (
+            <ResultCard
+              key={c.id}
+              cardId={c.id}
+              title={c.title}
+              query={c.title}
+              onOpen={onOpen}
+              onReveal={onReveal}
+              onContextMenu={onContextMenu}
+            />
+          ))}
         </div>
       )}
 
       <footer className={styles.statusBar}>
-        <span>{hasQuery ? '1 result card' : cards.length > 0 ? `${cards.length} result cards` : 'Local search'}</span>
+        <span>{hasQuery || cards.length > 0 ? `${cardCount} result cards` : 'Local search'}</span>
         <span>↑↓ Select · ↵ Open · ⌘R Show in Finder</span>
       </footer>
     </div>

@@ -93,6 +93,24 @@
   grid-template-columns: minmax(16rem, 2fr) 3fr;
 }
 
+.resultCardPlain {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.resultCardPlain .resultCardBody {
+  flex: 1;
+  min-height: 0;
+}
+
+.resultCardPlain .results,
+.resultCardPlain .preview {
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .results {
   padding: 0.5rem;
   border-right: 0.5px solid var(--separator);

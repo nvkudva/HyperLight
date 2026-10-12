@@ -211,6 +211,7 @@ export const App: React.FC = () => {
               onContextMenu={handleContextMenu}
               history={chats.conversations}
               feedApiRef={feedApiRef}
+              feedMode={historyOpen}
             />
           </>
         ) : (

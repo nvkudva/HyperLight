@@ -46,6 +46,7 @@ export interface ResultCardProps {
   snapshot?: Record<string, SearchResult[]>
   snapshotSearching?: boolean
   eager?: boolean
+  plain?: boolean
   registerKeyHandler?: (h: (e: React.KeyboardEvent) => void) => void
   onQueryChange?: (q: string) => void
   onOpen: (item: SearchResult) => void
@@ -63,6 +64,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     snapshot,
     snapshotSearching = false,
     eager = false,
+    plain = false,
     registerKeyHandler,
     onQueryChange,
     onOpen,
@@ -155,11 +157,18 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     }
 
     return (
-      <section ref={rootRef} id={`result-card-${cardId}`} className={styles.resultCard} aria-label={title}>
-        <header className={styles.resultCardHeader}>
-          <span className={styles.resultCardTitle}>{title}</span>
-          <span className={styles.resultCardMeta}>{isSearching ? 'Searching…' : `${flatItems.length} results`}</span>
-        </header>
+      <section
+        ref={rootRef}
+        id={`result-card-${cardId}`}
+        className={plain ? styles.resultCardPlain : styles.resultCard}
+        aria-label={title}
+      >
+        {!plain && (
+          <header className={styles.resultCardHeader}>
+            <span className={styles.resultCardTitle}>{title}</span>
+            <span className={styles.resultCardMeta}>{isSearching ? 'Searching…' : `${flatItems.length} results`}</span>
+          </header>
+        )}
         {!nearby || (isSearching && flatItems.length === 0) ? (
           <p className={styles.emptyNote}>{isSearching || !nearby ? 'Searching…' : 'No results'}</p>
         ) : flatItems.length === 0 ? (
