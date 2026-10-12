@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  fetchAppSettings,
   fetchGoogleStatus,
   fetchSources,
   fetchStatus,
@@ -8,9 +9,11 @@ import {
 } from './api'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
 import { SearchScreen, type FeedApi } from './components/Search/SearchScreen'
+import { syncHotkeyToNative } from './components/Settings/ShortcutsTab'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { TopBar, type TopTab } from './components/TopBar/TopBar'
 import { ScanIndicator } from './components/common/ScanIndicator'
+import { useAudioSearch } from './hooks/useAudioSearch'
 import { useConversations } from './hooks/useConversations'
 import { useIndexPolling } from './hooks/useIndexPolling'
 
@@ -132,6 +135,42 @@ export const App: React.FC = () => {
     if (transcript?.trim()) chats.recordSearch(transcript)
   }
 
+  const voice = useAudioSearch({ onResults: handleAudioResults, onSearching: handleAudioSearching })
+  const voiceRef = useRef(voice)
+  voiceRef.current = voice
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [{ listen }, settings] = await Promise.all([
+          import('@tauri-apps/api/event'),
+          fetchAppSettings().catch(() => null),
+        ])
+        if (cancelled) return
+        if (settings) await syncHotkeyToNative(settings)
+        unlisten = await listen<{ voice?: boolean }>('hyperlight-hotkey', async (event) => {
+          setScreen('search')
+          setAudioCategories(null)
+          setAudioSearching(false)
+          searchInputRef.current?.focus()
+          const v = voiceRef.current
+          if ((event.payload?.voice ?? true) && !v.listening && !v.searching && v.supported) {
+            const s = await fetchAppSettings().catch(() => null)
+            if (s?.hotkey_voice ?? true) v.toggle()
+          }
+        })
+      } catch {
+        // Browser build: no native hotkey bridge.
+      }
+    })()
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+
   const recordSearch = chats.recordSearch
   useEffect(() => {
     const q = query.trim()
@@ -183,8 +222,7 @@ export const App: React.FC = () => {
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         accessory={scanIndicator}
         onDragStart={startWindowDrag}
-        onAudioResults={handleAudioResults}
-        onAudioSearching={handleAudioSearching}
+        voice={voice}
       />
 
       <div className={styles.contentRow}>

@@ -16,6 +16,9 @@ def api_get_settings() -> Dict[str, Any]:
     return {
         "always_on_scanning": settings.get("always_on_scanning", True),
         "custom_instructions": settings.get("custom_instructions", ""),
+        "hotkey_enabled": settings.get("hotkey_enabled", True),
+        "hotkey": settings.get("hotkey", "double_ctrl"),
+        "hotkey_voice": settings.get("hotkey_voice", True),
         "watched_paths_count": len(getattr(app_state.get_watcher(), "watches", {})),
     }
 
@@ -27,6 +30,12 @@ def api_update_settings(req: SettingsUpdateRequest) -> Dict[str, Any]:
         updates["always_on_scanning"] = req.always_on_scanning
     if req.custom_instructions is not None:
         updates["custom_instructions"] = req.custom_instructions.strip()[:4000]
+    if req.hotkey_enabled is not None:
+        updates["hotkey_enabled"] = req.hotkey_enabled
+    if req.hotkey_voice is not None:
+        updates["hotkey_voice"] = req.hotkey_voice
+    if req.hotkey is not None:
+        updates["hotkey"] = req.hotkey if isinstance(req.hotkey, str) else dict(req.hotkey)
     if updates:
         storage.update_app_settings(updates)
         app_state.get_watcher().sync_sources()

@@ -16,12 +16,14 @@ import {
   CloudIcon,
   DatabaseIcon,
   FolderIcon,
+  KeyboardIcon,
   ZapIcon,
 } from '../common/Icons'
 import { GoogleAccountCard } from '../Google/GoogleAccountCard'
 import { AssistantTab } from './AssistantTab'
 import { MaintenanceTab } from './MaintenanceTab'
 import { ScanningTab } from './ScanningTab'
+import { ShortcutsTab, saveHotkeyPatch } from './ShortcutsTab'
 import { SourcesTab } from './SourcesTab'
 import { activeJobs, availablePresets } from './settingsUtils'
 import styles from './SettingsPage.module.css'
@@ -34,13 +36,14 @@ const STATUS_CLASS: Record<string, string> = {
   slate: styles.statusNeutral,
 }
 
-type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'maintenance'
+type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'shortcuts' | 'maintenance'
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
   { id: 'sources', label: 'Sources', icon: FolderIcon, tint: styles.iconAccent },
   { id: 'scanning', label: 'Real-Time Scanning', icon: ZapIcon, tint: styles.iconOrange },
   { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: styles.iconGreen },
   { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: styles.iconAccent },
+  { id: 'shortcuts', label: 'Shortcuts', icon: KeyboardIcon, tint: styles.iconIndigo },
   { id: 'maintenance', label: 'Maintenance', icon: DatabaseIcon, tint: styles.iconIndigo },
 ]
 
@@ -128,6 +131,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       showToast(`Failed to update setting: ${err.message}`, 'red')
     }
   }
+
+  const handleSaveHotkey = (patch: Partial<AppSettings>, toastMsg?: string) =>
+    saveHotkeyPatch(patch, setAppSettings, showToast, toastMsg)
 
   const handleSaveInstructions = async () => {
     setSavingInstructions(true)
@@ -382,6 +388,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             saving={savingInstructions}
             onDraftChange={setDraftInstructions}
             onSave={handleSaveInstructions}
+          />
+        )}
+
+        {activeTab === 'shortcuts' && (
+          <ShortcutsTab
+            settings={appSettings}
+            onSaveHotkey={handleSaveHotkey}
+            onShowToast={showToast}
           />
         )}
 

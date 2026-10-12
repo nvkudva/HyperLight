@@ -20,9 +20,16 @@ export interface ConfiguredSource {
   watch_enabled?: boolean
 }
 
+export type HotkeyConfig =
+  | 'double_ctrl'
+  | { key_code: number; modifiers: string[]; label: string }
+
 export interface AppSettings {
   always_on_scanning: boolean
   custom_instructions?: string
+  hotkey_enabled?: boolean
+  hotkey?: HotkeyConfig
+  hotkey_voice?: boolean
   watched_paths_count?: number
 }
 

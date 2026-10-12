@@ -6,7 +6,13 @@ from typing import Any, Dict, List, Optional
 
 CONFIG_PATH = Path.home() / ".hyperlight" / "config.json"
 
-DEFAULT_SETTINGS: Dict[str, Any] = {"always_on_scanning": True, "custom_instructions": ""}
+DEFAULT_SETTINGS: Dict[str, Any] = {
+    "always_on_scanning": True,
+    "custom_instructions": "",
+    "hotkey_enabled": True,
+    "hotkey": "double_ctrl",
+    "hotkey_voice": True,
+}
 
 
 def _read_config() -> Dict[str, Any]:

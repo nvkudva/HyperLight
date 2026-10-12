@@ -174,3 +174,10 @@ export const TrashIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h
     <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 13h8l1-13" />
   </svg>
 )
+
+export const KeyboardIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+    <rect x="2" y="6" width="20" height="12" rx="2" />
+    <path strokeLinecap="round" d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" />
+  </svg>
+)

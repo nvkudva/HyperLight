@@ -1,8 +1,7 @@
 import React from 'react'
-import { useAudioSearch } from '../../hooks/useAudioSearch'
+import type { useAudioSearch } from '../../hooks/useAudioSearch'
 import { HistoryIcon, SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
 import { SearchBox } from '../common/SearchBox'
-import type { SearchResult } from '../../types'
 import styles from './TopBar.module.css'
 
 export type TopTab = 'search' | 'settings'
@@ -18,8 +17,7 @@ interface TopBarProps {
   onToggleHistory: () => void
   accessory?: React.ReactNode
   onDragStart: (e: React.MouseEvent) => void
-  onAudioResults: (categories: Record<string, SearchResult[]>, query?: string) => void
-  onAudioSearching: () => void
+  voice: ReturnType<typeof useAudioSearch>
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -33,10 +31,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleHistory,
   accessory,
   onDragStart,
-  onAudioResults,
-  onAudioSearching,
+  voice,
 }) => {
-  const voice = useAudioSearch({ onResults: onAudioResults, onSearching: onAudioSearching })
   const audioActive = voice.listening || voice.searching
 
   const tab = (id: TopTab, label: string, title: string, Icon: React.FC<{ className?: string }>) => (

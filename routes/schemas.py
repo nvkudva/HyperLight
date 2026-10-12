@@ -1,5 +1,5 @@
 """Shared request schemas for the API routes."""
-from typing import Optional
+from typing import Any, Optional
 
 import pydantic
 
@@ -35,6 +35,9 @@ class GoogleTokenRequest(pydantic.BaseModel):
 class SettingsUpdateRequest(pydantic.BaseModel):
     always_on_scanning: Optional[bool] = None
     custom_instructions: Optional[str] = None
+    hotkey_enabled: Optional[bool] = None
+    hotkey: Optional[Any] = None
+    hotkey_voice: Optional[bool] = None
 
 
 class SourceWatchRequest(pydantic.BaseModel):
