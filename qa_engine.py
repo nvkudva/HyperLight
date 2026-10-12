@@ -72,11 +72,12 @@ class QAEngine:
             f"{context_text}\n"
             f"User Question: {question}\n\n"
             "Instructions:\n"
-            "1. Answer the question directly and concisely using the provided context.\n"
-            "2. Format the answer with lightweight Markdown (headings, bold, lists, tables, fenced code blocks) so it renders nicely in chat.\n"
-            "3. If the user asks about file metadata (file size, when it was added/modified, file type), use the provided Metadata.\n"
-            "4. Cite the source numbers (e.g. [Source 1]) when referencing details.\n"
-            "5. If the answer cannot be determined from the context, clearly state that the information was not found in the indexed documents.\n\n"
+            "1. Keep the answer super short: at most 2-3 short sentences, under 60 words. Give only the direct answer.\n"
+            "2. Do not walk through sources one by one and do not repeat source headers, filenames, or page numbers in the answer body.\n"
+            "3. Cite the source numbers inline (e.g. [Source 1]) when referencing details.\n"
+            "4. If the user asks about file metadata (file size, when it was added/modified, file type), use the provided Metadata.\n"
+            "5. If the answer cannot be determined from the context, clearly state that the information was not found in the indexed documents in one short sentence.\n"
+            "6. Use plain text or minimal Markdown (bold only). No headings, lists, or tables unless the user explicitly asks for them.\n\n"
             "Answer:"
         )
 

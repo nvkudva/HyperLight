@@ -13,14 +13,14 @@ import scanner
 
 logger = logging.getLogger(__name__)
 
-CONFIG_DIR = Path.home() / ".smart_personal_search"
+CONFIG_DIR = Path.home() / ".hyperlight"
 TOKENS_PATH = CONFIG_DIR / "google_tokens.json"
 CLIENT_CONFIG_PATH = CONFIG_DIR / "google_client.json"
 PHOTOS_CACHE_DIR = CONFIG_DIR / "google_photos_cache"
 BUNDLED_CLIENT_PATH = Path(__file__).resolve().parent / "google_client.json"
 
 # Drive and Gmail scopes are restricted: they need Google verification plus a CASA assessment before public release.
-FULL_ACCESS = os.environ.get("SPS_GOOGLE_FULL_ACCESS") == "1"
+FULL_ACCESS = os.environ.get("HYPERLIGHT_GOOGLE_FULL_ACCESS") == "1"
 
 SCOPES = [
     "https://www.googleapis.com/auth/photospicker.mediaitems.readonly",

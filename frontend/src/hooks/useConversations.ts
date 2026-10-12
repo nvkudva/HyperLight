@@ -19,11 +19,32 @@ export function useConversations() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
   }, [conversations])
 
-  const create = useCallback((title: string) => {
-    const conv: Conversation = { id: `c_${Date.now()}`, title: title.slice(0, 60), messages: [], updatedAt: Date.now() }
+  const create = useCallback((title: string, kind: 'search' | 'chat' = 'chat') => {
+    const conv: Conversation = { id: `c_${Date.now()}`, title: title.slice(0, 60), kind, messages: [], updatedAt: Date.now() }
     setConversations((prev) => [conv, ...prev])
     setActiveId(conv.id)
     return conv.id
+  }, [])
+
+  const recordSearch = useCallback((query: string) => {
+    const title = query.trim().slice(0, 60)
+    if (!title) return
+    const key = title.toLowerCase()
+    setConversations((prev) => {
+      const existing = prev.find((c) => (c.kind ?? 'chat') === 'search' && c.title.toLowerCase() === key)
+      if (existing) {
+        const updated = { ...existing, updatedAt: Date.now() }
+        return [updated, ...prev.filter((c) => c.id !== existing.id)]
+      }
+      const conv: Conversation = {
+        id: `c_${Date.now()}`,
+        title,
+        kind: 'search',
+        messages: [{ id: `user_${Date.now()}`, sender: 'user', text: title, timestamp: Date.now() }],
+        updatedAt: Date.now(),
+      }
+      return [conv, ...prev]
+    })
   }, [])
 
   const append = useCallback((id: string, message: ChatMessage) => {
@@ -42,5 +63,5 @@ export function useConversations() {
 
   const active = conversations.find((c) => c.id === activeId) ?? null
 
-  return { conversations, active, activeId, select: setActiveId, create, append, remove }
+  return { conversations, active, activeId, select: setActiveId, create, append, remove, recordSearch }
 }

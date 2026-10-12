@@ -10,11 +10,11 @@ _listener: logging.handlers.QueueListener = None
 def setup_logging(log_dir: Path = None, level: int = logging.INFO) -> logging.Logger:
     global _listener
     if log_dir is None:
-        log_dir = Path.home() / ".smart_personal_search"
+        log_dir = Path.home() / ".hyperlight"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "app.log"
 
-    root_logger = logging.getLogger("smart_search")
+    root_logger = logging.getLogger("hyperlight")
     root_logger.setLevel(level)
 
     if root_logger.handlers:
@@ -48,10 +48,10 @@ def setup_logging(log_dir: Path = None, level: int = logging.INFO) -> logging.Lo
     root_logger.info(f"Asynchronous logging initialized. Log file: {log_file}")
     return root_logger
 
-def get_logger(name: str = "smart_search") -> logging.Logger:
-    if name == "smart_search" or name.startswith("smart_search."):
+def get_logger(name: str = "hyperlight") -> logging.Logger:
+    if name == "hyperlight" or name.startswith("hyperlight."):
         return logging.getLogger(name)
-    return logging.getLogger(f"smart_search.{name}")
+    return logging.getLogger(f"hyperlight.{name}")
 
 def shutdown_logging() -> None:
     global _listener

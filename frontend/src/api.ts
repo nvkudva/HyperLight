@@ -89,11 +89,12 @@ export async function clearDatabase(): Promise<{ status: string }> {
   return res.json()
 }
 
-export async function searchSpotlight(query: string, limit = 30): Promise<{ query: string; total_matches: number; categories: Record<string, SearchResult[]> }> {
+export async function searchSpotlight(query: string, limit = 30, signal?: AbortSignal): Promise<{ query: string; total_matches: number; categories: Record<string, SearchResult[]> }> {
   const res = await fetch('/api/spotlight', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, limit }),
+    signal,
   })
   return res.json()
 }
@@ -172,4 +173,30 @@ export async function indexApps(): Promise<{ status: string; indexed_apps: numbe
 export async function openSettingsPane(pane: 'full-disk-access' | 'internet-accounts'): Promise<{ success: boolean }> {
   const res = await fetch(`/api/open-settings/${pane}`, { method: 'POST' })
   return res.json()
+}
+
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const type = (blob.type || 'audio/webm').split(';')[0]
+  const ext = type.includes('mp4') ? 'clip.mp4' : type.includes('ogg') ? 'clip.ogg' : 'clip.webm'
+  const form = new FormData()
+  form.append('file', blob, ext)
+  const res = await fetch('/api/transcribe', { method: 'POST', body: form })
+  if (!res.ok) throw new Error(`Transcription failed (${res.status}). Is the backend running?`)
+  const data = await res.json()
+  if (data.error) throw new Error(data.error)
+  return (data.text ?? '') as string
+}
+
+export async function searchByAudio(wav: Blob): Promise<{
+  query: string
+  total_matches: number
+  categories: Record<string, SearchResult[]>
+}> {
+  const form = new FormData()
+  form.append('file', wav, 'clip.wav')
+  const res = await fetch('/api/audio-search', { method: 'POST', body: form })
+  if (!res.ok) throw new Error(`Audio search failed (${res.status}). Is the backend running?`)
+  const data = await res.json()
+  if (data.error) throw new Error(data.error)
+  return data
 }

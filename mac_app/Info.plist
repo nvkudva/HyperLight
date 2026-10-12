@@ -28,5 +28,7 @@
     <true/>
     <key>NSRequiresAquaSystemAppearance</key>
     <false/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Hyperlight uses the microphone for voice search: your speech is transcribed so you can search files, photos and mail by voice.</string>
 </dict>
 </plist>

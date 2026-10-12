@@ -44,7 +44,7 @@ Hyperlight is a private, local-first multimodal personal search engine and AI as
 - **Modern React 19 Frontend**: Componentized UI built with React 19, TypeScript, Vite, CSS Modules, and Tailwind CSS. Features an Apple Glass design aesthetic, chat workspace, photo lightbox, source manager, and toast alerts.
 - **Spotlight Floating HUD**: Quick-access modal overlay (`⌘K`) with instant keystroke filtering across categories (Apps, Documents, Photos, Contacts, Calendar).
 - **Native macOS Desktop App**: Packaged into a native macOS desktop application using Tauri v2 with `titleBarStyle: "Overlay"` and seamless window dragging.
-- **Asynchronous Logging**: Non-blocking queue logger streaming system and search events to `~/.smart_personal_search/app.log`.
+- **Asynchronous Logging**: Non-blocking queue logger streaming system and search events to `~/.hyperlight/app.log`.
 
 ---
 

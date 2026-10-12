@@ -16,17 +16,21 @@ export function useLiveSearch(query: string, limit = 30, delayMs = 150) {
       return
     }
     setIsSearching(true)
+    const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       try {
-        const res = await api.searchSpotlight(q, limit)
+        const res = await api.searchSpotlight(q, limit, controller.signal)
         if (seq === requestSeq.current) setCategories(res.categories || {})
       } catch (err) {
-        console.error('Search error:', err)
+        if (seq === requestSeq.current && (err as Error)?.name !== 'AbortError') console.error('Search error:', err)
       } finally {
         if (seq === requestSeq.current) setIsSearching(false)
       }
     }, delayMs)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
   }, [query, limit, delayMs])
 
   const { flatItems, offsets } = useMemo(() => {

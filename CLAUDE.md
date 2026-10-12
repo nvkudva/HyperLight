@@ -11,3 +11,4 @@
 - CLI search: `python3 cli.py search "<query>" [--type all|photo|document]`
 - CLI ask: `python3 cli.py ask "<question>"`
 - Run Web app: `python3 web_app.py`
+- Run desktop dev app: `./dev-app.sh` (one window, mic works; do not run `tauri dev` alongside)

@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         _ = semaphore.wait(timeout: .now() + 0.4)
         if isRunning { return }
 
-        let projectDir = "/Users/vijay/dev/projects/Smart Personal Search"
+        let projectDir = "/Users/vijay/dev/projects/Hyperlight"
         let pythonPath = "\(projectDir)/.venv/bin/python3"
         let scriptPath = "\(projectDir)/web_app.py"
         guard FileManager.default.fileExists(atPath: pythonPath) else { return }

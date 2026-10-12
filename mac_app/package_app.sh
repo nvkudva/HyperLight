@@ -20,4 +20,7 @@ fi
 
 chmod +x "$BUNDLE_DIR/Contents/MacOS/$APP_NAME"
 
+# Ad-hoc sign with mic entitlement so getUserMedia can prompt for access
+codesign -s - --entitlements mac_app/entitlements.plist --force "$BUNDLE_DIR" >/dev/null
+
 echo "Successfully built $BUNDLE_DIR"

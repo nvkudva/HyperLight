@@ -50,3 +50,11 @@
 - [x] Complete Settings page redesign: replaced monolithic list with intuitive segmented categories (Sources, Real-Time Scanning, Cloud & Accounts, Maintenance), Apple-style switches, and quick-add action grid
 - [ ] Learn from the reference codebase the user mentioned (path not yet provided)
 - [ ] Sign in with a new Desktop OAuth client and verify Drive, Gmail and Photos Picker sync end to end
+- [x] Fix window resizing (can't resize windows currently)
+- [x] Fix mic/audio not working (clicking mic does nothing — may need permission handling)
+- [x] Unify search and chat history: every search recorded as a conversation, shared sidebar on search and chat screens
+- [x] Fix slow chat search input: input state lives in ChatInput so keystrokes skip history render; stale live searches aborted
+- [x] Unify search inputs: shared SearchField + MicButton, ChatInput in own file, result kinds in Chat/kinds module
+- [x] Consolidate top search + chat input into one shared SearchBox component
+- [x] Shrink chat file previews (photo/doc/video grids + play badge)
+- [x] Make chat answers super short (brevity rules in qa_engine prompt; needs backend restart)

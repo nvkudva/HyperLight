@@ -42,6 +42,15 @@ export interface GoogleStatus {
   user?: GoogleUser
 }
 
+export interface IndexJobInfo {
+  name: string
+  path: string
+  state: 'running' | 'queued'
+  percent: number
+  current_index: number
+  total_files: number
+}
+
 export interface IndexJobStatus {
   is_running: boolean
   cancel_requested: boolean
@@ -58,6 +67,7 @@ export interface IndexJobStatus {
   error_code: string
   is_cloud: boolean
   queued: string[]
+  jobs?: IndexJobInfo[]
 }
 
 export type JobStart = 'started' | 'queued'
@@ -88,6 +98,7 @@ export interface ContextMenuState {
 export interface Conversation {
   id: string
   title: string
+  kind?: 'search' | 'chat'
   messages: ChatMessage[]
   updatedAt: number
 }

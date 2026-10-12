@@ -1,18 +1,14 @@
 import React, { useState } from 'react'
 import type { Conversation } from '../../types'
-import { SearchIcon, SettingsIcon } from '../common/Icons'
 import styles from './Sidebar.module.css'
 
 interface SidebarProps {
   conversations: Conversation[]
   activeId: string | null
-  activeView: 'chat' | 'settings'
   totalItems: number
   onNewChat: () => void
   onSelectConversation: (id: string) => void
   onDeleteConversation: (id: string) => void
-  onOpenSearch: () => void
-  onOpenSettings: () => void
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -33,13 +29,10 @@ function groupLabel(ts: number): string {
 export const Sidebar: React.FC<SidebarProps> = ({
   conversations,
   activeId,
-  activeView,
   totalItems,
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
-  onOpenSearch,
-  onOpenSettings,
 }) => {
   const [width, setWidth] = useState(() => clampWidth(Number(localStorage.getItem('sidebarWidth')) || DEFAULT_WIDTH))
 
@@ -99,13 +92,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>New chat</span>
             <span className={styles.shortcutPill}>⌘N</span>
           </button>
-          <button className={styles.navButton} onClick={onOpenSearch}>
-            <span className={styles.navLabel}>
-              <SearchIcon className={styles.navIcon} />
-              Search
-            </span>
-            <span className={styles.shortcutPill}>⌘K</span>
-          </button>
         </div>
 
         <nav className={`${styles.history} custom-scroll`} aria-label="Chat history">
@@ -116,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div key={label} className={styles.historyGroup}>
                 <div className={styles.sectionHeader}>{label}</div>
                 {convs.map((c) => {
-                  const isActive = activeView === 'chat' && c.id === activeId
+                  const isActive = c.id === activeId
                   return (
                     <div key={c.id} className={`${styles.historyItem} ${isActive ? styles.historyItemActive : ''}`}>
                       <button
@@ -146,15 +132,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className={styles.footerSection}>
         <span className={styles.statsText}>{totalItems.toLocaleString()} items indexed</span>
-        <button
-          className={`${styles.settingsTrigger} ${activeView === 'settings' ? styles.settingsActive : ''}`}
-          onClick={onOpenSettings}
-          title="Settings (⌘,)"
-          aria-label="Settings"
-          aria-current={activeView === 'settings' ? 'page' : undefined}
-        >
-          <SettingsIcon className="w-4 h-4" />
-        </button>
       </div>
     </aside>
   )

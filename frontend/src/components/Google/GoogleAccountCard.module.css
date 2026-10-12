@@ -1,6 +1,40 @@
+.accountRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--fill);
+  border-radius: var(--r-sm);
+}
+
+.accountText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 0.1rem;
+}
+
+.accountName {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.accountEmail {
+  font-size: 0.72rem;
+  color: var(--label-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .avatar {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 50%;
   border: 0.5px solid var(--separator);
   object-fit: cover;
@@ -8,9 +42,9 @@
 }
 
 .logoBadge {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--r-xs);
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
   background: var(--surface);
   border: 0.5px solid var(--separator);
   display: flex;
@@ -19,10 +53,102 @@
   flex-shrink: 0;
 }
 
+.serviceList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
+.serviceRow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--surface);
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-sm);
+}
 
+.serviceIcon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
+.tintAccent {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
 
+.tintGreen {
+  background: var(--green-tint);
+  color: var(--green);
+}
+
+.tintOrange {
+  background: var(--orange-tint);
+  color: var(--orange);
+}
+
+.tintIndigo {
+  background: rgba(var(--indigo-rgb), 0.12);
+  color: var(--indigo);
+}
+
+.serviceText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 0.1rem;
+}
+
+.serviceTitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--label);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.serviceSubtitle {
+  font-size: 0.7rem;
+  color: var(--label-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.serviceControls {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.serviceControls button {
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  font-size: 0.75rem;
+}
+
+.syncBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  font-size: 0.75rem;
+}
 
 .error {
   color: var(--red);

@@ -111,7 +111,7 @@ def cmd_watch(args: argparse.Namespace) -> None:
     sources = storage.get_configured_sources()
     active_sources = [s for s in sources if s.get("source_type") != "macos_system"]
     if not active_sources:
-        print("No active folder sources configured to watch. Index a folder first using 'smart-search index <path>'.")
+        print("No active folder sources configured to watch. Index a folder first using 'hyperlight index <path>'.")
         return
 
     print("=" * 60)
@@ -142,7 +142,7 @@ def cmd_watch(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="smart-search",
+        prog="hyperlight",
         description="Hyperlight - Multimodal on-device search & Gemma 2 Q&A",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)

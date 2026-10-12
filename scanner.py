@@ -175,6 +175,13 @@ def chunk_code_text(text: str, max_chars: int = 1500) -> List[Tuple[str, int, Op
     lines = text.splitlines()
     if not lines:
         return []
+    hard_split: List[str] = []
+    for line in lines:
+        while len(line) > max_chars:
+            hard_split.append(line[:max_chars])
+            line = line[max_chars:]
+        hard_split.append(line)
+    lines = hard_split
 
     pieces: List[Tuple[str, int, Optional[str]]] = []
     current_lines: List[str] = []
@@ -587,8 +594,8 @@ class Scanner:
 
         doc_buffer: List[Dict[str, Any]] = []
         image_buffer: List[Path] = []
-        BATCH_SIZE = 64
-        IMG_BATCH_SIZE = 16
+        BATCH_SIZE = 16
+        IMG_BATCH_SIZE = 8
 
         def flush_docs():
             nonlocal indexed_items, doc_buffer

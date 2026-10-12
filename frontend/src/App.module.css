@@ -1,5 +1,6 @@
 .appContainer {
   display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -7,20 +8,8 @@
   position: relative;
 }
 
-.unifiedHeaderDragStrip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3.25rem;
-  z-index: 20;
-  pointer-events: auto;
-  -webkit-app-region: drag;
-}
-
-.scanSlot {
-  position: absolute;
-  top: 0.875rem;
-  right: 1rem;
-  z-index: 25;
+.contentRow {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }

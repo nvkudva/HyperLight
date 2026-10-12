@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchGoogleStatus,
   fetchIndexStatus,
@@ -15,6 +15,7 @@ import { PhotoLightbox } from './components/Lightbox/PhotoLightbox'
 import { SearchScreen } from './components/Search/SearchScreen'
 import { SettingsPage } from './components/Settings/SettingsPage'
 import { Sidebar } from './components/Sidebar/Sidebar'
+import { TopBar, type TopTab } from './components/TopBar/TopBar'
 import { ScanIndicator } from './components/common/ScanIndicator'
 import { useConversations } from './hooks/useConversations'
 import type { ChatMessage, ConfiguredSource, ContextMenuState, GoogleStatus, IndexJobStatus, SearchResult } from './types'
@@ -22,15 +23,12 @@ import styles from './App.module.css'
 
 type Screen = 'search' | 'chat' | 'settings'
 
-const WINDOW_SIZES: Record<'search' | 'full', [number, number]> = {
-  search: [780, 520],
-  full: [1140, 780],
-}
+const UNIFIED_WINDOW_SIZE: [number, number] = [1140, 780]
 
-async function resizeWindow(kind: 'search' | 'full') {
+async function resizeWindow() {
   try {
     const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window')
-    const [w, h] = WINDOW_SIZES[kind]
+    const [w, h] = UNIFIED_WINDOW_SIZE
     await getCurrentWindow().setSize(new LogicalSize(w, h))
   } catch {
     // Not running inside Tauri
@@ -56,7 +54,12 @@ export const App: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0)
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, has_client_config: false })
   const [screen, setScreen] = useState<Screen>('search')
+  const [query, setQuery] = useState('')
+  const [audioCategories, setAudioCategories] = useState<Record<string, SearchResult[]> | null>(null)
+  const [audioSearching, setAudioSearching] = useState(false)
   const [focusIndexing, setFocusIndexing] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchKeyHandler = useRef<(e: React.KeyboardEvent) => void>(() => {})
   const [isOnboarding, setIsOnboarding] = useState(() => !localStorage.getItem('onboarded'))
   const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
@@ -85,20 +88,32 @@ export const App: React.FC = () => {
   }, [reloadData])
 
   useEffect(() => {
-    resizeWindow(screen === 'search' ? 'search' : 'full')
-  }, [screen])
+    resizeWindow()
+    searchInputRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     let timer: number
     let wasRunning = false
+    let failures = 0
     const poll = async () => {
       try {
         const status = await fetchIndexStatus()
+        if (failures > 0) reloadData()
+        failures = 0
         setIndexStatus(status)
         if (wasRunning && !status.is_running) reloadData()
         wasRunning = status.is_running
       } catch {
-        // Backend not reachable yet
+        failures += 1
+        if (failures >= 3) {
+          setIndexStatus((prev) =>
+            prev && prev.is_running
+              ? { ...prev, is_running: false, state: 'idle', status: 'Backend unreachable' }
+              : prev
+          )
+          wasRunning = false
+        }
       }
       timer = window.setTimeout(poll, wasRunning ? 1000 : 3000)
     }
@@ -138,10 +153,69 @@ export const App: React.FC = () => {
     setIsChatLoading(false)
   }
 
-  const askInChat = (query: string) => {
+  const askInChat = (text: string) => {
     setScreen('chat')
-    if (query) handleSendMessage(query, chats.create(query))
+    if (text) handleSendMessage(text, chats.create(text))
     else chats.select(null)
+  }
+
+  const selectTab = (tab: TopTab) => {
+    if (tab === 'chat' && query.trim()) {
+      askInChat(query.trim())
+      return
+    }
+    if (tab === 'settings') setFocusIndexing(false)
+    setScreen(tab)
+    if (tab === 'search') searchInputRef.current?.focus()
+  }
+
+  const handleTopBarQueryChange = (q: string) => {
+    if (screen !== 'search') setScreen('search')
+    setAudioCategories(null)
+    setAudioSearching(false)
+    setQuery(q)
+  }
+
+  const handleAudioSearching = () => {
+    setScreen('search')
+    setQuery('')
+    setAudioCategories(null)
+    setAudioSearching(true)
+  }
+
+  const handleAudioResults = (categories: Record<string, SearchResult[]>, transcript?: string) => {
+    setScreen('search')
+    setQuery('')
+    setAudioCategories(categories)
+    setAudioSearching(false)
+    if (transcript?.trim()) chats.recordSearch(transcript)
+  }
+
+  const recordSearch = chats.recordSearch
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return
+    const timer = window.setTimeout(() => recordSearch(q), 1000)
+    return () => clearTimeout(timer)
+  }, [query, recordSearch])
+
+  const selectConversation = (id: string) => {
+    const conv = chats.conversations.find((c) => c.id === id)
+    chats.select(id)
+    if (conv && (conv.kind ?? 'chat') === 'search') {
+      setAudioCategories(null)
+      setAudioSearching(false)
+      setQuery(conv.title)
+      setScreen('search')
+      searchInputRef.current?.focus()
+    } else {
+      setScreen('chat')
+    }
+  }
+
+  const handleTopBarKeyDown = (e: React.KeyboardEvent) => {
+    if (screen === 'search') searchKeyHandler.current(e)
+    else if (e.key === 'Enter') setScreen('search')
   }
 
   useEffect(() => {
@@ -151,6 +225,7 @@ export const App: React.FC = () => {
       if (key === 'k') {
         e.preventDefault()
         setScreen('search')
+        searchInputRef.current?.focus()
       } else if (key === ',') {
         e.preventDefault()
         setScreen((prev) => (prev === 'settings' ? 'chat' : 'settings'))
@@ -174,50 +249,67 @@ export const App: React.FC = () => {
 
   return (
     <div className={styles.appContainer}>
-      {screen === 'search' ? (
-        <SearchScreen
-          accessory={scanIndicator}
-          onOpen={openResult}
-          onReveal={(p) => revealTarget(p)}
-          onAskChat={askInChat}
-          onOpenSettings={() => openSettings()}
-          onContextMenu={handleContextMenu}
-          onDragStart={startWindowDrag}
-        />
-      ) : (
-        <>
-          <div className={styles.unifiedHeaderDragStrip} data-tauri-drag-region onMouseDown={startWindowDrag} />
-          <div className={styles.scanSlot}>{scanIndicator}</div>
+      <TopBar
+        query={query}
+        onQueryChange={handleTopBarQueryChange}
+        onInputKeyDown={handleTopBarKeyDown}
+        inputRef={searchInputRef}
+        activeTab={screen}
+        onSelectTab={selectTab}
+        accessory={scanIndicator}
+        onDragStart={startWindowDrag}
+        onAudioResults={handleAudioResults}
+        onAudioSearching={handleAudioSearching}
+      />
 
-          <Sidebar
-            conversations={chats.conversations}
-            activeId={chats.activeId}
-            activeView={screen === 'settings' ? 'settings' : 'chat'}
-            totalItems={totalItems}
-            onNewChat={startNewChat}
-            onSelectConversation={(id) => {
-              chats.select(id)
-              setScreen('chat')
-            }}
-            onDeleteConversation={chats.remove}
-            onOpenSearch={() => setScreen('search')}
-            onOpenSettings={() => openSettings()}
-          />
-
-          {screen === 'settings' ? (
-            <SettingsPage
-              onBack={() => setScreen('chat')}
+      <div className={styles.contentRow}>
+        {screen === 'search' ? (
+          <>
+            <Sidebar
+              conversations={chats.conversations}
+              activeId={chats.activeId}
               totalItems={totalItems}
-              sources={sources}
-              googleStatus={googleStatus}
-              indexStatus={indexStatus}
-              focusIndexing={focusIndexing}
-              onRefreshSources={reloadData}
-              onRefreshGoogleStatus={() => fetchGoogleStatus().then(setGoogleStatus)}
-              onStartProgress={() => fetchIndexStatus().then(setIndexStatus)}
-              onRevealTarget={(p) => revealTarget(p)}
+              onNewChat={startNewChat}
+              onSelectConversation={selectConversation}
+              onDeleteConversation={chats.remove}
             />
-          ) : (
+            <SearchScreen
+              query={query}
+              onQueryChange={handleTopBarQueryChange}
+              audioCategories={audioCategories}
+              audioSearching={audioSearching}
+              registerKeyHandler={(h) => {
+                searchKeyHandler.current = h
+              }}
+              onOpen={openResult}
+              onReveal={(p) => revealTarget(p)}
+              onAskChat={askInChat}
+              onContextMenu={handleContextMenu}
+            />
+          </>
+        ) : screen === 'settings' ? (
+          <SettingsPage
+            totalItems={totalItems}
+            sources={sources}
+            googleStatus={googleStatus}
+            indexStatus={indexStatus}
+            focusIndexing={focusIndexing}
+            onRefreshSources={reloadData}
+            onRefreshGoogleStatus={() => fetchGoogleStatus().then(setGoogleStatus)}
+            onStartProgress={() => fetchIndexStatus().then(setIndexStatus)}
+            onRevealTarget={(p) => revealTarget(p)}
+          />
+        ) : (
+          <>
+            <Sidebar
+              conversations={chats.conversations}
+              activeId={chats.activeId}
+              totalItems={totalItems}
+              onNewChat={startNewChat}
+              onSelectConversation={selectConversation}
+              onDeleteConversation={chats.remove}
+            />
+
             <ChatWorkspace
               messages={chats.active?.messages ?? []}
               isLoading={isChatLoading}
@@ -228,9 +320,9 @@ export const App: React.FC = () => {
               onLaunchTarget={(p) => launchTarget(p)}
               onOpenResult={openResult}
             />
-          )}
-        </>
-      )}
+          </>
+        )}
+      </div>
 
       {isOnboarding && (
         <OnboardingWizard

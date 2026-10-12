@@ -19,7 +19,7 @@ SCHEMA = pa.schema([
 class Storage:
     def __init__(self, db_path: Optional[Path] = None):
         if db_path is None:
-            db_path = Path.home() / ".smart_personal_search" / "lancedb"
+            db_path = Path.home() / ".hyperlight" / "lancedb"
         db_path.mkdir(parents=True, exist_ok=True)
         self.db = lancedb.connect(str(db_path))
         self.table_name = "items"
@@ -224,7 +224,7 @@ class Storage:
         self.db.drop_table(self.table_name)
         self.table = self.db.create_table(self.table_name, schema=SCHEMA)
 
-CONFIG_PATH = Path.home() / ".smart_personal_search" / "config.json"
+CONFIG_PATH = Path.home() / ".hyperlight" / "config.json"
 
 def _read_config() -> Dict[str, Any]:
     if not CONFIG_PATH.exists():

@@ -7,19 +7,19 @@ fn ensure_backend_running() {
     return;
   }
 
-  let project_dir = "/Users/vijay/dev/projects/Smart Personal Search";
+  let project_dir = "/Users/vijay/dev/projects/Hyperlight";
   let python_path = format!("{}/.venv/bin/python3", project_dir);
   let script_path = format!("{}/web_app.py", project_dir);
 
   if std::path::Path::new(&python_path).exists() {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    let log_dir = std::path::PathBuf::from(home).join(".smart_personal_search");
+    let log_dir = std::path::PathBuf::from(home).join(".hyperlight");
     let _ = std::fs::create_dir_all(&log_dir);
     let log_file = std::fs::OpenOptions::new()
       .create(true)
       .append(true)
       .open(log_dir.join("backend.log"))
-      .unwrap_or_else(|_| std::fs::File::create("/tmp/sps_backend.log").unwrap());
+      .unwrap_or_else(|_| std::fs::File::create("/tmp/hyperlight_backend.log").unwrap());
     let err_file = log_file.try_clone().unwrap();
 
     let _ = std::process::Command::new(&python_path)
@@ -28,6 +28,13 @@ fn ensure_backend_running() {
       .stdout(std::process::Stdio::from(log_file))
       .stderr(std::process::Stdio::from(err_file))
       .spawn();
+
+    for _ in 0..120 {
+      if TcpStream::connect_timeout(&"127.0.0.1:8585".parse().unwrap(), Duration::from_millis(300)).is_ok() {
+        return;
+      }
+      std::thread::sleep(Duration::from_millis(500));
+    }
   }
 }
 

@@ -11,7 +11,7 @@ import {
   toggleSourceWatch,
   updateAppSettings,
 } from '../../api'
-import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
+import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobInfo, IndexJobStatus } from '../../types'
 import {
   AppIcon,
   ChatIcon,
@@ -37,8 +37,35 @@ const STATUS_CLASS: Record<string, string> = {
 
 type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'maintenance'
 
+function activeJobs(status?: IndexJobStatus | null): IndexJobInfo[] {
+  if (!status) return []
+  if (status.jobs) return status.jobs
+  const jobs: IndexJobInfo[] = []
+  if (status.is_running && status.current_path) {
+    jobs.push({
+      name: status.current_folder,
+      path: status.current_path,
+      state: 'running',
+      percent: status.percent,
+      current_index: status.current_index,
+      total_files: status.total_files,
+    })
+  }
+  for (const name of status.queued ?? []) {
+    jobs.push({ name, path: '', state: 'queued', percent: 0, current_index: 0, total_files: 0 })
+  }
+  return jobs
+}
+
+const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
+  { id: 'sources', label: 'Sources', icon: FolderIcon, tint: styles.iconAccent },
+  { id: 'scanning', label: 'Real-Time Scanning', icon: ZapIcon, tint: styles.iconOrange },
+  { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: styles.iconGreen },
+  { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: styles.iconAccent },
+  { id: 'maintenance', label: 'Maintenance', icon: DatabaseIcon, tint: styles.iconIndigo },
+]
+
 interface SettingsPageProps {
-  onBack: () => void
   totalItems: number
   sources: ConfiguredSource[]
   googleStatus: GoogleStatus
@@ -46,12 +73,11 @@ interface SettingsPageProps {
   onRefreshSources: () => void
   onRefreshGoogleStatus: () => void
   onStartProgress: () => void
-  onRevealTarget: (path: string) => void
+  onRevealTarget: (path: string) => Promise<{ success: boolean; path: string }>
   focusIndexing?: boolean
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
-  onBack,
   totalItems,
   sources,
   googleStatus,
@@ -95,6 +121,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const showToast = (msg: string, color = 'blue') => {
     setToast({ msg, color })
     setTimeout(() => setToast(null), 5000)
+  }
+
+  const handleReveal = async (path: string) => {
+    try {
+      const res = await onRevealTarget(path)
+      if (!res.success) showToast(`Could not reveal '${path}' in Finder.`, 'red')
+    } catch (err: any) {
+      showToast(`Reveal failed: ${err.message}`, 'red')
+    }
   }
 
   const handleToggleAlwaysOn = async () => {
@@ -256,70 +291,52 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const localSources = sources.filter((s) => s.source_type !== 'macos_system')
   const isGlobalAlwaysOn = appSettings.always_on_scanning
+  const addedNames = new Set(sources.map((s) => s.path.replace(/\/$/, '').split('/').pop()?.toLowerCase()))
+  const availablePresets = PRESETS.filter((p) => !addedNames.has(p.replace('~/', '').toLowerCase()))
+  const hasAppsSource = sources.some((s) => s.source_type === 'macos_system')
+  const jobs = activeJobs(indexStatus)
+  const queuedJobs = jobs.filter((j) => j.state === 'queued')
+  const jobForSource = (s: ConfiguredSource) =>
+    jobs.find((j) => (j.path ? j.path === s.path : j.name === s.name))
+
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? 'Settings'
 
   return (
-    <main className={`${styles.page} custom-scroll`}>
-      <div className={styles.content}>
-        {/* Header */}
-        <header className={styles.pageHeader}>
-          <div className={styles.headerLeft}>
-            <button className={styles.backButton} onClick={onBack} aria-label="Back" title="Back">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" />
-              </svg>
+    <main className={styles.page}>
+      <nav className={styles.sideNav} aria-label="Settings categories">
+        {TABS.map((t) => {
+          const Icon = t.icon
+          const isActive = t.id === activeTab
+          return (
+            <button
+              key={t.id}
+              className={`${styles.navButton} ${isActive ? styles.navButtonActive : ''}`}
+              onClick={() => setActiveTab(t.id)}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <span className={`${styles.navIconTile} ${t.tint}`}>
+                <Icon className="w-3.5 h-3.5" />
+              </span>
+              <span>{t.label}</span>
+              {t.id === 'scanning' && indexStatus?.is_running && <span className={`${styles.tabDot} ${styles.navDot}`} />}
             </button>
+          )
+        })}
+      </nav>
+
+      <div className={`${styles.detail} custom-scroll`}>
+        <div className={styles.content}>
+          <header className={styles.pageHeader}>
             <h1 ref={titleRef} tabIndex={-1} className={styles.title}>
-              Settings
+              {activeLabel}
             </h1>
-          </div>
-          <div className={styles.headerMeta}>
-            <span>{totalItems.toLocaleString()} items</span>
-            {isGlobalAlwaysOn && <span className={styles.tabDot} title="Live Real-Time Watching Active" />}
-          </div>
-        </header>
+            <div className={styles.headerMeta}>
+              <span>{totalItems.toLocaleString()} items</span>
+              {isGlobalAlwaysOn && <span className={styles.tabDot} title="Live Real-Time Watching Active" />}
+            </div>
+          </header>
 
-        {/* Apple Segmented Navigation */}
-        <nav className={styles.tabBar} aria-label="Settings categories">
-          <button
-            className={`${styles.tabButton} ${activeTab === 'sources' ? styles.tabButtonActive : ''}`}
-            onClick={() => setActiveTab('sources')}
-          >
-            <span className={styles.tabIcon}>
-              <FolderIcon className="w-3.5 h-3.5" />
-            </span>
-            <span>Sources</span>
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'scanning' ? styles.tabButtonActive : ''}`}
-            onClick={() => setActiveTab('scanning')}
-          >
-            <span className={styles.tabIcon}>
-              <ZapIcon className="w-3.5 h-3.5" />
-            </span>
-            <span>Real-Time Scanning</span>
-            {indexStatus?.is_running && <span className={styles.tabDot} />}
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'cloud' ? styles.tabButtonActive : ''}`}
-            onClick={() => setActiveTab('cloud')}
-          >
-            <span className={styles.tabIcon}>
-              <CloudIcon className="w-3.5 h-3.5" />
-            </span>
-            <span>Cloud & Accounts</span>
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'maintenance' ? styles.tabButtonActive : ''}`}
-            onClick={() => setActiveTab('maintenance')}
-          >
-            <span className={styles.tabIcon}>
-              <DatabaseIcon className="w-3.5 h-3.5" />
-            </span>
-            <span>Maintenance</span>
-          </button>
-        </nav>
-
-        {toast && (
+          {toast && (
           <div role="status" className={`${styles.status} ${STATUS_CLASS[toast.color] ?? styles.statusInfo}`}>
             {toast.msg}
           </div>
@@ -333,7 +350,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div className={styles.cardHeader}>
                 <div className={styles.cardHeaderCol}>
                   <h2 className={styles.cardTitle}>Add Location</h2>
-                  <p className={styles.cardSubtitle}>Choose folders or external drives to include in personal search.</p>
+                  <p className={styles.cardSubtitle}>Add folders or drives to personal search.</p>
                 </div>
               </div>
 
@@ -350,12 +367,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <ServerIcon className="w-4 h-4" />
                   </span>
                   <span>Network Share</span>
-                </button>
-                <button className={styles.quickActionCard} onClick={handleIndexApps}>
-                  <span className={`${styles.quickActionIcon} ${styles.iconIndigo}`}>
-                    <AppIcon className="w-4 h-4" />
-                  </span>
-                  <span>macOS Apps</span>
                 </button>
               </div>
 
@@ -375,14 +386,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </form>
 
               {/* Presets */}
-              <div className={styles.chipRow}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--label-2)' }}>Quick add:</span>
-                {PRESETS.map((p) => (
-                  <button key={p} className={styles.chip} onClick={() => handleIndexPreset(p)}>
-                    {p.replace('~/', '')}
-                  </button>
-                ))}
-              </div>
+              {(availablePresets.length > 0 || !hasAppsSource) && (
+                <div className={styles.chipRow}>
+                  <span className={styles.chipLabel}>Quick add:</span>
+                  {availablePresets.map((p) => (
+                    <button key={p} className={styles.chip} title={p} onClick={() => handleIndexPreset(p)}>
+                      <FolderIcon className={styles.chipIcon} />
+                      {p.replace('~/', '')}
+                    </button>
+                  ))}
+                  {!hasAppsSource && (
+                    <button className={styles.chip} title="Index installed macOS applications" onClick={handleIndexApps}>
+                      <AppIcon className={styles.chipIcon} />
+                      Apps
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Indexed Locations */}
@@ -405,6 +425,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     const isWatchable = !isApp && !s.path.startsWith('http')
                     const isWatchOn = s.watch_enabled !== false
 
+                    const job = jobForSource(s)
                     return (
                       <li key={s.path} className={styles.sourceCard}>
                         <div className={styles.sourceInfo}>
@@ -412,22 +433,40 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             {isApp ? <AppIcon className="w-4 h-4" /> : <FolderIcon className="w-4 h-4" />}
                           </span>
                           <div className={styles.sourceDetails}>
-                            <div className={styles.sourceNameRow}>
-                              <span className={styles.sourceName}>{s.name}</span>
-                              <span className={`${styles.badge} ${styles.badgeNeutral}`}>
-                                {s.items_count.toLocaleString()} items
+                            <span className={styles.sourceName}>{s.name}</span>
+                            <span className={`${styles.badge} ${styles.badgeNeutral}`} title="Items indexed">
+                              {s.items_count.toLocaleString()}
+                            </span>
+                            {isGlobalAlwaysOn && isWatchable && (
+                              <span
+                                className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}
+                              >
+                                {isWatchOn ? '● Live' : 'Manual'}
                               </span>
-                              {isGlobalAlwaysOn && isWatchable && (
-                                <span
-                                  className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}
-                                >
-                                  {isWatchOn ? '● Live' : 'Manual'}
-                                </span>
-                              )}
-                            </div>
+                            )}
                             <span className={styles.sourcePath} title={s.path}>
                               {s.path}
                             </span>
+                            {job?.state === 'running' && (
+                              <span
+                                className={styles.jobProgress}
+                                title={job.total_files > 0 ? `Indexing file ${job.current_index.toLocaleString()} of ${job.total_files.toLocaleString()}` : 'Discovering files…'}
+                              >
+                                {job.total_files > 0 ? (
+                                  <>
+                                    <span className={styles.jobTrack}>
+                                      <span className={styles.jobFill} style={{ width: `${job.percent}%` }} />
+                                    </span>
+                                    <span className={styles.jobPercent}>{Math.round(job.percent)}%</span>
+                                  </>
+                                ) : (
+                                  <span className={styles.jobPercent}>Starting…</span>
+                                )}
+                              </span>
+                            )}
+                            {job?.state === 'queued' && (
+                              <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
+                            )}
                           </div>
                         </div>
 
@@ -444,7 +483,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             </label>
                           )}
 
-                          <button className={styles.button} onClick={() => onRevealTarget(s.path)} title="Reveal in Finder">
+                          <button className={styles.button} onClick={() => handleReveal(s.path)} title="Reveal in Finder">
                             Reveal
                           </button>
                           <button className={styles.button} onClick={() => handleRescan(s)} title="Re-index this folder">
@@ -470,8 +509,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {/* TAB 2: REAL-TIME SCANNING */}
         {activeTab === 'scanning' && (
           <div className={styles.panel}>
-            {/* Master Switch Card */}
-            <div className={styles.card}>
+            <div className={styles.duoGrid}>
+              {/* Master Switch Card */}
+              <div className={styles.card}>
               <div className={styles.cardHeader}>
                 <div className={styles.cardHeaderCol}>
                   <div className={styles.sourceNameRow}>
@@ -498,6 +538,70 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <span className={styles.slider} />
                 </label>
               </div>
+              </div>
+
+              {/* Active Indexing Monitor */}
+              <div className={styles.card} id="settings-indexing">
+                <div className={styles.cardHeader}>
+                  <div className={styles.cardHeaderCol}>
+                    <h2 className={styles.cardTitle}>Indexing Activity</h2>
+                    <p className={styles.cardSubtitle}>
+                      {indexStatus?.is_running
+                        ? `Scanning ${indexStatus.current_folder || 'files'}...`
+                        : 'Background indexer is currently idle.'}
+                    </p>
+                  </div>
+                  {indexStatus?.is_running && (
+                    <button className={`${styles.button} ${styles.destructive}`} onClick={() => stopIndex()}>
+                      Stop Indexing
+                    </button>
+                  )}
+                </div>
+
+                {indexStatus?.is_running ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <ProgressBar status={indexStatus.status} percent={indexStatus.percent} />
+                    <div className={styles.statGrid}>
+                      <div className={styles.statCard}>
+                        <span className={styles.statValue}>
+                          {indexStatus.current_index.toLocaleString()} / {indexStatus.total_files.toLocaleString()}
+                        </span>
+                        <span className={styles.statLabel}>Files Processed</span>
+                      </div>
+                      <div className={styles.statCard}>
+                        <span className={styles.statValue}>{indexStatus.percent.toFixed(0)}%</span>
+                        <span className={styles.statLabel}>Completion</span>
+                      </div>
+                    </div>
+                    {indexStatus.current_file && (
+                      <div className={styles.bannerNotice}>
+                        <span>📄</span>
+                        <span className={styles.truncate} title={indexStatus.current_file}>
+                          Current: {indexStatus.current_file}
+                        </span>
+                      </div>
+                    )}
+                    {queuedJobs.length > 0 && (
+                      <div className={styles.queueList}>
+                        <span className={styles.queueTitle}>Up next</span>
+                        {queuedJobs.map((j) => (
+                          <div key={j.path || j.name} className={styles.queueRow}>
+                            <span className={styles.queueName} title={j.path || j.name}>
+                              {j.name}
+                            </span>
+                            <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={styles.bannerNotice}>
+                    <span>✓</span>
+                    <span>{indexStatus?.status || 'All indexed folders are up to date.'}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Per-Source Settings (shown only when Always-On is enabled) */}
@@ -508,7 +612,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <p className={styles.cardSubtitle}>
                     {isGlobalAlwaysOn
                       ? 'Enable or disable continuous real-time watching for each individual location:'
-                      : 'Always-on scanning is currently paused. Enable the master toggle above to manage per-source rules.'}
+                      : 'Always-on scanning is currently paused. Enable the master toggle to manage per-source rules.'}
                   </p>
                 </div>
               </div>
@@ -527,12 +631,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               <FolderIcon className="w-4 h-4" />
                             </span>
                             <div className={styles.sourceDetails}>
-                              <div className={styles.sourceNameRow}>
-                                <span className={styles.sourceName}>{s.name}</span>
-                                <span className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}>
-                                  {isWatchOn ? 'Live Watching' : 'Manual Scan Only'}
-                                </span>
-                              </div>
+                              <span className={styles.sourceName}>{s.name}</span>
+                              <span className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}>
+                                {isWatchOn ? '● Live' : 'Manual'}
+                              </span>
                               <span className={styles.sourcePath} title={s.path}>
                                 {s.path}
                               </span>
@@ -561,62 +663,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     Continuous watching is stopped. When you turn Always-on Scanning on, you can select which folders to
                     watch automatically.
                   </span>
-                </div>
-              )}
-            </div>
-
-            {/* Active Indexing Monitor */}
-            <div className={styles.card} id="settings-indexing">
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle}>Indexing Activity</h2>
-                  <p className={styles.cardSubtitle}>
-                    {indexStatus?.is_running
-                      ? `Scanning ${indexStatus.current_folder || 'files'}...`
-                      : 'Background indexer is currently idle.'}
-                  </p>
-                </div>
-                {indexStatus?.is_running && (
-                  <button className={`${styles.button} ${styles.destructive}`} onClick={() => stopIndex()}>
-                    Stop Indexing
-                  </button>
-                )}
-              </div>
-
-              {indexStatus?.is_running ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <ProgressBar status={indexStatus.status} percent={indexStatus.percent} />
-                  <div className={styles.statGrid}>
-                    <div className={styles.statCard}>
-                      <span className={styles.statValue}>
-                        {indexStatus.current_index.toLocaleString()} / {indexStatus.total_files.toLocaleString()}
-                      </span>
-                      <span className={styles.statLabel}>Files Processed</span>
-                    </div>
-                    <div className={styles.statCard}>
-                      <span className={styles.statValue}>{indexStatus.percent.toFixed(0)}%</span>
-                      <span className={styles.statLabel}>Completion</span>
-                    </div>
-                  </div>
-                  {indexStatus.current_file && (
-                    <div className={styles.bannerNotice}>
-                      <span>📄</span>
-                      <span className={styles.truncate} title={indexStatus.current_file}>
-                        Current: {indexStatus.current_file}
-                      </span>
-                    </div>
-                  )}
-                  {indexStatus.queued.length > 0 && (
-                    <div className={styles.bannerNotice}>
-                      <span>⏳</span>
-                      <span className={styles.truncate}>Queued: {indexStatus.queued.join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className={styles.bannerNotice}>
-                  <span>✓</span>
-                  <span>{indexStatus?.status || 'All indexed folders are up to date.'}</span>
                 </div>
               )}
             </div>
@@ -718,6 +764,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           </div>
         )}
+        </div>
       </div>
     </main>
   )

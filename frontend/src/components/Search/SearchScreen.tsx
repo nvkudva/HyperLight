@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useLiveSearch } from '../../hooks/useLiveSearch'
 import type { SearchResult } from '../../types'
 import {
@@ -9,8 +9,6 @@ import {
   ContactIcon,
   DocumentIcon,
   PhotoIcon,
-  SearchIcon,
-  SettingsIcon,
   VideoIcon,
 } from '../common/Icons'
 import styles from './SearchScreen.module.css'
@@ -41,32 +39,41 @@ const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
 const VISUAL_PREVIEW = /\.(pdf|docx?|pptx?|xlsx?|key|pages|numbers|rtf|heic|png|jpe?g|gif|webp|tiff?)$/i
 
 interface SearchScreenProps {
-  accessory?: React.ReactNode
+  query: string
+  onQueryChange: (q: string) => void
+  registerKeyHandler: (h: (e: React.KeyboardEvent) => void) => void
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
   onAskChat: (query: string) => void
-  onOpenSettings: () => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
-  onDragStart: (e: React.MouseEvent) => void
+  audioCategories?: Record<string, SearchResult[]> | null
+  audioSearching?: boolean
 }
 
 export const SearchScreen: React.FC<SearchScreenProps> = ({
-  accessory,
+  query,
+  onQueryChange,
+  registerKeyHandler,
   onOpen,
   onReveal,
   onAskChat,
-  onOpenSettings,
   onContextMenu,
-  onDragStart,
+  audioCategories = null,
+  audioSearching = false,
 }) => {
-  const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const { categories, flatItems, offsets, isSearching } = useLiveSearch(query)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  const live = useLiveSearch(audioCategories ? '' : query)
+  const categories = audioCategories ?? live.categories
+  const isSearching = audioCategories !== null ? audioSearching : live.isSearching
+  const { flatItems, offsets } = useMemo(() => {
+    const off: Record<string, number> = {}
+    const flat: SearchResult[] = []
+    for (const [key, items] of Object.entries(categories)) {
+      off[key] = flat.length
+      flat.push(...(items || []))
+    }
+    return { flatItems: flat, offsets: off }
+  }, [categories])
 
   useEffect(() => {
     setSelected(0)
@@ -77,7 +84,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setQuery('')
+      onQueryChange('')
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       if (!flatItems.length) return
@@ -102,42 +109,24 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   }
 
   const kindOf = (item: SearchResult) => item.type ?? item.file_type ?? 'document'
-  const hasQuery = query.trim().length > 0
+  const hasQuery = query.trim().length > 0 || audioCategories !== null
+  const emptyTitle = isSearching
+    ? audioCategories !== null
+      ? 'Searching audio…'
+      : 'Searching…'
+    : audioCategories !== null
+      ? 'No matches for that audio'
+      : `No results for “${query}”`
+
+  useEffect(() => {
+    registerKeyHandler(handleKeyDown)
+    const input = document.getElementById('unified-search-input')
+    if (current) input?.setAttribute('aria-activedescendant', `search-item-${selected}`)
+    else input?.removeAttribute('aria-activedescendant')
+  })
 
   return (
     <div className={styles.screen}>
-      <header
-        className={styles.header}
-        data-tauri-drag-region
-        onMouseDown={(e) => e.target === e.currentTarget && onDragStart(e)}
-      >
-        <SearchIcon className={styles.searchIcon} />
-        <input
-          ref={inputRef}
-          type="text"
-          className={styles.searchInput}
-          placeholder="Search files, photos, mail and apps"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          role="combobox"
-          aria-expanded={flatItems.length > 0}
-          aria-controls="search-results"
-          aria-activedescendant={current ? `search-item-${selected}` : undefined}
-        />
-        {accessory}
-        <button
-          className={styles.chatButton}
-          onClick={() => onAskChat(query.trim())}
-          title="Open chat (⌘↩ asks this query)"
-        >
-          {hasQuery ? 'Ask in Chat' : 'Chat'}
-        </button>
-        <button className={styles.iconButton} onClick={onOpenSettings} aria-label="Settings" title="Settings">
-          <SettingsIcon className={styles.settingsIcon} />
-        </button>
-      </header>
-
       {!hasQuery ? (
         <div className={styles.emptyState}>
           <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>
@@ -147,8 +136,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         </div>
       ) : flatItems.length === 0 ? (
         <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>{isSearching ? 'Searching…' : `No results for “${query}”`}</p>
-          {!isSearching && (
+          <p className={styles.emptyTitle}>{emptyTitle}</p>
+          {!isSearching && audioCategories === null && (
             <button className={styles.linkButton} onClick={() => onAskChat(query.trim())}>
               Ask in chat instead
             </button>
@@ -173,7 +162,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                         aria-selected={isSelected}
                         className={`${styles.itemRow} ${isSelected ? styles.itemSelected : ''}`}
                         onMouseEnter={() => setSelected(index)}
-                        onClick={() => onOpen(item)}
+                        onClick={() => setSelected(index)}
+                        onDoubleClick={() => onOpen(item)}
                         onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
                       >
                         {renderIcon(catKey)}
@@ -249,7 +239,9 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
       )}
 
       <footer className={styles.statusBar}>
-        <span>{hasQuery ? `${flatItems.length} results` : 'Local search'}</span>
+        <span>
+          {audioCategories !== null ? `Voice search · ${flatItems.length} results` : hasQuery ? `${flatItems.length} results` : 'Local search'}
+        </span>
         <span>↑↓ Select · ↵ Open · ⌘R Show in Finder · ⌘↩ Ask in Chat</span>
       </footer>
     </div>

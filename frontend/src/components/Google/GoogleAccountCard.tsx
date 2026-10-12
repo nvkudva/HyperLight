@@ -3,7 +3,7 @@ import { disconnectGoogle, indexAppleMail, indexDriveLocations, launchTarget, op
 import { DRIVE_DOWNLOAD_URL, useDriveLocations } from "../../hooks/useDriveLocations";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 import type { GoogleStatus, IndexJobStatus } from "../../types";
-import { GoogleLogo } from "../common/Icons";
+import { CloudIcon, GoogleLogo, MailIcon, PhotoIcon } from "../common/Icons";
 import { ProgressBar } from "../common/ProgressBar";
 import ui from "../Settings/SettingsPage.module.css";
 import styles from "./GoogleAccountCard.module.css";
@@ -99,94 +99,164 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({ status, in
   const user = status.connected ? status.user : undefined;
 
   return (
-    <section className={ui.section} aria-labelledby="settings-google">
-      <h2 id="settings-google" className={ui.sectionHeader}>
-        Google
-      </h2>
-      <div className={ui.group}>
-        <div className={ui.row}>
-          <div className={ui.rowText}>
-            <span className={ui.rowTitle}>Google Drive</span>
-            <span className={ui.rowSubtitle}>{driveLocations.length ? `Drive for desktop · ${driveLocations.map((l) => l.account || l.name).join(", ")}` : "Install Drive for desktop to search your Drive files."}</span>
+    <>
+      <div className={ui.card} aria-labelledby="settings-google-account">
+        <div className={ui.cardHeader}>
+          <div className={ui.cardHeaderCol}>
+            <h2 id="settings-google-account" className={ui.cardTitle}>
+              Google Account
+            </h2>
+            <p className={ui.cardSubtitle}>Connect Google to index Photos, Drive and Gmail.</p>
           </div>
-          <div className={ui.rowControls}>
-            {driveLocations.length ? (
-              <button className={ui.button} onClick={handleIndexDrive}>
-                Index
-              </button>
-            ) : (
-              <>
-                <button className={ui.button} onClick={loadDriveLocations}>
-                  Check Again
-                </button>
-                <button className={ui.button} onClick={() => launchTarget(DRIVE_DOWNLOAD_URL)}>
-                  Download…
-                </button>
-              </>
-            )}
-          </div>
+          {user && <span className={`${ui.badge} ${ui.badgeSuccess}`}>● Connected</span>}
         </div>
 
-        <div className={ui.row}>
-          <div className={ui.rowText}>
-            <span className={ui.rowTitle}>Gmail</span>
-            <span className={ui.rowSubtitle}>Add your Google account to Apple Mail, then index Mail.</span>
-          </div>
-          <div className={ui.rowControls}>
-            <button className={ui.button} onClick={() => openSettingsPane("internet-accounts")}>
-              Add Account…
-            </button>
-            <button className={ui.button} onClick={handleIndexMail}>
-              Index Mail
+        {user ? (
+          <div className={styles.accountRow}>
+            <img src={user.picture || "https://www.gstatic.com/images/branding/product/2x/avatar_square_grey_96dp.png"} className={styles.avatar} alt="" />
+            <div className={styles.accountText}>
+              <span className={styles.accountName}>{user.name || "Google User"}</span>
+              <span className={styles.accountEmail}>{user.email || ""}</span>
+            </div>
+            <button className={`${ui.button} ${ui.destructive}`} onClick={handleDisconnect}>
+              Disconnect
             </button>
           </div>
-        </div>
-
-        <div className={ui.row}>
-          <div className={ui.rowLabel}>
+        ) : (
+          <div className={styles.accountRow}>
             <span className={styles.logoBadge}>
               <GoogleLogo className="w-3.5 h-3.5" />
             </span>
-            <div className={ui.rowText}>
-              <span className={ui.rowTitle}>Google Photos</span>
-              <span className={ui.rowSubtitle}>{user ? "Search an album name in the picker, then select its photos." : status.has_client_config ? "Sign in, then choose the photos or albums to index." : "Google sign-in is not configured in this build."}</span>
+            <div className={styles.accountText}>
+              <span className={styles.accountName}>Not connected</span>
+              <span className={styles.accountEmail}>{status.has_client_config ? "Sign in to enable Photos, Drive and Gmail sync." : "Google sign-in is not configured in this build."}</span>
             </div>
-          </div>
-          {user ? (
-            <button className={ui.button} onClick={handleSyncPhotos}>
-              Choose Photos…
-            </button>
-          ) : (
             <button className={`${ui.button} ${ui.primary}`} onClick={handleSignIn} disabled={isSigningIn || !status.has_client_config}>
               {isSigningIn ? "Waiting for browser..." : "Sign in with Google"}
             </button>
-          )}
+          </div>
+        )}
+      </div>
+
+      <div className={ui.card} aria-labelledby="settings-cloud-services">
+        <div className={ui.cardHeader}>
+          <div className={ui.cardHeaderCol}>
+            <h2 id="settings-cloud-services" className={ui.cardTitle}>
+              Connected Services
+            </h2>
+            <p className={ui.cardSubtitle}>Index cloud content into local search.</p>
+          </div>
         </div>
 
-        {user && status.full_access && (
-          <>
-            <div className={ui.row}>
-              <span className={ui.rowTitle}>Google Drive (API)</span>
-              <button className={ui.button} onClick={handleSyncDrive}>
-                Sync
+        <ul className={styles.serviceList}>
+          <li className={styles.serviceRow}>
+            <span className={`${styles.serviceIcon} ${styles.tintAccent}`}>
+              <CloudIcon className="w-4 h-4" />
+            </span>
+            <div className={styles.serviceText}>
+              <span className={styles.serviceTitle}>
+                Google Drive
+                {driveLocations.length > 0 && <span className={`${ui.badge} ${ui.badgeSuccess}`}>● Found</span>}
+              </span>
+              <span className={styles.serviceSubtitle}>{driveLocations.length ? `Drive for desktop · ${driveLocations.map((l) => l.account || l.name).join(", ")}` : "Install Drive for desktop to search your Drive files."}</span>
+            </div>
+            <div className={styles.serviceControls}>
+              {driveLocations.length ? (
+                <button className={ui.button} onClick={handleIndexDrive}>
+                  Index
+                </button>
+              ) : (
+                <>
+                  <button className={ui.button} onClick={loadDriveLocations}>
+                    Check Again
+                  </button>
+                  <button className={ui.button} onClick={() => launchTarget(DRIVE_DOWNLOAD_URL)}>
+                    Download…
+                  </button>
+                </>
+              )}
+            </div>
+          </li>
+
+          <li className={styles.serviceRow}>
+            <span className={`${styles.serviceIcon} ${styles.tintOrange}`}>
+              <MailIcon className="w-4 h-4" />
+            </span>
+            <div className={styles.serviceText}>
+              <span className={styles.serviceTitle}>Apple Mail</span>
+              <span className={styles.serviceSubtitle}>Add your Google account to Apple Mail, then index Mail.</span>
+            </div>
+            <div className={styles.serviceControls}>
+              <button className={ui.button} onClick={() => openSettingsPane("internet-accounts")}>
+                Add Account…
+              </button>
+              <button className={ui.button} onClick={handleIndexMail}>
+                Index Mail
               </button>
             </div>
-            <div className={ui.row}>
-              <span className={ui.rowTitle}>Gmail (API)</span>
-              <button className={ui.button} onClick={handleSyncGmail}>
-                Sync
-              </button>
+          </li>
+
+          <li className={styles.serviceRow}>
+            <span className={`${styles.serviceIcon} ${styles.tintGreen}`}>
+              <PhotoIcon className="w-4 h-4" />
+            </span>
+            <div className={styles.serviceText}>
+              <span className={styles.serviceTitle}>
+                Google Photos
+                {!user && <span className={`${ui.badge} ${ui.badgeNeutral}`}>Sign-in required</span>}
+              </span>
+              <span className={styles.serviceSubtitle}>{user ? "Search an album name in the picker, then select its photos." : status.has_client_config ? "Sign in above, then choose the photos or albums to index." : "Google sign-in is not configured in this build."}</span>
             </div>
-          </>
-        )}
+            {user && (
+              <div className={styles.serviceControls}>
+                <button className={ui.button} onClick={handleSyncPhotos}>
+                  Choose Photos…
+                </button>
+              </div>
+            )}
+          </li>
+
+          {user && status.full_access && (
+            <>
+              <li className={styles.serviceRow}>
+                <span className={`${styles.serviceIcon} ${styles.tintIndigo}`}>
+                  <CloudIcon className="w-4 h-4" />
+                </span>
+                <div className={styles.serviceText}>
+                  <span className={styles.serviceTitle}>Google Drive (API)</span>
+                  <span className={styles.serviceSubtitle}>Sync Drive files directly through the Google API.</span>
+                </div>
+                <div className={styles.serviceControls}>
+                  <button className={ui.button} onClick={handleSyncDrive}>
+                    Sync
+                  </button>
+                </div>
+              </li>
+              <li className={styles.serviceRow}>
+                <span className={`${styles.serviceIcon} ${styles.tintIndigo}`}>
+                  <MailIcon className="w-4 h-4" />
+                </span>
+                <div className={styles.serviceText}>
+                  <span className={styles.serviceTitle}>Gmail (API)</span>
+                  <span className={styles.serviceSubtitle}>Sync Gmail directly through the Google API.</span>
+                </div>
+                <div className={styles.serviceControls}>
+                  <button className={ui.button} onClick={handleSyncGmail}>
+                    Sync
+                  </button>
+                </div>
+              </li>
+            </>
+          )}
+        </ul>
 
         {cloudJob?.is_running && (
-          <div className={`${ui.row} ${ui.rowStacked}`}>
+          <div className={styles.syncBlock}>
             <ProgressBar status={cloudJob.status} percent={cloudJob.percent} />
           </div>
         )}
         {cloudJob?.state === "error" && (
-          <div className={`${ui.row} ${ui.rowStacked} ${styles.error}`} role="alert">
+          <div className={`${styles.syncBlock} ${styles.error}`} role="alert">
             <span className={styles.errorTitle}>Sync error</span>
             <span>{cloudJob.status.replace("Error during indexing: ", "")}</span>
             {cloudJob.error_code === "reauth_required" && (
@@ -197,26 +267,11 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({ status, in
           </div>
         )}
         {cloudJob?.state === "finished" && (
-          <div className={`${ui.row} ${styles.success}`} role="status">
+          <div className={`${styles.syncBlock} ${styles.success}`} role="status">
             ✓ {cloudJob.status}
           </div>
         )}
-
-        {user && (
-          <div className={ui.row}>
-            <div className={ui.rowLabel}>
-              <img src={user.picture || "https://www.gstatic.com/images/branding/product/2x/avatar_square_grey_96dp.png"} className={styles.avatar} alt="" />
-              <div className={ui.rowText}>
-                <span className={ui.rowTitle}>{user.name || "Google User"}</span>
-                <span className={ui.rowSubtitle}>{user.email || ""}</span>
-              </div>
-            </div>
-            <button className={`${ui.button} ${ui.destructive}`} onClick={handleDisconnect}>
-              Disconnect
-            </button>
-          </div>
-        )}
       </div>
-    </section>
+    </>
   );
 };
