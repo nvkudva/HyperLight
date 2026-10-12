@@ -36,24 +36,64 @@
   color: var(--label-2);
 }
 
-.linkButton {
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
+.feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
 }
 
 .resultCard {
-  flex: 1;
-  min-height: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 28rem;
+  flex-shrink: 0;
+  border: 0.5px solid var(--separator);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.resultCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.resultCardTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resultCardMeta {
+  font-size: 0.6875rem;
+  color: var(--label-2);
+  flex-shrink: 0;
+}
+
+.emptyNote {
+  margin: 0;
+  padding: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--label-2);
+  text-align: center;
+}
+
+.resultCardBody {
   display: grid;
   grid-template-columns: minmax(16rem, 2fr) 3fr;
 }
 
 .results {
-  overflow-y: auto;
   padding: 0.5rem;
   border-right: 0.5px solid var(--separator);
 }
@@ -127,7 +167,6 @@
 }
 
 .preview {
-  overflow-y: auto;
   padding: 1rem;
   display: flex;
   flex-direction: column;

@@ -7,7 +7,8 @@ import {
   revealTarget,
 } from './api'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
-import { SearchScreen } from './components/Search/SearchScreen'
+import { SearchScreen, type FeedApi } from './components/Search/SearchScreen'
+import { Sidebar } from './components/Sidebar/Sidebar'
 import { TopBar, type TopTab } from './components/TopBar/TopBar'
 import { ScanIndicator } from './components/common/ScanIndicator'
 import { useConversations } from './hooks/useConversations'
@@ -65,6 +66,8 @@ export const App: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchKeyHandler = useRef<(e: React.KeyboardEvent) => void>(() => {})
   const [isOnboarding, setIsOnboarding] = useState(() => !localStorage.getItem('onboarded'))
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const feedApiRef = useRef<FeedApi | null>(null)
   const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
   const chats = useConversations()
@@ -176,6 +179,8 @@ export const App: React.FC = () => {
         inputRef={searchInputRef}
         activeTab={screen}
         onSelectTab={selectTab}
+        historyOpen={historyOpen}
+        onToggleHistory={() => setHistoryOpen((v) => !v)}
         accessory={scanIndicator}
         onDragStart={startWindowDrag}
         onAudioResults={handleAudioResults}
@@ -184,18 +189,30 @@ export const App: React.FC = () => {
 
       <div className={styles.contentRow}>
         {screen === 'search' ? (
-          <SearchScreen
-            query={query}
-            onQueryChange={handleTopBarQueryChange}
-            audioCategories={audioCategories}
-            audioSearching={audioSearching}
-            registerKeyHandler={(h) => {
-              searchKeyHandler.current = h
-            }}
-            onOpen={openResult}
-            onReveal={(p) => revealTarget(p)}
-            onContextMenu={handleContextMenu}
-          />
+          <>
+            {historyOpen && (
+              <Sidebar
+                conversations={chats.conversations}
+                totalItems={totalItems}
+                onSelectConversation={(id) => feedApiRef.current?.scrollTo(id)}
+                onDeleteConversation={chats.remove}
+              />
+            )}
+            <SearchScreen
+              query={query}
+              onQueryChange={handleTopBarQueryChange}
+              audioCategories={audioCategories}
+              audioSearching={audioSearching}
+              registerKeyHandler={(h) => {
+                searchKeyHandler.current = h
+              }}
+              onOpen={openResult}
+              onReveal={(p) => revealTarget(p)}
+              onContextMenu={handleContextMenu}
+              history={chats.conversations}
+              feedApiRef={feedApiRef}
+            />
+          </>
         ) : (
           <React.Suspense fallback={null}>
           <SettingsPage

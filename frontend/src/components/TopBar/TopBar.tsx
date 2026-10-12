@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAudioSearch } from '../../hooks/useAudioSearch'
-import { SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
+import { HistoryIcon, SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
 import { SearchBox } from '../common/SearchBox'
 import type { SearchResult } from '../../types'
 import styles from './TopBar.module.css'
@@ -14,6 +14,8 @@ interface TopBarProps {
   inputRef: React.RefObject<HTMLInputElement | null>
   activeTab: TopTab
   onSelectTab: (tab: TopTab) => void
+  historyOpen: boolean
+  onToggleHistory: () => void
   accessory?: React.ReactNode
   onDragStart: (e: React.MouseEvent) => void
   onAudioResults: (categories: Record<string, SearchResult[]>, query?: string) => void
@@ -27,6 +29,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   inputRef,
   activeTab,
   onSelectTab,
+  historyOpen,
+  onToggleHistory,
   accessory,
   onDragStart,
   onAudioResults,
@@ -126,7 +130,15 @@ export const TopBar: React.FC<TopBarProps> = ({
         )}
       />
       <nav className={styles.tabs} aria-label="Views">
-        {tab('search', 'Search', 'Search (⌘K)', SearchIcon)}
+        <button
+          className={`${styles.iconButton} ${historyOpen ? styles.tabActive : ''}`}
+          onClick={onToggleHistory}
+          aria-label="History"
+          title="Search history"
+          aria-pressed={historyOpen}
+        >
+          <HistoryIcon className={styles.tabIcon} />
+        </button>
         {tab('settings', 'Settings', 'Settings (⌘,)', SettingsIcon)}
       </nav>
     </header>

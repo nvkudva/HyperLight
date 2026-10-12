@@ -1,40 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useLiveSearch } from '../../hooks/useLiveSearch'
-import type { SearchResult } from '../../types'
-import {
-  AppIcon,
-  AudioIcon,
-  BookmarkIcon,
-  CalendarIcon,
-  ContactIcon,
-  DocumentIcon,
-  PhotoIcon,
-  VideoIcon,
-} from '../common/Icons'
-import { ResultThumbnail, VISUAL_PREVIEW } from './ResultThumbnail'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import type { Conversation, SearchResult } from '../../types'
+import { ResultCard } from './ResultCard'
 import styles from './SearchScreen.module.css'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  app: 'Applications',
-  contact: 'Contacts',
-  calendar: 'Calendar events',
-  email: 'Mail',
-  document: 'Documents',
-  photo: 'Photos',
-  video: 'Videos',
-  audio: 'Audio',
-  webloc: 'Bookmarks',
-}
-
-const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
-  app: [AppIcon, styles.indigo],
-  contact: [ContactIcon, styles.green],
-  calendar: [CalendarIcon, styles.red],
-  photo: [PhotoIcon, styles.orange],
-  video: [VideoIcon, styles.red],
-  audio: [AudioIcon, styles.indigo],
-  webloc: [BookmarkIcon, styles.accent],
-  bookmark: [BookmarkIcon, styles.accent],
+export interface FeedApi {
+  scrollTo: (id: string) => void
 }
 
 interface SearchScreenProps {
@@ -46,6 +16,8 @@ interface SearchScreenProps {
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
   audioCategories?: Record<string, SearchResult[]> | null
   audioSearching?: boolean
+  history: Conversation[]
+  feedApiRef: { current: FeedApi | null }
 }
 
 export const SearchScreen: React.FC<SearchScreenProps> = ({
@@ -57,182 +29,87 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   onContextMenu,
   audioCategories = null,
   audioSearching = false,
+  history,
+  feedApiRef,
 }) => {
-  const [selected, setSelected] = useState(0)
-  const live = useLiveSearch(audioCategories ? '' : query)
-  const categories = audioCategories ?? live.categories
-  const isSearching = audioCategories !== null ? audioSearching : live.isSearching
-  const { flatItems, offsets } = useMemo(() => {
-    const off: Record<string, number> = {}
-    const flat: SearchResult[] = []
-    for (const [key, items] of Object.entries(categories)) {
-      off[key] = flat.length
-      flat.push(...(items || []))
-    }
-    return { flatItems: flat, offsets: off }
-  }, [categories])
+  const feedRef = useRef<HTMLDivElement>(null)
+  const q = query.trim()
+  const isAudio = audioCategories !== null
+  const hasQuery = q.length > 0 || isAudio
+  const liveTitle = isAudio ? 'Voice search' : q
 
-  const [seenCategories, setSeenCategories] = useState(categories)
-  if (seenCategories !== categories) {
-    setSeenCategories(categories)
-    setSelected(0)
-  }
+  const cards = useMemo(() => {
+    const liveKey = liveTitle.toLowerCase()
+    return history.filter(
+      (c) => (c.kind ?? 'chat') === 'search' && (liveKey === '' || c.title.toLowerCase() !== liveKey)
+    )
+  }, [history, liveTitle])
 
-  const current = flatItems[selected]
-  const [failedPreviews, setFailedPreviews] = useState<Set<string>>(() => new Set())
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onQueryChange('')
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (!flatItems.length) return
-      const next = (selected + (e.key === 'ArrowDown' ? 1 : -1) + flatItems.length) % flatItems.length
-      setSelected(next)
-      document.getElementById(`search-item-${next}`)?.scrollIntoView({ block: 'nearest' })
-    } else if (e.key === 'Enter' && current) {
-      e.preventDefault()
-      onOpen(current)
-    } else if (e.key === 'r' && e.metaKey && current) {
-      e.preventDefault()
-      onReveal(current.path)
-    }
-  }
-
-  const renderIcon = (kind: string, extra = '') => {
-    const [Icon, tint] = ICONS[kind] ?? [DocumentIcon, styles.accent]
-    return <Icon className={`${styles.itemIcon} ${tint} ${extra}`} />
-  }
-
-  const kindOf = (item: SearchResult) => item.type ?? item.file_type ?? 'document'
-  const hasQuery = query.trim().length > 0 || audioCategories !== null
-  const emptyTitle = isSearching
-    ? audioCategories !== null
-      ? 'Searching audio…'
-      : 'Searching…'
-    : audioCategories !== null
-      ? 'No matches for that audio'
-      : `No results for “${query}”`
+  const scrollTo = useCallback((id: string) => {
+    feedRef.current
+      ?.querySelector(`#result-card-${CSS.escape(id)}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   useEffect(() => {
-    registerKeyHandler(handleKeyDown)
-    const input = document.getElementById('unified-search-input')
-    if (current) input?.setAttribute('aria-activedescendant', `search-item-${selected}`)
-    else input?.removeAttribute('aria-activedescendant')
+    feedApiRef.current = { scrollTo }
   })
+
+  const cardCount = cards.length + (hasQuery ? 1 : 0)
 
   return (
     <div className={styles.screen}>
-      {!hasQuery ? (
+      {!hasQuery && cards.length === 0 ? (
         <div className={styles.emptyState}>
           <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>
           <p className={styles.emptyHint}>
             Try “tax invoice 2025”, “photos of the beach” or “flight to Munich”.
           </p>
         </div>
-      ) : flatItems.length === 0 ? (
-        <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>{emptyTitle}</p>
-        </div>
       ) : (
-        <div className={styles.resultCard}>
-          <div id="search-results" role="listbox" className={`${styles.results} custom-scroll`}>
-            {Object.entries(categories).map(([catKey, items]) => {
-              if (!items?.length) return null
-              return (
-                <div key={catKey} role="group" aria-label={CATEGORY_LABELS[catKey] || catKey}>
-                  <div className={styles.categoryTitle}>{CATEGORY_LABELS[catKey] || catKey}</div>
-                  {items.map((item, idx) => {
-                    const index = offsets[catKey] + idx
-                    const isSelected = index === selected
-                    return (
-                      <div
-                        key={item.path || idx}
-                        id={`search-item-${index}`}
-                        role="option"
-                        aria-selected={isSelected}
-                        className={`${styles.itemRow} ${isSelected ? styles.itemSelected : ''}`}
-                        onMouseEnter={() => setSelected(index)}
-                        onClick={() => setSelected(index)}
-                        onDoubleClick={() => onOpen(item)}
-                        onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
-                      >
-                        <ResultThumbnail path={item.path} fallback={renderIcon(kindOf(item))} />
-                        <div className={styles.itemText}>
-                          <div className={styles.itemTitle}>{item.filename}</div>
-                          <div className={styles.itemDesc}>{item.excerpt || item.path}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
-          </div>
-
-          {current && (
-            <aside className={`${styles.preview} custom-scroll`} aria-label="Preview">
-              {kindOf(current) === 'video' ? (
-                <video
-                  key={current.path}
-                  className={styles.previewImage}
-                  src={`/api/media?path=${encodeURIComponent(current.path)}`}
-                  poster={`/api/preview?path=${encodeURIComponent(current.path)}`}
-                  controls
-                  preload="metadata"
-                />
-              ) : kindOf(current) === 'audio' ? (
-                <>
-                  <div className={styles.previewIconWrap}>{renderIcon('audio', styles.previewIcon)}</div>
-                  <audio
-                    key={current.path}
-                    className={styles.previewAudio}
-                    src={`/api/media?path=${encodeURIComponent(current.path)}`}
-                    controls
-                    preload="metadata"
-                  />
-                </>
-              ) : kindOf(current) === 'photo' ? (
-                <img
-                  className={styles.previewImage}
-                  src={`/api/thumbnail?path=${encodeURIComponent(current.path)}`}
-                  alt={current.filename}
-                />
-              ) : VISUAL_PREVIEW.test(current.path) && !failedPreviews.has(current.path) ? (
-                <img
-                  key={current.path}
-                  className={styles.previewImage}
-                  src={`/api/preview?path=${encodeURIComponent(current.path)}`}
-                  alt={`Preview of ${current.filename}`}
-                  onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}
-                />
-              ) : (
-                <div className={styles.previewIconWrap}>{renderIcon(kindOf(current), styles.previewIcon)}</div>
-              )}
-              <h2 className={styles.previewTitle}>{current.filename}</h2>
-              <p className={styles.previewPath}>{current.path}</p>
-              {current.content && !['photo', 'video', 'audio'].includes(kindOf(current)) && (!VISUAL_PREVIEW.test(current.path) || failedPreviews.has(current.path)) && (
-                <p className={styles.previewContent}>{current.content.slice(0, 700)}</p>
-              )}
-              <div className={styles.previewActions}>
-                <button className={`${styles.actionButton} ${styles.primary}`} onClick={() => onOpen(current)}>
-                  Open
-                </button>
-                {!current.path.startsWith('http') && (
-                  <button className={styles.actionButton} onClick={() => onReveal(current.path)}>
-                    Show in Finder
-                  </button>
-                )}
-              </div>
-            </aside>
-          )}
+        <div ref={feedRef} id="search-feed" className={`${styles.feed} custom-scroll`}>
+          {hasQuery &&
+            (isAudio ? (
+              <ResultCard
+                cardId="live"
+                title="Voice search"
+                query=""
+                snapshot={audioCategories ?? undefined}
+                snapshotSearching={audioSearching}
+                eager
+                onOpen={onOpen}
+                onReveal={onReveal}
+                onContextMenu={onContextMenu}
+              />
+            ) : (
+              <ResultCard
+                cardId="live"
+                title={q}
+                query={q}
+                eager
+                registerKeyHandler={registerKeyHandler}
+                onQueryChange={onQueryChange}
+                onOpen={onOpen}
+                onReveal={onReveal}
+                onContextMenu={onContextMenu}
+              />
+            ))}
+          {cards.map((c) => (
+            <ResultCard
+              key={c.id}
+              cardId={c.id}
+              title={c.title}
+              query={c.title}
+              onOpen={onOpen}
+              onReveal={onReveal}
+              onContextMenu={onContextMenu}
+            />
+          ))}
         </div>
       )}
 
       <footer className={styles.statusBar}>
-        <span>
-          {audioCategories !== null ? `Voice search · ${flatItems.length} results` : hasQuery ? `${flatItems.length} results` : 'Local search'}
-        </span>
+        <span>{hasQuery || cards.length > 0 ? `${cardCount} result cards` : 'Local search'}</span>
         <span>↑↓ Select · ↵ Open · ⌘R Show in Finder</span>
       </footer>
     </div>

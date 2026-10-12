@@ -1,13 +1,11 @@
 import React, { useState } from 'react'
 import type { Conversation } from '../../types'
-import { ChatIcon, SearchIcon, XIcon } from '../common/Icons'
+import { SearchIcon, XIcon } from '../common/Icons'
 import styles from './Sidebar.module.css'
 
 interface SidebarProps {
   conversations: Conversation[]
-  activeId: string | null
   totalItems: number
-  onNewChat: () => void
   onSelectConversation: (id: string) => void
   onDeleteConversation: (id: string) => void
 }
@@ -29,9 +27,7 @@ function groupLabel(ts: number): string {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   conversations,
-  activeId,
   totalItems,
-  onNewChat,
   onSelectConversation,
   onDeleteConversation,
 }) => {
@@ -64,8 +60,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     else if (e.key === 'ArrowRight') commitWidth(width + 16)
   }
 
+  const searches = conversations.filter((c) => (c.kind ?? 'chat') === 'search')
   const groups: Array<[string, Conversation[]]> = []
-  for (const conv of conversations) {
+  for (const conv of searches) {
     const label = groupLabel(conv.updatedAt)
     const last = groups[groups.length - 1]
     if (last && last[0] === label) last[1].push(conv)
@@ -88,31 +85,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onDoubleClick={() => commitWidth(DEFAULT_WIDTH)}
       />
       <div className={styles.topSection}>
-        <div className={styles.navGroup}>
-          <button className={styles.navButton} onClick={onNewChat}>
-            <span>New chat</span>
-            <span className={styles.shortcutPill}>⌘N</span>
-          </button>
-        </div>
-
-        <nav className={`${styles.history} custom-scroll`} aria-label="Chat history">
-          {conversations.length === 0 ? (
-            <div className={styles.emptyHint}>Your conversations will appear here.</div>
+        <nav className={`${styles.history} custom-scroll`} aria-label="Search history">
+          {searches.length === 0 ? (
+            <div className={styles.emptyHint}>Your searches will appear here.</div>
           ) : (
             groups.map(([label, convs]) => (
               <div key={label} className={styles.historyGroup}>
                 <div className={styles.sectionHeader}>{label}</div>
                 {convs.map((c) => {
-                  const isActive = c.id === activeId
                   return (
-                    <div key={c.id} className={`${styles.historyItem} ${isActive ? styles.historyItemActive : ''}`}>
-                      {c.kind === 'chat'
-                        ? <ChatIcon className={styles.kindIcon} />
-                        : <SearchIcon className={styles.kindIcon} />}
+                    <div key={c.id} className={styles.historyItem}>
+                      <SearchIcon className={styles.kindIcon} />
                       <button
                         className={styles.historyTitle}
                         onClick={() => onSelectConversation(c.id)}
-                        aria-current={isActive ? 'page' : undefined}
                         title={c.title}
                       >
                         {c.title}
