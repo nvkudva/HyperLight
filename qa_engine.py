@@ -12,6 +12,7 @@ class QAEngine:
         question: str,
         retrieved_docs: List[Dict[str, Any]],
         stream: bool = False,
+        system_prompt: str = "",
     ) -> Dict[str, Any]:
         if not retrieved_docs:
             return {
@@ -58,16 +59,24 @@ class QAEngine:
             })
 
         context_text = "\n".join(context_blocks)
+        custom_block = ""
+        if system_prompt and system_prompt.strip():
+            custom_block = (
+                "Additional user instructions (highest priority, follow them when answering):\n"
+                f"{system_prompt.strip()}\n\n"
+            )
         prompt = (
             "You are a helpful personal assistant that answers questions accurately based on the user's personal files and documents.\n"
             "Each source provides both file metadata (filename, file type, file size, date added/modified, path) and file content.\n\n"
+            f"{custom_block}"
             f"{context_text}\n"
             f"User Question: {question}\n\n"
             "Instructions:\n"
             "1. Answer the question directly and concisely using the provided context.\n"
-            "2. If the user asks about file metadata (file size, when it was added/modified, file type), use the provided Metadata.\n"
-            "3. Cite the source numbers (e.g. [Source 1]) when referencing details.\n"
-            "4. If the answer cannot be determined from the context, clearly state that the information was not found in the indexed documents.\n\n"
+            "2. Format the answer with lightweight Markdown (headings, bold, lists, tables, fenced code blocks) so it renders nicely in chat.\n"
+            "3. If the user asks about file metadata (file size, when it was added/modified, file type), use the provided Metadata.\n"
+            "4. Cite the source numbers (e.g. [Source 1]) when referencing details.\n"
+            "5. If the answer cannot be determined from the context, clearly state that the information was not found in the indexed documents.\n\n"
             "Answer:"
         )
 

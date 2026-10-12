@@ -14,6 +14,7 @@ import {
 import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
 import {
   AppIcon,
+  ChatIcon,
   CloudIcon,
   DatabaseIcon,
   FolderIcon,
@@ -34,7 +35,7 @@ const STATUS_CLASS: Record<string, string> = {
   slate: styles.statusNeutral,
 }
 
-type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'maintenance'
+type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'maintenance'
 
 interface SettingsPageProps {
   onBack: () => void
@@ -67,13 +68,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
   const [appSettings, setAppSettings] = useState<AppSettings>({
     always_on_scanning: true,
+    custom_instructions: '',
     watched_paths_count: 0,
   })
+  const [draftInstructions, setDraftInstructions] = useState('')
+  const [savingInstructions, setSavingInstructions] = useState(false)
 
   // Load app settings
   useEffect(() => {
     fetchAppSettings()
-      .then(setAppSettings)
+      .then((s) => {
+        setAppSettings(s)
+        setDraftInstructions(s.custom_instructions ?? '')
+      })
       .catch((err) => console.error('Failed to load app settings:', err))
   }, [])
 
@@ -105,6 +112,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     } catch (err: any) {
       setAppSettings((prev) => ({ ...prev, always_on_scanning: !nextVal }))
       showToast(`Failed to update setting: ${err.message}`, 'red')
+    }
+  }
+
+  const handleSaveInstructions = async () => {
+    setSavingInstructions(true)
+    try {
+      const updated = await updateAppSettings({ custom_instructions: draftInstructions })
+      setAppSettings(updated)
+      setDraftInstructions(updated.custom_instructions ?? draftInstructions)
+      showToast('Assistant instructions saved. They apply to new chat answers.', 'emerald')
+    } catch (err: any) {
+      showToast(`Failed to save instructions: ${err.message}`, 'red')
+    } finally {
+      setSavingInstructions(false)
     }
   }
 
@@ -615,7 +636,42 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
         )}
 
-        {/* TAB 4: MAINTENANCE & STORAGE */}
+        {/* TAB 4: ASSISTANT */}
+        {activeTab === 'assistant' && (
+          <div className={styles.panel}>
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardHeaderCol}>
+                  <h2 className={styles.cardTitle}>Custom instructions</h2>
+                  <p className={styles.cardSubtitle}>
+                    Added to every chat answer prompt with highest priority. Photo-only replies and
+                    live search suggestions are unaffected.
+                  </p>
+                </div>
+                <button
+                  className={`${styles.button} ${styles.primary}`}
+                  onClick={handleSaveInstructions}
+                  disabled={savingInstructions || draftInstructions === (appSettings.custom_instructions ?? '')}
+                >
+                  {savingInstructions ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+
+              <textarea
+                className={styles.promptBox}
+                value={draftInstructions}
+                maxLength={4000}
+                rows={6}
+                placeholder={'e.g. Always answer in under 3 sentences.\nCite file names with their full paths.'}
+                onChange={(e) => setDraftInstructions(e.target.value)}
+                aria-label="Custom assistant instructions"
+              />
+              <p className={styles.promptHint}>{draftInstructions.length}/4000</p>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: MAINTENANCE & STORAGE */}
         {activeTab === 'maintenance' && (
           <div className={styles.panel}>
             <div className={styles.card}>

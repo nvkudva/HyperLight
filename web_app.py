@@ -216,6 +216,7 @@ class GoogleTokenRequest(pydantic.BaseModel):
 
 class SettingsUpdateRequest(pydantic.BaseModel):
     always_on_scanning: Optional[bool] = None
+    custom_instructions: Optional[str] = None
 
 class SourceWatchRequest(pydantic.BaseModel):
     path: str
@@ -527,7 +528,8 @@ def api_chat(req: ChatRequest) -> Dict[str, Any]:
         photo_candidates = store.search(query_vector, query_text=query_text, item_type="photo", limit=3)
         doc_candidates.extend(photo_candidates)
 
-    qa_result = engine.generate_answer(query_text, doc_candidates)
+    custom_instructions = storage.get_app_settings().get("custom_instructions", "")
+    qa_result = engine.generate_answer(query_text, doc_candidates, system_prompt=custom_instructions)
     return {
         "answer": qa_result["answer"],
         "photos": [],
@@ -540,6 +542,7 @@ def api_get_settings() -> Dict[str, Any]:
     settings = storage.get_app_settings()
     return {
         "always_on_scanning": settings.get("always_on_scanning", True),
+        "custom_instructions": settings.get("custom_instructions", ""),
         "watched_paths_count": len(getattr(live_watcher, "watches", {})),
     }
 
@@ -548,6 +551,8 @@ def api_update_settings(req: SettingsUpdateRequest) -> Dict[str, Any]:
     updates = {}
     if req.always_on_scanning is not None:
         updates["always_on_scanning"] = req.always_on_scanning
+    if req.custom_instructions is not None:
+        updates["custom_instructions"] = req.custom_instructions.strip()[:4000]
     if updates:
         storage.update_app_settings(updates)
         live_watcher.sync_sources()

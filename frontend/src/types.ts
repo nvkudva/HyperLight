@@ -22,6 +22,7 @@ export interface ConfiguredSource {
 
 export interface AppSettings {
   always_on_scanning: boolean
+  custom_instructions?: string
   watched_paths_count?: number
 }
 

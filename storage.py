@@ -250,6 +250,8 @@ def get_app_settings() -> Dict[str, Any]:
     settings = data.get("settings", {})
     if "always_on_scanning" not in settings:
         settings["always_on_scanning"] = True
+    if "custom_instructions" not in settings:
+        settings["custom_instructions"] = ""
     return settings
 
 def update_app_settings(updates: Dict[str, Any]) -> Dict[str, Any]:
