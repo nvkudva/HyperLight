@@ -45,11 +45,13 @@ def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
     results = app_state.get_storage().search(query_vector, query_text=query_text, limit=max(req.limit, 60))
 
     categories: Dict[str, List[Dict[str, Any]]] = {}
+    seen_paths = set()
     for r in results:
         t = spotlight_bucket(r)
         if t not in categories:
             categories[t] = []
-        if len(categories[t]) < 5:
+        if len(categories[t]) < 5 and r.get("path") not in seen_paths:
+            seen_paths.add(r.get("path"))
             categories[t].append(r)
 
     total_matches = sum(len(items) for items in categories.values())
