@@ -327,6 +327,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             availablePresets={presets}
             hasAppsSource={hasAppsSource}
             isGlobalAlwaysOn={isGlobalAlwaysOn}
+            watchedCount={appSettings.watched_paths_count ?? localSources.length}
+            totalItems={totalItems}
+            indexStatus={indexStatus}
+            jobs={jobs}
+            googleConnected={googleStatus.connected}
             manualPath={manualPath}
             onManualPathChange={setManualPath}
             jobForSource={jobForSource}
@@ -335,10 +340,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             onAddManual={handleAddManual}
             onIndexPreset={handleIndexPreset}
             onIndexApps={handleIndexApps}
+            onToggleAlwaysOn={handleToggleAlwaysOn}
             onToggleSourceWatch={handleToggleSourceWatch}
             onReveal={handleReveal}
             onRescan={handleRescan}
             onRemoveSource={handleRemoveSource}
+            onOpenCloudTab={() => setActiveTab('cloud')}
           />
         )}
 

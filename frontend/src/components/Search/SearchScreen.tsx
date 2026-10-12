@@ -55,8 +55,6 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
     feedApiRef.current = { scrollTo }
   })
 
-  const cardCount = cards.length + (hasQuery ? 1 : 0)
-
   return (
     <div className={styles.screen}>
       {!hasQuery && cards.length === 0 ? (
@@ -94,22 +92,23 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                 onContextMenu={onContextMenu}
               />
             ))}
-          {cards.map((c) => (
-            <ResultCard
-              key={c.id}
-              cardId={c.id}
-              title={c.title}
-              query={c.title}
-              onOpen={onOpen}
-              onReveal={onReveal}
-              onContextMenu={onContextMenu}
-            />
-          ))}
+          {!hasQuery &&
+            cards.map((c) => (
+              <ResultCard
+                key={c.id}
+                cardId={c.id}
+                title={c.title}
+                query={c.title}
+                onOpen={onOpen}
+                onReveal={onReveal}
+                onContextMenu={onContextMenu}
+              />
+            ))}
         </div>
       )}
 
       <footer className={styles.statusBar}>
-        <span>{hasQuery || cards.length > 0 ? `${cardCount} result cards` : 'Local search'}</span>
+        <span>{hasQuery ? '1 result card' : cards.length > 0 ? `${cards.length} result cards` : 'Local search'}</span>
         <span>↑↓ Select · ↵ Open · ⌘R Show in Finder</span>
       </footer>
     </div>

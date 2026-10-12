@@ -17,6 +17,23 @@ META_DOC_KEYWORDS = [
     "how much", "how many", "total", "what is", "where is", "list", "who", "phone", "email"
 ]
 
+CATEGORY_PRIORITY = ["app", "video", "photo", "document", "audio", "text"]
+
+OFFICE_DOC_EXTENSIONS = {
+    ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",
+    ".key", ".pages", ".numbers", ".rtf", ".odt", ".odp",
+}
+
+
+def spotlight_bucket(r: Dict[str, Any]) -> str:
+    t = r["type"]
+    if t != "document":
+        return t
+    name = (r.get("filename") or r.get("path") or "").lower()
+    dot = name.rfind(".")
+    ext = name[dot:] if dot != -1 else ""
+    return "document" if ext in OFFICE_DOC_EXTENSIONS else "text"
+
 
 @router.post("/api/spotlight")
 def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
@@ -29,16 +46,20 @@ def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
 
     categories: Dict[str, List[Dict[str, Any]]] = {}
     for r in results:
-        t = r["type"]
+        t = spotlight_bucket(r)
         if t not in categories:
             categories[t] = []
         if len(categories[t]) < 5:
             categories[t].append(r)
 
     total_matches = sum(len(items) for items in categories.values())
+    ordered = {t: categories[t] for t in CATEGORY_PRIORITY if t in categories}
+    for t, items in categories.items():
+        if t not in ordered:
+            ordered[t] = items
     return {
         "query": query_text,
-        "categories": categories,
+        "categories": ordered,
         "total_matches": total_matches,
     }
 

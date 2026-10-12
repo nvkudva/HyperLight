@@ -13,9 +13,9 @@ import {
 } from '../common/Icons'
 import styles from './ChatWorkspace.module.css'
 
-export type ResultKind = 'photo' | 'video' | 'audio' | 'app' | 'contact' | 'calendar' | 'bookmark' | 'email' | 'document'
+export type ResultKind = 'photo' | 'video' | 'audio' | 'app' | 'contact' | 'calendar' | 'bookmark' | 'email' | 'document' | 'text'
 
-export const KIND_ORDER: ResultKind[] = ['photo', 'video', 'audio', 'app', 'contact', 'calendar', 'bookmark', 'email', 'document']
+export const KIND_ORDER: ResultKind[] = ['app', 'video', 'photo', 'document', 'audio', 'text', 'contact', 'calendar', 'bookmark', 'email']
 
 export const KIND_LABELS: Record<ResultKind, string> = {
   photo: 'Photos',
@@ -27,11 +27,16 @@ export const KIND_LABELS: Record<ResultKind, string> = {
   bookmark: 'Bookmarks',
   email: 'Mail',
   document: 'Documents',
+  text: 'Text files',
 }
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.heic', '.gif'])
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi'])
 const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.aac', '.flac', '.aiff', '.ogg'])
+const TEXT_EXTS = new Set([
+  '.txt', '.md', '.csv', '.json',
+  '.py', '.js', '.ts', '.swift', '.rs', '.go', '.sh', '.yaml', '.yml', '.html', '.css',
+])
 
 export function kindOf(item: SearchResult): ResultKind {
   const t = (item.type ?? item.file_type ?? '').toLowerCase()
@@ -48,6 +53,7 @@ export function kindOf(item: SearchResult): ResultKind {
   if (ext === '.vcf') return 'contact'
   if (ext === '.ics') return 'calendar'
   if (ext === '.webloc' || ext === '.url') return 'bookmark'
+  if (TEXT_EXTS.has(ext)) return 'text'
   return 'document'
 }
 
@@ -61,6 +67,7 @@ const KIND_ICON: Record<ResultKind, React.FC<{ className?: string }>> = {
   bookmark: BookmarkIcon,
   email: MailIcon,
   document: DocumentIcon,
+  text: DocumentIcon,
 }
 
 export const KIND_TINT: Record<ResultKind, string> = {
@@ -73,6 +80,7 @@ export const KIND_TINT: Record<ResultKind, string> = {
   bookmark: 'tAccent',
   email: 'tAccent',
   document: 'tAccent',
+  text: 'tAccent',
 }
 
 export function renderTile(kind: ResultKind) {

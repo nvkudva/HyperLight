@@ -1,13 +1,28 @@
-import React from 'react'
-import type { ConfiguredSource, IndexJobInfo } from '../../types'
-import { AppIcon, FolderIcon, ServerIcon } from '../common/Icons'
+import React, { useEffect, useState } from 'react'
+import type { ConfiguredSource, IndexJobInfo, IndexJobStatus } from '../../types'
+import {
+  AppIcon,
+  CloudIcon,
+  FolderIcon,
+  GoogleLogo,
+  RescanIcon,
+  RevealIcon,
+  TrashIcon,
+} from '../common/Icons'
 import styles from './SettingsPage.module.css'
+
+type ModalKind = 'folder' | 'cloud' | 'progress' | null
 
 interface SourcesTabProps {
   sources: ConfiguredSource[]
   availablePresets: string[]
   hasAppsSource: boolean
   isGlobalAlwaysOn: boolean
+  watchedCount: number
+  totalItems: number
+  indexStatus?: IndexJobStatus | null
+  jobs: IndexJobInfo[]
+  googleConnected: boolean
   manualPath: string
   onManualPathChange: (path: string) => void
   jobForSource: (s: ConfiguredSource) => IndexJobInfo | undefined
@@ -16,17 +31,36 @@ interface SourcesTabProps {
   onAddManual: (e?: React.FormEvent) => void
   onIndexPreset: (p: string) => void
   onIndexApps: () => void
+  onToggleAlwaysOn: () => void
   onToggleSourceWatch: (s: ConfiguredSource) => void
   onReveal: (path: string) => void
   onRescan: (s: ConfiguredSource) => void
   onRemoveSource: (path: string) => void
+  onOpenCloudTab: () => void
 }
+
+const COMMON_FOLDERS: Array<{ label: string; path: string }> = [
+  { label: 'Home', path: '~' },
+  { label: 'Documents', path: '~/Documents' },
+  { label: 'Desktop', path: '~/Desktop' },
+  { label: 'Downloads', path: '~/Downloads' },
+  { label: 'Pictures', path: '~/Pictures' },
+  { label: 'Videos', path: '~/Movies' },
+  { label: 'Music', path: '~/Music' },
+]
+
+const COMING_SOON_CLOUDS = ['iCloud Drive', 'Dropbox', 'OneDrive']
 
 export const SourcesTab: React.FC<SourcesTabProps> = ({
   sources,
   availablePresets,
   hasAppsSource,
   isGlobalAlwaysOn,
+  watchedCount,
+  totalItems,
+  indexStatus,
+  jobs,
+  googleConnected,
   manualPath,
   onManualPathChange,
   jobForSource,
@@ -35,161 +69,365 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   onAddManual,
   onIndexPreset,
   onIndexApps,
+  onToggleAlwaysOn,
   onToggleSourceWatch,
   onReveal,
   onRescan,
   onRemoveSource,
-}) => (
-  <div className={styles.panel}>
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
+  onOpenCloudTab,
+}) => {
+  const [modal, setModal] = useState<ModalKind>(null)
+
+  useEffect(() => {
+    if (!modal) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModal(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [modal])
+
+  const runningJobs = jobs.filter((j) => j.state === 'running')
+  const queuedJobs = jobs.filter((j) => j.state === 'queued')
+  const filesRead = runningJobs.reduce((sum, j) => sum + (j.current_index || 0), 0)
+  const isIndexing = indexStatus?.is_running || runningJobs.length > 0
+
+  const addedPaths = new Set(sources.map((s) => s.path))
+  const quickPresets = availablePresets.filter((p) => !addedPaths.has(p))
+
+  const closeAnd = (fn: () => void) => () => {
+    setModal(null)
+    fn()
+  }
+
+  const statusSummary = isIndexing
+    ? `${runningJobs.length} indexing · ${filesRead.toLocaleString()} files read`
+    : `${totalItems.toLocaleString()} items indexed`
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.sourcesToolbar}>
         <div className={styles.cardHeaderCol}>
-          <h2 className={styles.cardTitle}>Add Location</h2>
-          <p className={styles.cardSubtitle}>Add folders or drives to personal search.</p>
+          <h2 className={styles.cardTitle}>Sources</h2>
+          <p className={styles.cardSubtitle}>
+            {sources.length} {sources.length === 1 ? 'source' : 'sources'} · {totalItems.toLocaleString()} items
+          </p>
+        </div>
+        <div className={styles.toolbarRight}>
+          <button
+            className={styles.liveStatusPill}
+            onClick={() => setModal('progress')}
+            title="Show indexing progress details"
+          >
+            <span className={`${styles.liveDot} ${isIndexing ? styles.liveDotActive : ''}`} />
+            <span>{statusSummary}</span>
+          </button>
+          <label className={styles.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
+            <input type="checkbox" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
+            <span className={styles.slider} />
+          </label>
         </div>
       </div>
 
-      <div className={styles.quickActionGrid}>
-        <button className={styles.quickActionCard} onClick={onBrowseFinder}>
+      <div className={styles.addSourceRow}>
+        <button className={styles.addSourceCard} onClick={() => setModal('folder')}>
           <span className={`${styles.quickActionIcon} ${styles.iconAccent}`}>
             <FolderIcon className="w-4 h-4" />
           </span>
-          <span>Choose Folder…</span>
-        </button>
-        <button className={styles.quickActionCard} onClick={onConnectVolumes}>
-          <span className={`${styles.quickActionIcon} ${styles.iconNeutral}`}>
-            <ServerIcon className="w-4 h-4" />
+          <span className={styles.addSourceText}>
+            <span className={styles.addSourceTitle}>Add Folder</span>
+            <span className={styles.addSourceSubtitle}>Local folders or network drives</span>
           </span>
-          <span>Network Share</span>
+        </button>
+        <button className={styles.addSourceCard} onClick={() => setModal('cloud')}>
+          <span className={`${styles.quickActionIcon} ${styles.iconGreen}`}>
+            <CloudIcon className="w-4 h-4" />
+          </span>
+          <span className={styles.addSourceText}>
+            <span className={styles.addSourceTitle}>Add Cloud Account</span>
+            <span className={styles.addSourceSubtitle}>
+              {googleConnected ? 'Google connected · manage' : 'Google, iCloud, Dropbox…'}
+            </span>
+          </span>
         </button>
       </div>
 
-      <form className={styles.pathForm} onSubmit={onAddManual}>
-        <input
-          type="text"
-          className={styles.input}
-          aria-label="Folder path"
-          placeholder="Enter path manually (~/Documents, /Volumes/Share...)"
-          value={manualPath}
-          onChange={(e) => onManualPathChange(e.target.value)}
-        />
-        <button type="submit" className={`${styles.button} ${styles.primary}`}>
-          Add
-        </button>
-      </form>
-
-      {(availablePresets.length > 0 || !hasAppsSource) && (
-        <div className={styles.chipRow}>
-          <span className={styles.chipLabel}>Quick add:</span>
-          {availablePresets.map((p) => (
-            <button key={p} className={styles.chip} title={p} onClick={() => onIndexPreset(p)}>
-              <FolderIcon className={styles.chipIcon} />
-              {p.replace('~/', '')}
-            </button>
-          ))}
-          {!hasAppsSource && (
-            <button className={styles.chip} title="Index installed macOS applications" onClick={onIndexApps}>
-              <AppIcon className={styles.chipIcon} />
-              Apps
-            </button>
-          )}
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <div className={styles.cardHeaderCol}>
+            <h2 className={styles.cardTitle}>Added Sources</h2>
+            <p className={styles.cardSubtitle}>
+              {isGlobalAlwaysOn
+                ? `Live scan watching ${watchedCount} ${watchedCount === 1 ? 'location' : 'locations'}`
+                : 'Real-time indexing is paused'}
+            </p>
+          </div>
         </div>
-      )}
-    </div>
 
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <div className={styles.cardHeaderCol}>
-          <h2 className={styles.cardTitle}>Indexed Locations</h2>
-          <p className={styles.cardSubtitle}>
-            {sources.length} active {sources.length === 1 ? 'source' : 'sources'} configured.
-          </p>
-        </div>
-      </div>
-
-      {sources.length === 0 ? (
-        <div className={styles.emptyState}>No locations added yet. Choose a folder above to start indexing.</div>
-      ) : (
-        <ul className={styles.sourceList}>
-          {sources.map((s) => {
-            const isApp = s.source_type === 'macos_system'
-            const isWatchable = !isApp && !s.path.startsWith('http')
-            const isWatchOn = s.watch_enabled !== false
-
-            const job = jobForSource(s)
-            return (
-              <li key={s.path} className={styles.sourceCard}>
-                <div className={styles.sourceInfo}>
-                  <span className={`${styles.icon} ${isApp ? styles.iconIndigo : styles.iconAccent}`}>
-                    {isApp ? <AppIcon className="w-4 h-4" /> : <FolderIcon className="w-4 h-4" />}
-                  </span>
-                  <div className={styles.sourceDetails}>
-                    <span className={styles.sourceName}>{s.name}</span>
-                    <span className={`${styles.badge} ${styles.badgeNeutral}`} title="Items indexed">
-                      {s.items_count.toLocaleString()}
-                    </span>
-                    {isGlobalAlwaysOn && isWatchable && (
-                      <span className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}>
-                        {isWatchOn ? '● Live' : 'Manual'}
-                      </span>
-                    )}
-                    <span className={styles.sourcePath} title={s.path}>
-                      {s.path}
-                    </span>
-                    {job?.state === 'running' && (
-                      <span
-                        className={styles.jobProgress}
-                        title={job.total_files > 0 ? `Indexing file ${job.current_index.toLocaleString()} of ${job.total_files.toLocaleString()}` : 'Discovering files…'}
-                      >
-                        {job.total_files > 0 ? (
-                          <>
-                            <span className={styles.jobTrack}>
-                              <span className={styles.jobFill} style={{ width: `${job.percent}%` }} />
+        {sources.length === 0 ? (
+          <div className={styles.emptyState}>No sources yet. Add a folder or cloud account above.</div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.sourcesTable}>
+              <thead>
+                <tr>
+                  <th scope="col">Source</th>
+                  <th scope="col">Path</th>
+                  <th scope="col" className={styles.numCol}>Files</th>
+                  <th scope="col" className={styles.numCol}>Live scan</th>
+                  <th scope="col">
+                    <span className={styles.srOnly}>Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sources.map((s) => {
+                  const isApp = s.source_type === 'macos_system'
+                  const isWatchable = !isApp && !s.path.startsWith('http')
+                  const isWatchOn = s.watch_enabled !== false
+                  const job = jobForSource(s)
+                  return (
+                    <tr key={s.path}>
+                      <td>
+                        <span className={styles.cellSource}>
+                          <span className={`${styles.icon} ${isApp ? styles.iconIndigo : styles.iconAccent}`}>
+                            {isApp ? <AppIcon className="w-4 h-4" /> : <FolderIcon className="w-4 h-4" />}
+                          </span>
+                          <span className={styles.sourceName}>{s.name}</span>
+                          {job?.state === 'running' && (
+                            <span className={styles.jobInline} title={`Indexing file ${job.current_index.toLocaleString()} of ${job.total_files.toLocaleString()}`}>
+                              <span className={styles.jobTrack}>
+                                <span className={styles.jobFill} style={{ width: `${job.percent}%` }} />
+                              </span>
+                              <span className={styles.jobPercent}>{Math.round(job.percent)}%</span>
                             </span>
-                            <span className={styles.jobPercent}>{Math.round(job.percent)}%</span>
-                          </>
+                          )}
+                          {job?.state === 'queued' && (
+                            <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
+                          )}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={styles.sourcePath} title={s.path}>{s.path}</span>
+                      </td>
+                      <td className={styles.numCol}>
+                        <span className={styles.filesCount}>{s.items_count.toLocaleString()}</span>
+                      </td>
+                      <td className={styles.numCol}>
+                        {isGlobalAlwaysOn && isWatchable ? (
+                          <label className={styles.switch} title={`Toggle live scan for ${s.name}`}>
+                            <input
+                              type="checkbox"
+                              checked={isWatchOn}
+                              onChange={() => onToggleSourceWatch(s)}
+                              aria-label={`Live scan for ${s.name}`}
+                            />
+                            <span className={styles.slider} />
+                          </label>
                         ) : (
-                          <span className={styles.jobPercent}>Starting…</span>
+                          <span className={styles.liveDash} title={isApp ? 'System source' : 'Not watchable'}>—</span>
                         )}
-                      </span>
-                    )}
-                    {job?.state === 'queued' && (
-                      <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
-                    )}
+                      </td>
+                      <td>
+                        <span className={styles.rowActions}>
+                          <button className={styles.iconButton} onClick={() => onReveal(s.path)} title="Reveal in Finder" aria-label={`Reveal ${s.name} in Finder`}>
+                            <RevealIcon className="w-4 h-4" />
+                          </button>
+                          <button className={styles.iconButton} onClick={() => onRescan(s)} title="Re-index this source" aria-label={`Re-index ${s.name}`}>
+                            <RescanIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            className={`${styles.iconButton} ${styles.iconButtonDanger}`}
+                            onClick={() => onRemoveSource(s.path)}
+                            title="Remove from index"
+                            aria-label={`Remove ${s.name}`}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <div className={styles.modalOverlay} onClick={() => setModal(null)}>
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-label={modal === 'folder' ? 'Add folder' : modal === 'cloud' ? 'Add cloud account' : 'Indexing progress'}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {modal === 'folder' && (
+              <>
+                <div className={styles.modalHeader}>
+                  <div>
+                    <h3 className={styles.cardTitle}>Add Folder</h3>
+                    <p className={styles.cardSubtitle}>Pick a common location, browse, or enter a path.</p>
                   </div>
+                  <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
                 </div>
-
-                <div className={styles.sourceControls}>
-                  {isGlobalAlwaysOn && isWatchable && (
-                    <label className={styles.switch} title={`Toggle continuous live sync for ${s.name}`}>
-                      <input
-                        type="checkbox"
-                        checked={isWatchOn}
-                        onChange={() => onToggleSourceWatch(s)}
-                      />
-                      <span className={styles.slider} />
-                    </label>
+                <button className={`${styles.button} ${styles.primary} ${styles.fullWidth}`} onClick={closeAnd(onBrowseFinder)}>
+                  Choose Folder… (system picker)
+                </button>
+                <div className={styles.modalSectionTitle}>Common folders</div>
+                <ul className={styles.modalList}>
+                  {COMMON_FOLDERS.map((f) => (
+                    <li key={f.path} className={styles.modalRow}>
+                      <span className={`${styles.icon} ${styles.iconAccent}`}>
+                        <FolderIcon className="w-4 h-4" />
+                      </span>
+                      <span className={styles.modalRowText}>
+                        <span className={styles.sourceName}>{f.label}</span>
+                        <span className={styles.sourcePath}>{f.path}</span>
+                      </span>
+                      <button className={styles.button} onClick={closeAnd(() => onIndexPreset(f.path))}>
+                        Add
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {quickPresets.length > 0 && (
+                  <>
+                    <div className={styles.modalSectionTitle}>Suggested</div>
+                    <div className={styles.chipRow}>
+                      {quickPresets.map((p) => (
+                        <button key={p} className={styles.chip} title={p} onClick={closeAnd(() => onIndexPreset(p))}>
+                          <FolderIcon className={styles.chipIcon} />
+                          {p.replace('~/', '')}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <div className={styles.modalSectionTitle}>Advanced</div>
+                <form className={styles.pathForm} onSubmit={(e) => { onAddManual(e); setModal(null) }}>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    aria-label="Folder path"
+                    placeholder="~/Documents, /Volumes/Share…"
+                    value={manualPath}
+                    onChange={(e) => onManualPathChange(e.target.value)}
+                  />
+                  <button type="submit" className={`${styles.button} ${styles.primary}`}>Add</button>
+                </form>
+                <div className={styles.modalRowButtons}>
+                  <button className={styles.button} onClick={closeAnd(onConnectVolumes)}>Network Share…</button>
+                  {!hasAppsSource && (
+                    <button className={styles.button} onClick={closeAnd(onIndexApps)}>Index Applications</button>
                   )}
-
-                  <button className={styles.button} onClick={() => onReveal(s.path)} title="Reveal in Finder">
-                    Reveal
-                  </button>
-                  <button className={styles.button} onClick={() => onRescan(s)} title="Re-index this folder">
-                    Rescan
-                  </button>
-                  <button
-                    className={`${styles.button} ${styles.destructive}`}
-                    onClick={() => onRemoveSource(s.path)}
-                    title="Remove from index"
-                  >
-                    Remove
-                  </button>
                 </div>
-              </li>
-            )
-          })}
-        </ul>
+              </>
+            )}
+
+            {modal === 'cloud' && (
+              <>
+                <div className={styles.modalHeader}>
+                  <div>
+                    <h3 className={styles.cardTitle}>Add Cloud Account</h3>
+                    <p className={styles.cardSubtitle}>Connect a cloud account to index its files.</p>
+                  </div>
+                  <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
+                </div>
+                <ul className={styles.modalList}>
+                  <li className={styles.modalRow}>
+                    <span className={`${styles.icon} ${styles.iconGreen}`}>
+                      <GoogleLogo className="w-4 h-4" />
+                    </span>
+                    <span className={styles.modalRowText}>
+                      <span className={styles.sourceName}>
+                        Google
+                        {googleConnected && <span className={`${styles.badge} ${styles.badgeSuccess}`}>● Connected</span>}
+                      </span>
+                      <span className={styles.sourcePath}>Drive · Photos · Gmail</span>
+                    </span>
+                    <button
+                      className={`${styles.button} ${googleConnected ? '' : styles.primary}`}
+                      onClick={() => { setModal(null); onOpenCloudTab() }}
+                    >
+                      {googleConnected ? 'Manage' : 'Connect'}
+                    </button>
+                  </li>
+                  {COMING_SOON_CLOUDS.map((name) => (
+                    <li key={name} className={`${styles.modalRow} ${styles.modalRowDisabled}`}>
+                      <span className={`${styles.icon} ${styles.iconNeutral}`}>
+                        <CloudIcon className="w-4 h-4" />
+                      </span>
+                      <span className={styles.modalRowText}>
+                        <span className={styles.sourceName}>{name}</span>
+                        <span className={styles.sourcePath}>Cloud storage sync</span>
+                      </span>
+                      <span className={`${styles.badge} ${styles.badgeNeutral}`}>Coming soon</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {modal === 'progress' && (
+              <>
+                <div className={styles.modalHeader}>
+                  <div>
+                    <h3 className={styles.cardTitle}>Indexing Progress</h3>
+                    <p className={styles.cardSubtitle}>
+                      {isIndexing
+                        ? `${runningJobs.length} running · ${queuedJobs.length} queued · ${filesRead.toLocaleString()} files read`
+                        : 'Indexer is idle. All sources are up to date.'}
+                    </p>
+                  </div>
+                  <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
+                </div>
+                {runningJobs.length === 0 && queuedJobs.length === 0 ? (
+                  <div className={styles.emptyState}>Nothing indexing right now.</div>
+                ) : (
+                  <ul className={styles.modalList}>
+                    {runningJobs.map((j) => (
+                      <li key={j.path || j.name} className={styles.modalRow}>
+                        <span className={`${styles.icon} ${styles.iconAccent}`}>
+                          <FolderIcon className="w-4 h-4" />
+                        </span>
+                        <span className={styles.modalRowText}>
+                          <span className={styles.sourceName}>{j.name}</span>
+                          <span className={styles.sourcePath} title={j.path || j.name}>
+                            {j.total_files > 0
+                              ? `${j.current_index.toLocaleString()} / ${j.total_files.toLocaleString()} files · ${Math.round(j.percent)}%`
+                              : 'Discovering files…'}
+                          </span>
+                          {j.total_files > 0 && (
+                            <span className={styles.jobTrackWide}>
+                              <span className={styles.jobFill} style={{ width: `${j.percent}%` }} />
+                            </span>
+                          )}
+                        </span>
+                        <span className={`${styles.badge} ${styles.badgeSuccess}`}>● Running</span>
+                      </li>
+                    ))}
+                    {queuedJobs.map((j) => (
+                      <li key={j.path || j.name} className={styles.modalRow}>
+                        <span className={`${styles.icon} ${styles.iconNeutral}`}>
+                          <FolderIcon className="w-4 h-4" />
+                        </span>
+                        <span className={styles.modalRowText}>
+                          <span className={styles.sourceName}>{j.name}</span>
+                          <span className={styles.sourcePath}>Waiting to start</span>
+                        </span>
+                        <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
-  </div>
-)
+  )
+}

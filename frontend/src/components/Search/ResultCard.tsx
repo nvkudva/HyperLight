@@ -23,6 +23,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   photo: 'Photos',
   video: 'Videos',
   audio: 'Audio',
+  text: 'Text files',
   webloc: 'Bookmarks',
 }
 
@@ -33,6 +34,7 @@ const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
   photo: [PhotoIcon, styles.orange],
   video: [VideoIcon, styles.red],
   audio: [AudioIcon, styles.indigo],
+  text: [DocumentIcon, styles.accent],
   webloc: [BookmarkIcon, styles.accent],
   bookmark: [BookmarkIcon, styles.accent],
 }
