@@ -43,7 +43,6 @@ interface SearchScreenProps {
   registerKeyHandler: (h: (e: React.KeyboardEvent) => void) => void
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
-  onAskChat: (query: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
   audioCategories?: Record<string, SearchResult[]> | null
   audioSearching?: boolean
@@ -55,7 +54,6 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   registerKeyHandler,
   onOpen,
   onReveal,
-  onAskChat,
   onContextMenu,
   audioCategories = null,
   audioSearching = false,
@@ -92,9 +90,6 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
       const next = (selected + (e.key === 'ArrowDown' ? 1 : -1) + flatItems.length) % flatItems.length
       setSelected(next)
       document.getElementById(`search-item-${next}`)?.scrollIntoView({ block: 'nearest' })
-    } else if (e.key === 'Enter' && e.metaKey) {
-      e.preventDefault()
-      if (query.trim()) onAskChat(query.trim())
     } else if (e.key === 'Enter' && current) {
       e.preventDefault()
       onOpen(current)
@@ -132,20 +127,15 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         <div className={styles.emptyState}>
           <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>
           <p className={styles.emptyHint}>
-            Try “tax invoice 2025”, “photos of the beach” or “flight to Munich”. Press ⌘↩ to ask the question in chat.
+            Try “tax invoice 2025”, “photos of the beach” or “flight to Munich”.
           </p>
         </div>
       ) : flatItems.length === 0 ? (
         <div className={styles.emptyState}>
           <p className={styles.emptyTitle}>{emptyTitle}</p>
-          {!isSearching && audioCategories === null && (
-            <button className={styles.linkButton} onClick={() => onAskChat(query.trim())}>
-              Ask in chat instead
-            </button>
-          )}
         </div>
       ) : (
-        <div className={styles.body}>
+        <div className={styles.resultCard}>
           <div id="search-results" role="listbox" className={`${styles.results} custom-scroll`}>
             {Object.entries(categories).map(([catKey, items]) => {
               if (!items?.length) return null
@@ -243,7 +233,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         <span>
           {audioCategories !== null ? `Voice search · ${flatItems.length} results` : hasQuery ? `${flatItems.length} results` : 'Local search'}
         </span>
-        <span>↑↓ Select · ↵ Open · ⌘R Show in Finder · ⌘↩ Ask in Chat</span>
+        <span>↑↓ Select · ↵ Open · ⌘R Show in Finder</span>
       </footer>
     </div>
   )

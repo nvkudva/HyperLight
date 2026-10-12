@@ -5,12 +5,9 @@ import {
   fetchStatus,
   launchTarget,
   revealTarget,
-  sendChat,
 } from './api'
-import { ChatWorkspace } from './components/Chat/ChatWorkspace'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
 import { SearchScreen } from './components/Search/SearchScreen'
-import { Sidebar } from './components/Sidebar/Sidebar'
 import { TopBar, type TopTab } from './components/TopBar/TopBar'
 import { ScanIndicator } from './components/common/ScanIndicator'
 import { useConversations } from './hooks/useConversations'
@@ -25,10 +22,10 @@ const OnboardingWizard = React.lazy(() =>
 const PhotoLightbox = React.lazy(() =>
   import('./components/Lightbox/PhotoLightbox').then((m) => ({ default: m.PhotoLightbox }))
 )
-import type { ChatMessage, ConfiguredSource, ContextMenuState, GoogleStatus, SearchResult } from './types'
+import type { ConfiguredSource, ContextMenuState, GoogleStatus, SearchResult } from './types'
 import styles from './App.module.css'
 
-type Screen = 'search' | 'chat' | 'settings'
+type Screen = 'search' | 'settings'
 
 const UNIFIED_WINDOW_SIZE: [number, number] = [1140, 780]
 
@@ -70,7 +67,6 @@ export const App: React.FC = () => {
   const [isOnboarding, setIsOnboarding] = useState(() => !localStorage.getItem('onboarded'))
   const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
-  const [isChatLoading, setIsChatLoading] = useState(false)
   const chats = useConversations()
 
   const reloadData = useCallback(async () => {
@@ -105,44 +101,7 @@ export const App: React.FC = () => {
     setScreen('settings')
   }
 
-  const startNewChat = () => {
-    chats.select(null)
-    setScreen('chat')
-  }
-
-  const handleSendMessage = async (text: string, conversationId?: string) => {
-    const id = conversationId ?? chats.activeId ?? chats.create(text)
-    chats.append(id, { id: `user_${Date.now()}`, sender: 'user', text, timestamp: Date.now() })
-    setIsChatLoading(true)
-    let reply: ChatMessage
-    try {
-      const res = await sendChat(text)
-      reply = {
-        id: `asst_${Date.now()}`,
-        sender: 'assistant',
-        text: res.answer,
-        photos: res.photos || [],
-        sources: res.sources || [],
-        timestamp: Date.now(),
-      }
-    } catch (err: any) {
-      reply = { id: `err_${Date.now()}`, sender: 'assistant', text: `Error: ${err.message}`, timestamp: Date.now() }
-    }
-    chats.append(id, reply)
-    setIsChatLoading(false)
-  }
-
-  const askInChat = (text: string) => {
-    setScreen('chat')
-    if (text) handleSendMessage(text, chats.create(text))
-    else chats.select(null)
-  }
-
   const selectTab = (tab: TopTab) => {
-    if (tab === 'chat' && query.trim()) {
-      askInChat(query.trim())
-      return
-    }
     if (tab === 'settings') setFocusIndexing(false)
     setScreen(tab)
     if (tab === 'search') searchInputRef.current?.focus()
@@ -178,20 +137,6 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer)
   }, [query, recordSearch])
 
-  const selectConversation = (id: string) => {
-    const conv = chats.conversations.find((c) => c.id === id)
-    chats.select(id)
-    if (conv && (conv.kind ?? 'chat') === 'search') {
-      setAudioCategories(null)
-      setAudioSearching(false)
-      setQuery(conv.title)
-      setScreen('search')
-      searchInputRef.current?.focus()
-    } else {
-      setScreen('chat')
-    }
-  }
-
   const handleTopBarKeyDown = (e: React.KeyboardEvent) => {
     if (screen === 'search') searchKeyHandler.current(e)
     else if (e.key === 'Enter') setScreen('search')
@@ -207,16 +152,12 @@ export const App: React.FC = () => {
         searchInputRef.current?.focus()
       } else if (key === ',') {
         e.preventDefault()
-        setScreen((prev) => (prev === 'settings' ? 'chat' : 'settings'))
-      } else if (key === 'n') {
-        e.preventDefault()
-        chats.select(null)
-        setScreen('chat')
+        setScreen((prev) => (prev === 'settings' ? 'search' : 'settings'))
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [chats.select])
+  }, [])
 
   const handleContextMenu = (e: React.MouseEvent, path: string, filename: string) => {
     e.preventDefault()
@@ -243,30 +184,19 @@ export const App: React.FC = () => {
 
       <div className={styles.contentRow}>
         {screen === 'search' ? (
-          <>
-            <Sidebar
-              conversations={chats.conversations}
-              activeId={chats.activeId}
-              totalItems={totalItems}
-              onNewChat={startNewChat}
-              onSelectConversation={selectConversation}
-              onDeleteConversation={chats.remove}
-            />
-            <SearchScreen
-              query={query}
-              onQueryChange={handleTopBarQueryChange}
-              audioCategories={audioCategories}
-              audioSearching={audioSearching}
-              registerKeyHandler={(h) => {
-                searchKeyHandler.current = h
-              }}
-              onOpen={openResult}
-              onReveal={(p) => revealTarget(p)}
-              onAskChat={askInChat}
-              onContextMenu={handleContextMenu}
-            />
-          </>
-        ) : screen === 'settings' ? (
+          <SearchScreen
+            query={query}
+            onQueryChange={handleTopBarQueryChange}
+            audioCategories={audioCategories}
+            audioSearching={audioSearching}
+            registerKeyHandler={(h) => {
+              searchKeyHandler.current = h
+            }}
+            onOpen={openResult}
+            onReveal={(p) => revealTarget(p)}
+            onContextMenu={handleContextMenu}
+          />
+        ) : (
           <React.Suspense fallback={null}>
           <SettingsPage
             totalItems={totalItems}
@@ -280,28 +210,6 @@ export const App: React.FC = () => {
             onRevealTarget={(p) => revealTarget(p)}
           />
           </React.Suspense>
-        ) : (
-          <>
-            <Sidebar
-              conversations={chats.conversations}
-              activeId={chats.activeId}
-              totalItems={totalItems}
-              onNewChat={startNewChat}
-              onSelectConversation={selectConversation}
-              onDeleteConversation={chats.remove}
-            />
-
-            <ChatWorkspace
-              messages={chats.active?.messages ?? []}
-              isLoading={isChatLoading}
-              onSendMessage={(text) => handleSendMessage(text)}
-              onOpenPhoto={(path, filename) => setLightboxPhoto({ path, filename })}
-              onContextMenu={handleContextMenu}
-              onRevealTarget={(p) => revealTarget(p)}
-              onLaunchTarget={(p) => launchTarget(p)}
-              onOpenResult={openResult}
-            />
-          </>
         )}
       </div>
 

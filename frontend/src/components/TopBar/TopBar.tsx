@@ -1,11 +1,11 @@
 import React from 'react'
 import { useAudioSearch } from '../../hooks/useAudioSearch'
-import { ChatIcon, SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
+import { SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
 import { SearchBox } from '../common/SearchBox'
 import type { SearchResult } from '../../types'
 import styles from './TopBar.module.css'
 
-export type TopTab = 'search' | 'chat' | 'settings'
+export type TopTab = 'search' | 'settings'
 
 interface TopBarProps {
   query: string
@@ -127,7 +127,6 @@ export const TopBar: React.FC<TopBarProps> = ({
       />
       <nav className={styles.tabs} aria-label="Views">
         {tab('search', 'Search', 'Search (⌘K)', SearchIcon)}
-        {tab('chat', 'Chat', 'Chat (⌘↩ asks this query)', ChatIcon)}
         {tab('settings', 'Settings', 'Settings (⌘,)', SettingsIcon)}
       </nav>
     </header>
