@@ -1,15 +1,11 @@
-from concurrent.futures import ThreadPoolExecutor
-import html
 import json
 import logging
 import os
 from pathlib import Path
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional
 import urllib.parse
-import PIL.Image
 import requests
-import scanner
 
 logger = logging.getLogger(__name__)
 
@@ -228,251 +224,30 @@ def get_status() -> Dict[str, Any]:
         "user": data.get("user", {}) if valid_token else {},
     }
 
-def sync_google_drive(
-    emb: Any,
-    store: Any,
-    on_progress: Optional[Callable[[str, int, int], None]] = None,
-    cancel_check: Optional[Callable[[], bool]] = None,
-    max_files: int = 200,
-) -> int:
-    headers = _require_token()
-    files_url = "https://www.googleapis.com/drive/v3/files"
-    params = {
-        "pageSize": min(max_files, 100),
-        "fields": "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,description)",
-        "q": "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
-    }
 
-    all_files: List[Dict[str, Any]] = []
-    page_token = None
 
-    while len(all_files) < max_files:
-        if cancel_check and cancel_check():
-            break
-        if page_token:
-            params["pageToken"] = page_token
-        resp = requests.get(files_url, headers=headers, params=params, timeout=15)
-        if resp.status_code != 200:
-            err = _api_error(resp, "Google Drive")
-            if not all_files:
-                raise err
-            break
-        data = resp.json()
-        items = data.get("files", [])
-        all_files.extend(items)
-        page_token = data.get("nextPageToken")
-        if not page_token:
-            break
+from google_sync import (  # noqa: E402  (re-exported so existing imports keep working)
+    GoogleScopeError,
+    create_photos_picker_session,
+    sync_gmail,
+    sync_google_drive,
+    sync_google_photos,
+)
 
-    if not all_files:
-        return 0
-
-    total = len(all_files)
-    batch_items: List[Dict[str, Any]] = []
-
-    for idx, f in enumerate(all_files):
-        if cancel_check and cancel_check():
-            break
-        name = f.get("name", "Untitled")
-        if on_progress:
-            on_progress(name, idx + 1, total)
-
-        fid = f.get("id")
-        mime = f.get("mimeType", "")
-        web_link = f.get("webViewLink") or f"https://drive.google.com/file/d/{fid}/view"
-        desc = f.get("description", "")
-        mod_time = f.get("modifiedTime", "")
-
-        content_repr = f"Google Drive File: {name}\nType: {mime}\nModified: {mod_time}\nDescription: {desc}"
-
-        vec = emb.embed_text(content_repr, title=name)
-        batch_items.append({
-            "id": f"gdrive_{fid}",
-            "path": web_link,
-            "filename": name,
-            "type": "document",
-            "source": "google_drive",
-            "content": content_repr,
-            "excerpt": f"Google Drive • {mime.split('.')[-1]} • {mod_time[:10]}",
-            "vector": vec,
-            "metadata": {
-                "url": web_link,
-                "mimeType": mime,
-                "modifiedTime": mod_time,
-                "googleId": fid,
-            },
-        })
-
-    if batch_items:
-        store.add_items(batch_items)
-    return len(batch_items)
-
-PICKER_API = "https://photospicker.googleapis.com/v1"
-
-class GoogleScopeError(ValueError):
-    """The signed-in account did not grant the scope this sync needs."""
-
-def _api_error(resp: requests.Response, service: str) -> ValueError:
-    try:
-        msg = resp.json().get("error", {}).get("message", resp.text)
-    except Exception:
-        msg = resp.text
-    logger.error(f"{service} API error ({resp.status_code}): {msg}")
-    if resp.status_code == 403 and ("insufficient" in msg.lower() or "scope" in msg.lower()):
-        return GoogleScopeError(f"{service} permission not granted. Sign in with Google again to allow {service} access.")
-    if resp.status_code == 403 and "has not been used" in msg.lower():
-        return ValueError(f"Enable the {service} API in your Google Cloud project, then retry. ({msg})")
-    return ValueError(f"{service} API error ({resp.status_code}): {msg}")
-
-def _require_token() -> Dict[str, str]:
-    token = get_valid_access_token()
-    if not token:
-        raise ValueError("Google account is not connected. Please sign in with Google.")
-    return {"Authorization": f"Bearer {token}"}
-
-def create_photos_picker_session() -> Dict[str, Any]:
-    resp = requests.post(f"{PICKER_API}/sessions", headers=_require_token(), json={}, timeout=15)
-    if resp.status_code != 200:
-        raise _api_error(resp, "Google Photos Picker")
-    data = resp.json()
-    return {"id": data["id"], "picker_uri": data["pickerUri"]}
-
-def sync_google_photos(
-    emb: Any,
-    store: Any,
-    session_id: str,
-    on_progress: Optional[Callable[[str, int, int], None]] = None,
-    cancel_check: Optional[Callable[[], bool]] = None,
-    wait_seconds: int = 900,
-) -> int:
-    headers = _require_token()
-    deadline = time.time() + wait_seconds
-    while True:
-        if cancel_check and cancel_check():
-            return 0
-        resp = requests.get(f"{PICKER_API}/sessions/{session_id}", headers=headers, timeout=15)
-        if resp.status_code != 200:
-            raise _api_error(resp, "Google Photos Picker")
-        if resp.json().get("mediaItemsSet"):
-            break
-        if time.time() > deadline:
-            raise ValueError("Timed out waiting for photos to be picked in Google Photos.")
-        if on_progress:
-            on_progress("Waiting for you to pick photos in Google Photos...", 0, 0)
-        time.sleep(3)
-
-    all_media: List[Dict[str, Any]] = []
-    params: Dict[str, Any] = {"sessionId": session_id, "pageSize": 100}
-    while True:
-        resp = requests.get(f"{PICKER_API}/mediaItems", headers=headers, params=params, timeout=15)
-        if resp.status_code != 200:
-            raise _api_error(resp, "Google Photos Picker")
-        data = resp.json()
-        all_media.extend(data.get("mediaItems", []))
-        if not data.get("nextPageToken"):
-            break
-        params["pageToken"] = data["nextPageToken"]
-    requests.delete(f"{PICKER_API}/sessions/{session_id}", headers=headers, timeout=15)
-
-    PHOTOS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    total = len(all_media)
-    batch_items: List[Dict[str, Any]] = []
-    for idx, item in enumerate(all_media):
-        if cancel_check and cancel_check():
-            break
-        media = item.get("mediaFile", {})
-        filename = media.get("filename", f"photo_{idx}.jpg")
-        if on_progress:
-            on_progress(filename, idx + 1, total)
-        if item.get("type") != "PHOTO" or not media.get("baseUrl"):
-            continue
-        item_id = item["id"]
-        cache_file = PHOTOS_CACHE_DIR / f"{item_id}.jpg"
-        try:
-            if not cache_file.exists():
-                img_resp = requests.get(f"{media['baseUrl']}=w800-h800", headers=headers, timeout=20)
-                if img_resp.status_code != 200:
-                    continue
-                cache_file.write_bytes(img_resp.content)
-            vec = emb.embed_image(PIL.Image.open(cache_file))
-            if not vec:
-                continue
-            created = item.get("createTime", "")
-            batch_items.append({
-                "id": f"gphoto_{item_id}",
-                "type": "photo",
-                "path": str(cache_file),
-                "filename": filename,
-                "source": "google_photos",
-                "content": f"Google Photo: {filename} ({created})",
-                "vector": vec,
-                "metadata": {"creationTime": created, "googleId": item_id, "mimeType": media.get("mimeType", "")},
-            })
-        except Exception as e:
-            logger.warning(f"Failed to process Google Photo {filename}: {e}")
-
-    return store.add_items(batch_items)
-
-GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
-
-def sync_gmail(
-    emb: Any,
-    store: Any,
-    on_progress: Optional[Callable[[str, int, int], None]] = None,
-    cancel_check: Optional[Callable[[], bool]] = None,
-    max_messages: int = 1000,
-) -> int:
-    headers = _require_token()
-    ids: List[str] = []
-    params: Dict[str, Any] = {"maxResults": 500, "q": "-in:spam -in:trash"}
-    while len(ids) < max_messages:
-        resp = requests.get(f"{GMAIL_API}/messages", headers=headers, params=params, timeout=15)
-        if resp.status_code != 200:
-            raise _api_error(resp, "Gmail")
-        data = resp.json()
-        ids.extend(m["id"] for m in data.get("messages", []))
-        if not data.get("nextPageToken"):
-            break
-        params["pageToken"] = data["nextPageToken"]
-    ids = ids[:max_messages]
-
-    session = requests.Session()
-    session.mount("https://", requests.adapters.HTTPAdapter(pool_maxsize=8))
-
-    def fetch(mid: str) -> Optional[Dict[str, Any]]:
-        resp = session.get(
-            f"{GMAIL_API}/messages/{mid}",
-            headers=headers,
-            params={"format": "metadata", "metadataHeaders": ["Subject", "From", "To", "Date"]},
-            timeout=15,
-        )
-        return resp.json() if resp.status_code == 200 else None
-
-    total = len(ids)
-    records: List[Dict[str, Any]] = []
-    pool = ThreadPoolExecutor(max_workers=8)
-    try:
-        for idx, msg in enumerate(pool.map(fetch, ids)):
-            if cancel_check and cancel_check():
-                break
-            if not msg:
-                continue
-            hdrs = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
-            subject = hdrs.get("Subject", "(no subject)")
-            if on_progress:
-                on_progress(subject, idx + 1, total)
-            records.append(scanner.email_record(
-                record_id=f"gmail_{msg['id']}",
-                source="gmail",
-                path=f"https://mail.google.com/mail/u/0/#all/{msg['threadId']}",
-                subject=subject,
-                sender=hdrs.get("From", ""),
-                to=hdrs.get("To", ""),
-                date=hdrs.get("Date", ""),
-                body=html.unescape(msg.get("snippet", "")),
-                modified_at=int(msg.get("internalDate", "0")) / 1000.0,
-            ))
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
-
-    return scanner.embed_and_store(emb, store, records, "gmail")
+__all__ = [
+    "GoogleScopeError",
+    "PHOTOS_CACHE_DIR",
+    "create_photos_picker_session",
+    "disconnect",
+    "exchange_code",
+    "fetch_userinfo",
+    "get_auth_url",
+    "get_client_config",
+    "get_status",
+    "get_valid_access_token",
+    "parse_client_json",
+    "save_direct_token",
+    "sync_gmail",
+    "sync_google_drive",
+    "sync_google_photos",
+]

@@ -58,3 +58,4 @@
 - [x] Consolidate top search + chat input into one shared SearchBox component
 - [x] Shrink chat file previews (photo/doc/video grids + play badge)
 - [x] Make chat answers super short (brevity rules in qa_engine prompt; needs backend restart)
+- [x] Cleanup + organize: routes/ package, jobs.py, app_state lazy init, google_sync/, app_config, Chat/Settings splits, SearchBox, lazy chunks, scan/audio/history perf fixes

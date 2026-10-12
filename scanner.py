@@ -619,24 +619,32 @@ class Scanner:
         workers = min(8, os.cpu_count() or 4)
         CHUNK_SIZE = 64
 
-        for chunk_start in range(0, total_files, CHUNK_SIZE):
-            if cancel_check and cancel_check():
-                break
+        # One pool per scan, not per chunk: creating and tearing down a pool
+        # for every 64 files churns threads for no reason.
+        pool = ThreadPoolExecutor(max_workers=workers)
+        try:
+            for chunk_start in range(0, total_files, CHUNK_SIZE):
+                if cancel_check and cancel_check():
+                    break
 
-            chunk_files = files_to_process[chunk_start : chunk_start + CHUNK_SIZE]
-            files_to_parse = []
-            for file_path, st_mtime, st_size in chunk_files:
-                try:
-                    resolved_str = str(file_path.resolve())
-                    if resolved_str in indexed_mtimes and abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
-                        continue
-                except Exception:
-                    pass
-                files_to_parse.append(file_path)
+                chunk_files = files_to_process[chunk_start : chunk_start + CHUNK_SIZE]
+                files_to_parse = []
+                for file_path, st_mtime, st_size in chunk_files:
+                    try:
+                        resolved_str = str(file_path.resolve())
+                        if resolved_str in indexed_mtimes and abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
+                            continue
+                    except Exception:
+                        pass
+                    files_to_parse.append(file_path)
 
-            if files_to_parse:
-                with ThreadPoolExecutor(max_workers=workers) as executor:
-                    parsed_results = list(executor.map(self._parse_file, files_to_parse))
+                if not files_to_parse:
+                    if on_progress:
+                        last_file = chunk_files[-1][0]
+                        processed_so_far = min(chunk_start + CHUNK_SIZE, total_files)
+                        on_progress(last_file.name, processed_so_far, total_files)
+                    continue
+                parsed_results = list(pool.map(self._parse_file, files_to_parse))
 
                 for kind, fp, chunks in parsed_results:
                     if kind == "image":
@@ -648,10 +656,12 @@ class Scanner:
                         if len(doc_buffer) >= BATCH_SIZE:
                             flush_docs()
 
-            if on_progress:
-                last_file = chunk_files[-1][0]
-                processed_so_far = min(chunk_start + CHUNK_SIZE, total_files)
-                on_progress(last_file.name, processed_so_far, total_files)
+                if on_progress:
+                    last_file = chunk_files[-1][0]
+                    processed_so_far = min(chunk_start + CHUNK_SIZE, total_files)
+                    on_progress(last_file.name, processed_so_far, total_files)
+        finally:
+            pool.shutdown(wait=True)
 
         flush_docs()
         flush_images()

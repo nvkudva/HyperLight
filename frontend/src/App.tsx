@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchGoogleStatus,
-  fetchIndexStatus,
   fetchSources,
   fetchStatus,
   launchTarget,
@@ -10,15 +9,23 @@ import {
 } from './api'
 import { ChatWorkspace } from './components/Chat/ChatWorkspace'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
-import { OnboardingWizard } from './components/Onboarding/OnboardingWizard'
-import { PhotoLightbox } from './components/Lightbox/PhotoLightbox'
 import { SearchScreen } from './components/Search/SearchScreen'
-import { SettingsPage } from './components/Settings/SettingsPage'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { TopBar, type TopTab } from './components/TopBar/TopBar'
 import { ScanIndicator } from './components/common/ScanIndicator'
 import { useConversations } from './hooks/useConversations'
-import type { ChatMessage, ConfiguredSource, ContextMenuState, GoogleStatus, IndexJobStatus, SearchResult } from './types'
+import { useIndexPolling } from './hooks/useIndexPolling'
+
+const SettingsPage = React.lazy(() =>
+  import('./components/Settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+)
+const OnboardingWizard = React.lazy(() =>
+  import('./components/Onboarding/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard }))
+)
+const PhotoLightbox = React.lazy(() =>
+  import('./components/Lightbox/PhotoLightbox').then((m) => ({ default: m.PhotoLightbox }))
+)
+import type { ChatMessage, ConfiguredSource, ContextMenuState, GoogleStatus, SearchResult } from './types'
 import styles from './App.module.css'
 
 type Screen = 'search' | 'chat' | 'settings'
@@ -63,7 +70,6 @@ export const App: React.FC = () => {
   const [isOnboarding, setIsOnboarding] = useState(() => !localStorage.getItem('onboarded'))
   const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
-  const [indexStatus, setIndexStatus] = useState<IndexJobStatus | null>(null)
   const [isChatLoading, setIsChatLoading] = useState(false)
   const chats = useConversations()
 
@@ -92,34 +98,7 @@ export const App: React.FC = () => {
     searchInputRef.current?.focus()
   }, [])
 
-  useEffect(() => {
-    let timer: number
-    let wasRunning = false
-    let failures = 0
-    const poll = async () => {
-      try {
-        const status = await fetchIndexStatus()
-        if (failures > 0) reloadData()
-        failures = 0
-        setIndexStatus(status)
-        if (wasRunning && !status.is_running) reloadData()
-        wasRunning = status.is_running
-      } catch {
-        failures += 1
-        if (failures >= 3) {
-          setIndexStatus((prev) =>
-            prev && prev.is_running
-              ? { ...prev, is_running: false, state: 'idle', status: 'Backend unreachable' }
-              : prev
-          )
-          wasRunning = false
-        }
-      }
-      timer = window.setTimeout(poll, wasRunning ? 1000 : 3000)
-    }
-    poll()
-    return () => clearTimeout(timer)
-  }, [reloadData])
+  const { status: indexStatus, refresh: refreshIndexStatus } = useIndexPolling(reloadData)
 
   const openSettings = (indexing = false) => {
     setFocusIndexing(indexing)
@@ -288,6 +267,7 @@ export const App: React.FC = () => {
             />
           </>
         ) : screen === 'settings' ? (
+          <React.Suspense fallback={null}>
           <SettingsPage
             totalItems={totalItems}
             sources={sources}
@@ -296,9 +276,10 @@ export const App: React.FC = () => {
             focusIndexing={focusIndexing}
             onRefreshSources={reloadData}
             onRefreshGoogleStatus={() => fetchGoogleStatus().then(setGoogleStatus)}
-            onStartProgress={() => fetchIndexStatus().then(setIndexStatus)}
+            onStartProgress={refreshIndexStatus}
             onRevealTarget={(p) => revealTarget(p)}
           />
+          </React.Suspense>
         ) : (
           <>
             <Sidebar
@@ -325,17 +306,21 @@ export const App: React.FC = () => {
       </div>
 
       {isOnboarding && (
-        <OnboardingWizard
-          onStartProgress={() => fetchIndexStatus().then(setIndexStatus)}
-          onDone={() => {
-            localStorage.setItem('onboarded', '1')
-            setIsOnboarding(false)
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <OnboardingWizard
+            onStartProgress={refreshIndexStatus}
+            onDone={() => {
+              localStorage.setItem('onboarded', '1')
+              setIsOnboarding(false)
+            }}
+          />
+        </React.Suspense>
       )}
 
       <ContextMenu state={contextMenu} onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))} />
-      <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />
+      <React.Suspense fallback={null}>
+        <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />
+      </React.Suspense>
     </div>
   )
 }

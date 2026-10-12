@@ -9,13 +9,9 @@
   background: var(--sidebar-bg);
   backdrop-filter: var(--sidebar-blur);
   -webkit-backdrop-filter: var(--sidebar-blur);
-  -webkit-app-region: drag;
   position: relative;
   z-index: 30;
-}
-
-.header > * {
-  -webkit-app-region: no-drag;
+  user-select: none;
 }
 
 .searchIcon {
@@ -35,6 +31,8 @@
   font-weight: 400;
   color: var(--label);
   outline: none;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .searchInput:focus-visible {

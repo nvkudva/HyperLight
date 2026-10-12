@@ -11,6 +11,7 @@ import {
   PhotoIcon,
   VideoIcon,
 } from '../common/Icons'
+import { ResultThumbnail, VISUAL_PREVIEW } from './ResultThumbnail'
 import styles from './SearchScreen.module.css'
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -35,8 +36,6 @@ const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
   webloc: [BookmarkIcon, styles.accent],
   bookmark: [BookmarkIcon, styles.accent],
 }
-
-const VISUAL_PREVIEW = /\.(pdf|docx?|pptx?|xlsx?|key|pages|numbers|rtf|heic|png|jpe?g|gif|webp|tiff?)$/i
 
 interface SearchScreenProps {
   query: string
@@ -75,9 +74,11 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
     return { flatItems: flat, offsets: off }
   }, [categories])
 
-  useEffect(() => {
+  const [seenCategories, setSeenCategories] = useState(categories)
+  if (seenCategories !== categories) {
+    setSeenCategories(categories)
     setSelected(0)
-  }, [categories])
+  }
 
   const current = flatItems[selected]
   const [failedPreviews, setFailedPreviews] = useState<Set<string>>(() => new Set())
@@ -166,7 +167,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                         onDoubleClick={() => onOpen(item)}
                         onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
                       >
-                        {renderIcon(catKey)}
+                        <ResultThumbnail path={item.path} fallback={renderIcon(kindOf(item))} />
                         <div className={styles.itemText}>
                           <div className={styles.itemTitle}>{item.filename}</div>
                           <div className={styles.itemDesc}>{item.excerpt || item.path}</div>

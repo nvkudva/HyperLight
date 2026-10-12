@@ -7,25 +7,24 @@ import {
   indexApps,
   removeSource,
   startIndex,
-  stopIndex,
   toggleSourceWatch,
   updateAppSettings,
 } from '../../api'
-import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobInfo, IndexJobStatus } from '../../types'
+import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
 import {
-  AppIcon,
   ChatIcon,
   CloudIcon,
   DatabaseIcon,
   FolderIcon,
-  ServerIcon,
   ZapIcon,
 } from '../common/Icons'
 import { GoogleAccountCard } from '../Google/GoogleAccountCard'
-import { ProgressBar } from '../common/ProgressBar'
+import { AssistantTab } from './AssistantTab'
+import { MaintenanceTab } from './MaintenanceTab'
+import { ScanningTab } from './ScanningTab'
+import { SourcesTab } from './SourcesTab'
+import { activeJobs, availablePresets } from './settingsUtils'
 import styles from './SettingsPage.module.css'
-
-const PRESETS = ['~/Documents', '~/Desktop', '~/Downloads', '~/Pictures']
 
 const STATUS_CLASS: Record<string, string> = {
   blue: styles.statusInfo,
@@ -36,26 +35,6 @@ const STATUS_CLASS: Record<string, string> = {
 }
 
 type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'maintenance'
-
-function activeJobs(status?: IndexJobStatus | null): IndexJobInfo[] {
-  if (!status) return []
-  if (status.jobs) return status.jobs
-  const jobs: IndexJobInfo[] = []
-  if (status.is_running && status.current_path) {
-    jobs.push({
-      name: status.current_folder,
-      path: status.current_path,
-      state: 'running',
-      percent: status.percent,
-      current_index: status.current_index,
-      total_files: status.total_files,
-    })
-  }
-  for (const name of status.queued ?? []) {
-    jobs.push({ name, path: '', state: 'queued', percent: 0, current_index: 0, total_files: 0 })
-  }
-  return jobs
-}
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
   { id: 'sources', label: 'Sources', icon: FolderIcon, tint: styles.iconAccent },
@@ -291,8 +270,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const localSources = sources.filter((s) => s.source_type !== 'macos_system')
   const isGlobalAlwaysOn = appSettings.always_on_scanning
-  const addedNames = new Set(sources.map((s) => s.path.replace(/\/$/, '').split('/').pop()?.toLowerCase()))
-  const availablePresets = PRESETS.filter((p) => !addedNames.has(p.replace('~/', '').toLowerCase()))
+  const presets = availablePresets(sources)
   const hasAppsSource = sources.some((s) => s.source_type === 'macos_system')
   const jobs = activeJobs(indexStatus)
   const queuedJobs = jobs.filter((j) => j.state === 'queued')
@@ -344,329 +322,37 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
         {/* TAB 1: SOURCES & FOLDERS */}
         {activeTab === 'sources' && (
-          <div className={styles.panel}>
-            {/* Add Location Card */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle}>Add Location</h2>
-                  <p className={styles.cardSubtitle}>Add folders or drives to personal search.</p>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className={styles.quickActionGrid}>
-                <button className={styles.quickActionCard} onClick={handleBrowseFinder}>
-                  <span className={`${styles.quickActionIcon} ${styles.iconAccent}`}>
-                    <FolderIcon className="w-4 h-4" />
-                  </span>
-                  <span>Choose Folder…</span>
-                </button>
-                <button className={styles.quickActionCard} onClick={handleConnectVolumes}>
-                  <span className={`${styles.quickActionIcon} ${styles.iconNeutral}`}>
-                    <ServerIcon className="w-4 h-4" />
-                  </span>
-                  <span>Network Share</span>
-                </button>
-              </div>
-
-              {/* Manual Input */}
-              <form className={styles.pathForm} onSubmit={handleAddManual}>
-                <input
-                  type="text"
-                  className={styles.input}
-                  aria-label="Folder path"
-                  placeholder="Enter path manually (~/Documents, /Volumes/Share...)"
-                  value={manualPath}
-                  onChange={(e) => setManualPath(e.target.value)}
-                />
-                <button type="submit" className={`${styles.button} ${styles.primary}`}>
-                  Add
-                </button>
-              </form>
-
-              {/* Presets */}
-              {(availablePresets.length > 0 || !hasAppsSource) && (
-                <div className={styles.chipRow}>
-                  <span className={styles.chipLabel}>Quick add:</span>
-                  {availablePresets.map((p) => (
-                    <button key={p} className={styles.chip} title={p} onClick={() => handleIndexPreset(p)}>
-                      <FolderIcon className={styles.chipIcon} />
-                      {p.replace('~/', '')}
-                    </button>
-                  ))}
-                  {!hasAppsSource && (
-                    <button className={styles.chip} title="Index installed macOS applications" onClick={handleIndexApps}>
-                      <AppIcon className={styles.chipIcon} />
-                      Apps
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Indexed Locations */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle}>Indexed Locations</h2>
-                  <p className={styles.cardSubtitle}>
-                    {sources.length} active {sources.length === 1 ? 'source' : 'sources'} configured.
-                  </p>
-                </div>
-              </div>
-
-              {sources.length === 0 ? (
-                <div className={styles.emptyState}>No locations added yet. Choose a folder above to start indexing.</div>
-              ) : (
-                <ul className={styles.sourceList}>
-                  {sources.map((s) => {
-                    const isApp = s.source_type === 'macos_system'
-                    const isWatchable = !isApp && !s.path.startsWith('http')
-                    const isWatchOn = s.watch_enabled !== false
-
-                    const job = jobForSource(s)
-                    return (
-                      <li key={s.path} className={styles.sourceCard}>
-                        <div className={styles.sourceInfo}>
-                          <span className={`${styles.icon} ${isApp ? styles.iconIndigo : styles.iconAccent}`}>
-                            {isApp ? <AppIcon className="w-4 h-4" /> : <FolderIcon className="w-4 h-4" />}
-                          </span>
-                          <div className={styles.sourceDetails}>
-                            <span className={styles.sourceName}>{s.name}</span>
-                            <span className={`${styles.badge} ${styles.badgeNeutral}`} title="Items indexed">
-                              {s.items_count.toLocaleString()}
-                            </span>
-                            {isGlobalAlwaysOn && isWatchable && (
-                              <span
-                                className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}
-                              >
-                                {isWatchOn ? '● Live' : 'Manual'}
-                              </span>
-                            )}
-                            <span className={styles.sourcePath} title={s.path}>
-                              {s.path}
-                            </span>
-                            {job?.state === 'running' && (
-                              <span
-                                className={styles.jobProgress}
-                                title={job.total_files > 0 ? `Indexing file ${job.current_index.toLocaleString()} of ${job.total_files.toLocaleString()}` : 'Discovering files…'}
-                              >
-                                {job.total_files > 0 ? (
-                                  <>
-                                    <span className={styles.jobTrack}>
-                                      <span className={styles.jobFill} style={{ width: `${job.percent}%` }} />
-                                    </span>
-                                    <span className={styles.jobPercent}>{Math.round(job.percent)}%</span>
-                                  </>
-                                ) : (
-                                  <span className={styles.jobPercent}>Starting…</span>
-                                )}
-                              </span>
-                            )}
-                            {job?.state === 'queued' && (
-                              <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className={styles.sourceControls}>
-                          {/* If Always-on is globally active, show per-source live toggle */}
-                          {isGlobalAlwaysOn && isWatchable && (
-                            <label className={styles.switch} title={`Toggle continuous live sync for ${s.name}`}>
-                              <input
-                                type="checkbox"
-                                checked={isWatchOn}
-                                onChange={() => handleToggleSourceWatch(s)}
-                              />
-                              <span className={styles.slider} />
-                            </label>
-                          )}
-
-                          <button className={styles.button} onClick={() => handleReveal(s.path)} title="Reveal in Finder">
-                            Reveal
-                          </button>
-                          <button className={styles.button} onClick={() => handleRescan(s)} title="Re-index this folder">
-                            Rescan
-                          </button>
-                          <button
-                            className={`${styles.button} ${styles.destructive}`}
-                            onClick={() => handleRemoveSource(s.path)}
-                            title="Remove from index"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
+          <SourcesTab
+            sources={sources}
+            availablePresets={presets}
+            hasAppsSource={hasAppsSource}
+            isGlobalAlwaysOn={isGlobalAlwaysOn}
+            manualPath={manualPath}
+            onManualPathChange={setManualPath}
+            jobForSource={jobForSource}
+            onBrowseFinder={handleBrowseFinder}
+            onConnectVolumes={handleConnectVolumes}
+            onAddManual={handleAddManual}
+            onIndexPreset={handleIndexPreset}
+            onIndexApps={handleIndexApps}
+            onToggleSourceWatch={handleToggleSourceWatch}
+            onReveal={handleReveal}
+            onRescan={handleRescan}
+            onRemoveSource={handleRemoveSource}
+          />
         )}
 
         {/* TAB 2: REAL-TIME SCANNING */}
         {activeTab === 'scanning' && (
-          <div className={styles.panel}>
-            <div className={styles.duoGrid}>
-              {/* Master Switch Card */}
-              <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <div className={styles.sourceNameRow}>
-                    <h2 className={styles.cardTitle}>Always-On Scanning</h2>
-                    <span
-                      className={`${styles.badge} ${isGlobalAlwaysOn ? styles.badgeSuccess : styles.badgeNeutral}`}
-                    >
-                      {isGlobalAlwaysOn
-                        ? `● Active (${appSettings.watched_paths_count ?? localSources.length} watching)`
-                        : 'Paused'}
-                    </span>
-                  </div>
-                  <p className={styles.cardSubtitle}>
-                    Uses macOS kernel FSEvents to automatically detect and index newly added, modified, or deleted files
-                    in real-time without requiring manual rescans.
-                  </p>
-                </div>
-                <label className={styles.switch} title="Toggle master always-on scanning">
-                  <input
-                    type="checkbox"
-                    checked={isGlobalAlwaysOn}
-                    onChange={handleToggleAlwaysOn}
-                  />
-                  <span className={styles.slider} />
-                </label>
-              </div>
-              </div>
-
-              {/* Active Indexing Monitor */}
-              <div className={styles.card} id="settings-indexing">
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardHeaderCol}>
-                    <h2 className={styles.cardTitle}>Indexing Activity</h2>
-                    <p className={styles.cardSubtitle}>
-                      {indexStatus?.is_running
-                        ? `Scanning ${indexStatus.current_folder || 'files'}...`
-                        : 'Background indexer is currently idle.'}
-                    </p>
-                  </div>
-                  {indexStatus?.is_running && (
-                    <button className={`${styles.button} ${styles.destructive}`} onClick={() => stopIndex()}>
-                      Stop Indexing
-                    </button>
-                  )}
-                </div>
-
-                {indexStatus?.is_running ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <ProgressBar status={indexStatus.status} percent={indexStatus.percent} />
-                    <div className={styles.statGrid}>
-                      <div className={styles.statCard}>
-                        <span className={styles.statValue}>
-                          {indexStatus.current_index.toLocaleString()} / {indexStatus.total_files.toLocaleString()}
-                        </span>
-                        <span className={styles.statLabel}>Files Processed</span>
-                      </div>
-                      <div className={styles.statCard}>
-                        <span className={styles.statValue}>{indexStatus.percent.toFixed(0)}%</span>
-                        <span className={styles.statLabel}>Completion</span>
-                      </div>
-                    </div>
-                    {indexStatus.current_file && (
-                      <div className={styles.bannerNotice}>
-                        <span>📄</span>
-                        <span className={styles.truncate} title={indexStatus.current_file}>
-                          Current: {indexStatus.current_file}
-                        </span>
-                      </div>
-                    )}
-                    {queuedJobs.length > 0 && (
-                      <div className={styles.queueList}>
-                        <span className={styles.queueTitle}>Up next</span>
-                        {queuedJobs.map((j) => (
-                          <div key={j.path || j.name} className={styles.queueRow}>
-                            <span className={styles.queueName} title={j.path || j.name}>
-                              {j.name}
-                            </span>
-                            <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className={styles.bannerNotice}>
-                    <span>✓</span>
-                    <span>{indexStatus?.status || 'All indexed folders are up to date.'}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Per-Source Settings (shown only when Always-On is enabled) */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle}>Source Watch Rules</h2>
-                  <p className={styles.cardSubtitle}>
-                    {isGlobalAlwaysOn
-                      ? 'Enable or disable continuous real-time watching for each individual location:'
-                      : 'Always-on scanning is currently paused. Enable the master toggle to manage per-source rules.'}
-                  </p>
-                </div>
-              </div>
-
-              {isGlobalAlwaysOn ? (
-                localSources.length === 0 ? (
-                  <div className={styles.emptyState}>No local folders configured to watch.</div>
-                ) : (
-                  <ul className={styles.sourceList}>
-                    {localSources.map((s) => {
-                      const isWatchOn = s.watch_enabled !== false
-                      return (
-                        <li key={s.path} className={styles.sourceCard}>
-                          <div className={styles.sourceInfo}>
-                            <span className={`${styles.icon} ${isWatchOn ? styles.iconGreen : styles.iconNeutral}`}>
-                              <FolderIcon className="w-4 h-4" />
-                            </span>
-                            <div className={styles.sourceDetails}>
-                              <span className={styles.sourceName}>{s.name}</span>
-                              <span className={`${styles.badge} ${isWatchOn ? styles.badgeSuccess : styles.badgeNeutral}`}>
-                                {isWatchOn ? '● Live' : 'Manual'}
-                              </span>
-                              <span className={styles.sourcePath} title={s.path}>
-                                {s.path}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className={styles.sourceControls}>
-                            <label className={styles.switch} title={`Toggle continuous watching for ${s.name}`}>
-                              <input
-                                type="checkbox"
-                                checked={isWatchOn}
-                                onChange={() => handleToggleSourceWatch(s)}
-                              />
-                              <span className={styles.slider} />
-                            </label>
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )
-              ) : (
-                <div className={styles.bannerNotice}>
-                  <span>⏸️</span>
-                  <span>
-                    Continuous watching is stopped. When you turn Always-on Scanning on, you can select which folders to
-                    watch automatically.
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+          <ScanningTab
+            isGlobalAlwaysOn={isGlobalAlwaysOn}
+            watchedCount={appSettings.watched_paths_count ?? localSources.length}
+            localSources={localSources}
+            indexStatus={indexStatus}
+            queuedJobs={queuedJobs}
+            onToggleAlwaysOn={handleToggleAlwaysOn}
+            onToggleSourceWatch={handleToggleSourceWatch}
+          />
         )}
 
         {/* TAB 3: CLOUD & ACCOUNTS */}
@@ -682,87 +368,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
         )}
 
-        {/* TAB 4: ASSISTANT */}
         {activeTab === 'assistant' && (
-          <div className={styles.panel}>
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle}>Custom instructions</h2>
-                  <p className={styles.cardSubtitle}>
-                    Added to every chat answer prompt with highest priority. Photo-only replies and
-                    live search suggestions are unaffected.
-                  </p>
-                </div>
-                <button
-                  className={`${styles.button} ${styles.primary}`}
-                  onClick={handleSaveInstructions}
-                  disabled={savingInstructions || draftInstructions === (appSettings.custom_instructions ?? '')}
-                >
-                  {savingInstructions ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-
-              <textarea
-                className={styles.promptBox}
-                value={draftInstructions}
-                maxLength={4000}
-                rows={6}
-                placeholder={'e.g. Always answer in under 3 sentences.\nCite file names with their full paths.'}
-                onChange={(e) => setDraftInstructions(e.target.value)}
-                aria-label="Custom assistant instructions"
-              />
-              <p className={styles.promptHint}>{draftInstructions.length}/4000</p>
-            </div>
-          </div>
+          <AssistantTab
+            draftInstructions={draftInstructions}
+            savedInstructions={appSettings.custom_instructions ?? ''}
+            saving={savingInstructions}
+            onDraftChange={setDraftInstructions}
+            onSave={handleSaveInstructions}
+          />
         )}
 
-        {/* TAB 5: MAINTENANCE & STORAGE */}
         {activeTab === 'maintenance' && (
-          <div className={styles.panel}>
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle}>Index Metrics</h2>
-                  <p className={styles.cardSubtitle}>Local LanceDB vector store statistics</p>
-                </div>
-              </div>
-
-              <div className={styles.statGrid}>
-                <div className={styles.statCard}>
-                  <span className={styles.statValue}>{totalItems.toLocaleString()}</span>
-                  <span className={styles.statLabel}>Total Indexed Items</span>
-                </div>
-                <div className={styles.statCard}>
-                  <span className={styles.statValue}>{sources.length}</span>
-                  <span className={styles.statLabel}>Configured Sources</span>
-                </div>
-                <div className={styles.statCard}>
-                  <span className={styles.statValue}>
-                    {localSources.filter((s) => s.watch_enabled !== false).length}
-                  </span>
-                  <span className={styles.statLabel}>Live Watched Folders</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <div className={styles.cardHeaderCol}>
-                  <h2 className={styles.cardTitle} style={{ color: 'var(--red)' }}>
-                    Reset Search Database
-                  </h2>
-                  <p className={styles.cardSubtitle}>
-                    Wipe the entire local LanceDB vector index. Your configured source folders will remain intact and
-                    can be re-indexed.
-                  </p>
-                </div>
-                <button className={`${styles.button} ${styles.destructive}`} onClick={handleClearDb}>
-                  Reset Database…
-                </button>
-              </div>
-            </div>
-          </div>
+          <MaintenanceTab
+            totalItems={totalItems}
+            sources={sources}
+            localSources={localSources}
+            onClearDb={handleClearDb}
+          />
         )}
         </div>
       </div>

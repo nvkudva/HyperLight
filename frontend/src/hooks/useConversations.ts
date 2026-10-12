@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ChatMessage, Conversation } from '../types'
 
 const STORAGE_KEY = 'conversations'
+const MAX_CONVERSATIONS = 100
+const PERSIST_DEBOUNCE_MS = 500
 
 function load(): Conversation[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_CONVERSATIONS) : []
   } catch {
     return []
   }
@@ -16,12 +19,19 @@ export function useConversations() {
   const [activeId, setActiveId] = useState<string | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
+      } catch {
+        // Quota exceeded or unavailable: keep the session in memory.
+      }
+    }, PERSIST_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
   }, [conversations])
 
   const create = useCallback((title: string, kind: 'search' | 'chat' = 'chat') => {
     const conv: Conversation = { id: `c_${Date.now()}`, title: title.slice(0, 60), kind, messages: [], updatedAt: Date.now() }
-    setConversations((prev) => [conv, ...prev])
+    setConversations((prev) => [conv, ...prev].slice(0, MAX_CONVERSATIONS))
     setActiveId(conv.id)
     return conv.id
   }, [])
@@ -43,7 +53,7 @@ export function useConversations() {
         messages: [{ id: `user_${Date.now()}`, sender: 'user', text: title, timestamp: Date.now() }],
         updatedAt: Date.now(),
       }
-      return [conv, ...prev]
+      return [conv, ...prev].slice(0, MAX_CONVERSATIONS)
     })
   }, [])
 

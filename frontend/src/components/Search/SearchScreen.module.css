@@ -90,6 +90,15 @@
   flex-shrink: 0;
 }
 
+.thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: cover;
+  border-radius: 0.375rem;
+  flex-shrink: 0;
+  background: var(--fill);
+}
+
 .indigo { color: var(--indigo); }
 .green { color: var(--green); }
 .red { color: var(--red); }

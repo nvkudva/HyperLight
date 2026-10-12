@@ -8,6 +8,7 @@ const LIVE_SEGMENT_MS = 2000
 const SILENCE_MS = 3000
 const VOICE_RMS = 0.02
 const MIN_LIVE_SEC = 0.4
+const SEARCH_WINDOW_SEC = 30
 const WAVE_BARS = 24
 const TARGET_RATE = 16000
 const WAVE_FLOOR = 0.08
@@ -79,9 +80,10 @@ export function resampleMono(input: Float32Array, fromRate: number, toRate: numb
 
 // Records the mic stream, draws a live waveform into waveRef, and searches
 // while the user is still speaking: each recorded segment is decoded,
-// appended to a cumulative PCM buffer, resampled to 16kHz mono WAV and sent
-// to audio search, so results update as speech comes in. A 3s silence
-// (or the 90s cap) stops the mic automatically.
+// appended to a cumulative PCM buffer, then only the most recent
+// SEARCH_WINDOW_SEC seconds are resampled to 16kHz mono WAV and sent to audio
+// search, so results update as speech comes in without re-uploading minutes
+// of audio every segment. A 3s silence (or the 90s cap) stops the mic.
 export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks): AudioSearch {
   const [supported] = useState(
     () =>
@@ -191,9 +193,22 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     liveBusyRef.current = true
     if (final) setSearching(true)
     try {
-      const combined = new Float32Array(total)
+      const takeTotal = Math.min(total, rate * SEARCH_WINDOW_SEC)
+      const tail: Float32Array[] = []
+      let need = takeTotal
+      for (let i = pcmRef.current.length - 1; i >= 0 && need > 0; i--) {
+        const part = pcmRef.current[i]
+        if (part.length <= need) {
+          tail.unshift(part)
+          need -= part.length
+        } else {
+          tail.unshift(part.subarray(part.length - need))
+          need = 0
+        }
+      }
+      const combined = new Float32Array(takeTotal)
       let off = 0
-      for (const part of pcmRef.current) {
+      for (const part of tail) {
         combined.set(part, off)
         off += part.length
       }

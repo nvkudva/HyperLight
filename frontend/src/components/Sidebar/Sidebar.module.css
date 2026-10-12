@@ -127,7 +127,24 @@
 
 .historyItemActive,
 .historyItemActive:hover {
-  background: rgba(var(--label-rgb), 0.1);
+  background: var(--accent-tint);
+}
+
+.historyItemActive .historyTitle {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.kindIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  color: var(--label-3);
+}
+
+.historyItemActive .kindIcon {
+  color: var(--accent);
 }
 
 .historyTitle {
@@ -147,6 +164,8 @@
 }
 
 .deleteButton {
+  display: grid;
+  place-items: center;
   width: 1.5rem;
   height: 1.5rem;
   margin-right: 0.125rem;
@@ -154,10 +173,13 @@
   border-radius: 50%;
   background: none;
   color: var(--label-3);
-  font-size: 1rem;
-  line-height: 1;
   cursor: pointer;
   opacity: 0;
+}
+
+.deleteIcon {
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 .historyItem:hover .deleteButton,

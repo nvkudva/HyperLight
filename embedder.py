@@ -31,7 +31,13 @@ class Embedder:
     def __init__(self, model_name: str = "google/embeddinggemma-2"):
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
         self.model = sentence_transformers.SentenceTransformer(model_name, device=self.device)
-        self._encode_lock = threading.Lock()
+        # One lock per modality: concurrent inference on the shared model is
+        # thread-safe (proven by thread_probe), so a photo batch must not stall
+        # chat queries, and vice versa. Same-modality calls still serialize to
+        # bound peak MPS memory.
+        self._text_lock = threading.Lock()
+        self._image_lock = threading.Lock()
+        self._audio_lock = threading.Lock()
 
     def embed_query(self, query: str) -> List[float]:
         cleaned = _clip(query.strip())
@@ -40,7 +46,7 @@ class Embedder:
             prompt = f"task: code retrieval | query: {code_query}"
         else:
             prompt = f"task: search result | query: {cleaned}"
-        with self._encode_lock:
+        with self._text_lock:
             vec = self.model.encode(prompt, normalize_embeddings=True)
         return vec.tolist()
 
@@ -52,7 +58,7 @@ class Embedder:
             doc_str = cleaned
         else:
             doc_str = f"title: {title or 'none'} | text: {cleaned}"
-        with self._encode_lock:
+        with self._text_lock:
             vec = self.model.encode(doc_str, normalize_embeddings=True)
         return vec.tolist()
 
@@ -67,7 +73,7 @@ class Embedder:
             else:
                 title = titles[i] if titles and i < len(titles) else "none"
                 formatted.append(f"title: {title or 'none'} | text: {cleaned}")
-        with self._encode_lock:
+        with self._text_lock:
             vectors = self.model.encode(formatted, batch_size=batch_size, normalize_embeddings=True)
             _empty_cache(self.device)
         return vectors.tolist()
@@ -75,7 +81,7 @@ class Embedder:
     def embed_audio(self, samples: List[float], sampling_rate: int = 16000) -> Optional[List[float]]:
         try:
             audio = {"array": numpy.asarray(samples, dtype=numpy.float32), "sampling_rate": sampling_rate}
-            with self._encode_lock:
+            with self._audio_lock:
                 vec = self.model.encode({"audio": audio}, normalize_embeddings=True)
             return vec.tolist()
         except Exception:
@@ -88,7 +94,7 @@ class Embedder:
             else:
                 img = PIL.Image.open(image_input)
             image = _fit_image(img.convert("RGB"))
-            with self._encode_lock:
+            with self._image_lock:
                 vec = self.model.encode({"image": image}, normalize_embeddings=True)
             return vec.tolist()
         except Exception:
@@ -112,7 +118,7 @@ class Embedder:
         for i in range(0, len(valid_images), batch_size):
             chunk_inputs = valid_images[i : i + batch_size]
             chunk_indices = valid_indices[i : i + batch_size]
-            with self._encode_lock:
+            with self._image_lock:
                 chunk_vectors = self.model.encode(chunk_inputs, normalize_embeddings=True)
                 _empty_cache(self.device)
             vectors = chunk_vectors.tolist()

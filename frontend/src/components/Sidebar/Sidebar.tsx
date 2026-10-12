@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import type { Conversation } from '../../types'
+import { ChatIcon, SearchIcon, XIcon } from '../common/Icons'
 import styles from './Sidebar.module.css'
 
 interface SidebarProps {
@@ -105,6 +106,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   const isActive = c.id === activeId
                   return (
                     <div key={c.id} className={`${styles.historyItem} ${isActive ? styles.historyItemActive : ''}`}>
+                      {c.kind === 'chat'
+                        ? <ChatIcon className={styles.kindIcon} />
+                        : <SearchIcon className={styles.kindIcon} />}
                       <button
                         className={styles.historyTitle}
                         onClick={() => onSelectConversation(c.id)}
@@ -119,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         aria-label={`Delete “${c.title}”`}
                         title="Delete"
                       >
-                        ×
+                        <XIcon className={styles.deleteIcon} />
                       </button>
                     </div>
                   )

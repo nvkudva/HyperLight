@@ -22,13 +22,23 @@ if ! curl -sf http://127.0.0.1:8585/api/status >/dev/null 2>&1; then
   done
 fi
 
-(cd "$ROOT/frontend" && bun run build)
+# Rebuild the web UI only when sources changed since the last build.
+if [ ! -f "$ROOT/frontend/dist/index.html" ] || [ -n "$(find "$ROOT/frontend/src" "$ROOT/frontend/index.html" "$ROOT/frontend/package.json" -newer "$ROOT/frontend/dist/index.html" 2>/dev/null | head -1)" ]; then
+  (cd "$ROOT/frontend" && bun run build)
+else
+  echo "Frontend dist is fresh, skipping build."
+fi
 (cd "$ROOT/frontend/src-tauri" && cargo build)
 
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
-cp "$ROOT/frontend/src-tauri/Info.dev.plist" "$APP/Contents/Info.plist"
-cp "$BIN" "$APP/Contents/MacOS/Hyperlight"
-codesign -s - --entitlements "$ROOT/frontend/src-tauri/entitlements.plist" --force --deep "$APP" >/dev/null
+# Repackage + codesign only when the binary changed since the last bundle.
+if [ ! -f "$APP/Contents/MacOS/Hyperlight" ] || [ "$BIN" -nt "$APP/Contents/MacOS/Hyperlight" ]; then
+  rm -rf "$APP"
+  mkdir -p "$APP/Contents/MacOS"
+  cp "$ROOT/frontend/src-tauri/Info.dev.plist" "$APP/Contents/Info.plist"
+  cp "$BIN" "$APP/Contents/MacOS/Hyperlight"
+  codesign -s - --entitlements "$ROOT/frontend/src-tauri/entitlements.plist" --force --deep "$APP" >/dev/null
+else
+  echo "App bundle is fresh, skipping package/codesign."
+fi
 open -g "$APP"
 echo "Launched $APP"
