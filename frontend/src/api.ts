@@ -1,178 +1,158 @@
-import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchResult } from './types'
+import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchBucket, SearchResult } from './types'
+
+export interface SpotlightResponse {
+  query: string
+  total_matches: number
+  buckets: SearchBucket[]
+}
+
+/** A failed backend call. `code` is the backend's `error` field (e.g. 'full_disk_access'). */
+export class ApiError extends Error {
+  readonly status: number
+  readonly code?: string
+
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(url, init)
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw err
+    throw new ApiError('Hyperlight’s local service is not reachable.', 0)
+  }
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const code = typeof body.error === 'string' ? body.error : undefined
+    throw new ApiError(body.message || code || `Request failed (${res.status}).`, res.status, code)
+  }
+  return body as T
+}
+
+const get = <T>(url: string, signal?: AbortSignal) => request<T>(url, { signal })
+
+const post = <T>(url: string, body?: unknown, signal?: AbortSignal) =>
+  request<T>(url, {
+    method: 'POST',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  })
+
+const postForm = <T>(url: string, form: FormData) => request<T>(url, { method: 'POST', body: form })
 
 export async function fetchStatus(): Promise<{ total: number; photos: number; documents: number; sources: Record<string, number> }> {
-  const res = await fetch('/api/status')
-  return res.json()
+  return get('/api/status')
 }
 
 export async function fetchSources(): Promise<{ sources: ConfiguredSource[] }> {
-  const res = await fetch('/api/sources')
-  return res.json()
+  return get('/api/sources')
 }
 
 export async function fetchAppSettings(): Promise<AppSettings> {
-  const res = await fetch('/api/settings')
-  return res.json()
+  return get('/api/settings')
 }
 
 export async function updateAppSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
-  const res = await fetch('/api/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(settings),
-  })
-  return res.json()
+  return post('/api/settings', settings)
 }
 
 export async function toggleSourceWatch(path: string, enabled: boolean): Promise<{ success: boolean; sources: ConfiguredSource[] }> {
-  const res = await fetch('/api/sources/watch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, enabled }),
-  })
-  return res.json()
+  return post('/api/sources/watch', { path, enabled })
 }
 
 export async function fetchDriveLocations(): Promise<{ locations: DriveLocation[] }> {
-  const res = await fetch('/api/drive-locations')
-  return res.json()
+  return get('/api/drive-locations')
 }
 
 export async function fetchNetworkVolumes(): Promise<{ volumes: Array<{ name: string; path: string; type: string }> }> {
-  const res = await fetch('/api/network-volumes')
-  return res.json()
+  return get('/api/network-volumes')
 }
 
 export async function browseFolder(prompt?: string): Promise<{ path: string; name: string; canceled: boolean; error?: string }> {
-  const res = await fetch('/api/browse-folder', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
-  })
-  return res.json()
+  return post('/api/browse-folder', { prompt })
 }
 
 export async function startIndex(path: string, source = 'local', name?: string): Promise<{ status?: JobStart; path?: string; name?: string; error?: string }> {
-  const res = await fetch('/api/index', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, source, name }),
-  })
-  return res.json()
+  return post('/api/index', { path, source, name })
 }
 
 export async function fetchIndexStatus(): Promise<IndexJobStatus> {
-  const res = await fetch('/api/indexing-status')
-  return res.json()
+  return get('/api/indexing-status')
 }
 
 export async function stopIndex(): Promise<{ status: string }> {
-  const res = await fetch('/api/stop-index', { method: 'POST' })
-  return res.json()
+  return post('/api/stop-index')
 }
 
 export async function removeSource(path: string): Promise<{ status: string }> {
-  const res = await fetch('/api/remove-source', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path }),
-  })
-  return res.json()
+  return post('/api/remove-source', { path })
 }
 
 export async function clearDatabase(): Promise<{ status: string }> {
-  const res = await fetch('/api/clear', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ force: true }),
-  })
-  return res.json()
+  return post('/api/clear', { force: true })
 }
 
-export async function searchSpotlight(query: string, limit = 30, signal?: AbortSignal): Promise<{ query: string; total_matches: number; categories: Record<string, SearchResult[]> }> {
-  const res = await fetch('/api/spotlight', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, limit }),
-    signal,
-  })
-  return res.json()
+export async function searchSpotlight(query: string, signal?: AbortSignal): Promise<SpotlightResponse> {
+  return post('/api/spotlight', { query }, signal)
 }
 
 export async function sendChat(message: string): Promise<{ answer: string; photos: SearchResult[]; sources: SearchResult[] }> {
-  const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  })
-  return res.json()
+  return post('/api/chat', { message })
 }
 
 export async function launchTarget(path: string): Promise<{ success: boolean; path: string }> {
-  const res = await fetch('/api/launch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path }),
-  })
-  return res.json()
+  return post('/api/launch', { path })
 }
 
 export async function revealTarget(path: string): Promise<{ success: boolean; path: string }> {
-  const res = await fetch('/api/reveal', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path }),
-  })
-  return res.json()
+  return post('/api/reveal', { path })
 }
 
 export async function fetchGoogleStatus(): Promise<GoogleStatus> {
-  const res = await fetch('/api/auth/google/status')
-  return res.json()
+  return get('/api/auth/google/status')
 }
 
 export async function fetchGoogleAuthUrl(): Promise<{ url?: string; error?: string }> {
-  const res = await fetch('/api/auth/google/auth-url')
-  return res.json()
+  return get('/api/auth/google/auth-url')
 }
 
 export async function disconnectGoogle(): Promise<{ status: string }> {
-  const res = await fetch('/api/auth/google/disconnect', { method: 'POST' })
-  return res.json()
+  return post('/api/auth/google/disconnect')
 }
 
 export async function syncCloudDrive(): Promise<{ status: JobStart; name: string }> {
-  const res = await fetch('/api/auth/google/sync-drive', { method: 'POST' })
-  return res.json()
+  return post('/api/auth/google/sync-drive')
 }
 
 export async function syncCloudPhotos(): Promise<{ status?: string; picker_uri?: string; error?: string }> {
-  const res = await fetch('/api/auth/google/sync-photos', { method: 'POST' })
-  return res.json()
+  return post('/api/auth/google/sync-photos')
 }
 
 export async function syncGmail(): Promise<{ status: JobStart; name: string }> {
-  const res = await fetch('/api/auth/google/sync-gmail', { method: 'POST' })
-  return res.json()
+  return post('/api/auth/google/sync-gmail')
 }
 
 export async function indexAppleMail(): Promise<{ status?: string; error?: string; message?: string }> {
-  const res = await fetch('/api/sources/apple-mail', { method: 'POST' })
-  return res.json()
+  return post('/api/sources/apple-mail')
 }
 
 export function indexDriveLocations(locations: DriveLocation[]) {
   return Promise.all(locations.map((loc) => startIndex(loc.path, 'google_drive', loc.name)))
 }
 
-export async function indexApps(): Promise<{ status: string; indexed_apps: number }> {
-  const res = await fetch('/api/index-apps', { method: 'POST' })
-  return res.json()
+export async function indexApps(): Promise<{ status: JobStart }> {
+  return post('/api/index-apps')
 }
 
 export async function openSettingsPane(pane: 'full-disk-access' | 'internet-accounts'): Promise<{ success: boolean }> {
-  const res = await fetch(`/api/open-settings/${pane}`, { method: 'POST' })
-  return res.json()
+  return post(`/api/open-settings/${pane}`)
 }
 
 export async function transcribeAudio(blob: Blob): Promise<string> {
@@ -180,23 +160,12 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
   const ext = type.includes('mp4') ? 'clip.mp4' : type.includes('ogg') ? 'clip.ogg' : 'clip.webm'
   const form = new FormData()
   form.append('file', blob, ext)
-  const res = await fetch('/api/transcribe', { method: 'POST', body: form })
-  if (!res.ok) throw new Error(`Transcription failed (${res.status}). Is the backend running?`)
-  const data = await res.json()
-  if (data.error) throw new Error(data.error)
-  return (data.text ?? '') as string
+  const data = await postForm<{ text?: string }>('/api/transcribe', form)
+  return data.text ?? ''
 }
 
-export async function searchByAudio(wav: Blob): Promise<{
-  query: string
-  total_matches: number
-  categories: Record<string, SearchResult[]>
-}> {
+export async function searchByAudio(wav: Blob): Promise<SpotlightResponse> {
   const form = new FormData()
   form.append('file', wav, 'clip.wav')
-  const res = await fetch('/api/audio-search', { method: 'POST', body: form })
-  if (!res.ok) throw new Error(`Audio search failed (${res.status}). Is the backend running?`)
-  const data = await res.json()
-  if (data.error) throw new Error(data.error)
-  return data
+  return postForm<SpotlightResponse>('/api/audio-search', form)
 }

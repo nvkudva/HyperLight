@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { searchByAudio } from '../api'
 import { micErrorMessage } from './useVoiceInput'
-import type { SearchResult } from '../types'
+import type { SearchBucket } from '../types'
 
 const MAX_RECORD_MS = 90000
 const LIVE_SEGMENT_MS = 2000
@@ -25,7 +25,7 @@ interface AudioSearch {
 }
 
 interface AudioSearchCallbacks {
-  onResults: (categories: Record<string, SearchResult[]>, query?: string) => void
+  onResults: (buckets: SearchBucket[], transcript: string) => void
   onSearching: () => void
 }
 
@@ -108,6 +108,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
   const rafRef = useRef<number | null>(null)
   const levelsRef = useRef<number[]>([])
   const timerRef = useRef<number | null>(null)
+  const disposedRef = useRef(false)
   const cycleTimerRef = useRef<number | null>(null)
   const busyRef = useRef(false)
   const sessionRef = useRef(0)
@@ -215,7 +216,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       const wav = encodeWav(resampleMono(combined, rate, TARGET_RATE), TARGET_RATE)
       const res = await searchByAudio(wav)
       if (session !== sessionRef.current) return
-      cbRef.current.onResults(res.categories || {}, res.query)
+      cbRef.current.onResults(res.buckets || [], res.query || '')
     } catch (err: any) {
       if (final) setError(err?.message ?? 'Audio search failed.')
     } finally {
@@ -339,6 +340,10 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
   }, [searchCumulative])
 
   const stop = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
     if (cycleTimerRef.current !== null) {
       window.clearTimeout(cycleTimerRef.current)
       cycleTimerRef.current = null
@@ -380,6 +385,10 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       busyRef.current = false
       return
     }
+    if (disposedRef.current) {
+      stream.getTracks().forEach((t) => t.stop())
+      return
+    }
     streamRef.current = stream
     try {
       const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext ?? AudioContext
@@ -417,6 +426,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
 
   useEffect(
     () => () => {
+      disposedRef.current = true
       modeRef.current = 'stopped'
       sessionRef.current += 1
       teardownAudio()

@@ -1,31 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as api from '../api'
-import type { SearchResult } from '../types'
+import type { SearchBucket, SearchResult } from '../types'
 
 const CACHE_TTL_MS = 60_000
 const CACHE_MAX_ENTRIES = 200
-const cache = new Map<string, { at: number; categories: Record<string, SearchResult[]> }>()
+const cache = new Map<string, { at: number; buckets: SearchBucket[] }>()
 
-function readCache(key: string): Record<string, SearchResult[]> | null {
+export function flattenBuckets(buckets: SearchBucket[]): SearchResult[] {
+  return buckets.flatMap((b) => b.items)
+}
+
+function readCache(key: string): SearchBucket[] | null {
   const hit = cache.get(key)
   if (!hit) return null
   if (Date.now() - hit.at > CACHE_TTL_MS) {
     cache.delete(key)
     return null
   }
-  return hit.categories
+  return hit.buckets
 }
 
-function writeCache(key: string, categories: Record<string, SearchResult[]>) {
+function writeCache(key: string, buckets: SearchBucket[]) {
   if (cache.size >= CACHE_MAX_ENTRIES) {
     const oldest = cache.keys().next()
     if (!oldest.done) cache.delete(oldest.value)
   }
-  cache.set(key, { at: Date.now(), categories })
+  cache.set(key, { at: Date.now(), buckets })
 }
 
-export function useLiveSearch(query: string, limit = 30, delayMs = 150, enabled = true) {
-  const [categories, setCategories] = useState<Record<string, SearchResult[]>>({})
+const NO_BUCKETS: SearchBucket[] = []
+
+export function useLiveSearch(query: string, delayMs = 150, enabled = true) {
+  const [buckets, setBuckets] = useState<SearchBucket[]>(NO_BUCKETS)
   const [isSearching, setIsSearching] = useState(false)
   const requestSeq = useRef(0)
 
@@ -33,14 +39,14 @@ export function useLiveSearch(query: string, limit = 30, delayMs = 150, enabled 
     const seq = ++requestSeq.current
     const q = query.trim()
     if (!q || !enabled) {
-      setCategories({})
+      setBuckets(NO_BUCKETS)
       setIsSearching(false)
       return
     }
-    const key = `${q}|||${limit}`
+    const key = q
     const hit = readCache(key)
     if (hit) {
-      setCategories(hit)
+      setBuckets(hit)
       setIsSearching(false)
       return
     }
@@ -48,11 +54,11 @@ export function useLiveSearch(query: string, limit = 30, delayMs = 150, enabled 
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       try {
-        const res = await api.searchSpotlight(q, limit, controller.signal)
+        const res = await api.searchSpotlight(q, controller.signal)
         if (seq === requestSeq.current) {
-          const next = res.categories || {}
+          const next = res.buckets || NO_BUCKETS
           writeCache(key, next)
-          setCategories(next)
+          setBuckets(next)
         }
       } catch (err) {
         if (seq === requestSeq.current && (err as Error)?.name !== 'AbortError') console.error('Search error:', err)
@@ -64,17 +70,9 @@ export function useLiveSearch(query: string, limit = 30, delayMs = 150, enabled 
       clearTimeout(timer)
       controller.abort()
     }
-  }, [query, limit, delayMs, enabled])
+  }, [query, delayMs, enabled])
 
-  const { flatItems, offsets } = useMemo(() => {
-    const offsets: Record<string, number> = {}
-    const flatItems: SearchResult[] = []
-    for (const [key, items] of Object.entries(categories)) {
-      offsets[key] = flatItems.length
-      flatItems.push(...(items || []))
-    }
-    return { flatItems, offsets }
-  }, [categories])
+  const flatItems = useMemo(() => flattenBuckets(buckets), [buckets])
 
-  return { categories, flatItems, offsets, isSearching }
+  return { buckets, flatItems, isSearching }
 }

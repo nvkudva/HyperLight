@@ -1,0 +1,225 @@
+//! Global hotkey: a listen-only CGEventTap that brings the window forward.
+//!
+//! Listen-only taps need the Input Monitoring permission (not Accessibility)
+//! and are allowed inside the App Sandbox.
+
+use std::ffi::c_void;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::time::{Duration, Instant};
+
+use tauri::{Emitter, Manager};
+
+#[link(name = "CoreGraphics", kind = "framework")]
+unsafe extern "C" {
+  fn CGEventTapCreate(
+    tap: u32,
+    place: u32,
+    options: u32,
+    events_of_interest: u64,
+    callback: extern "C" fn(*mut c_void, u32, *mut c_void, *mut c_void) -> *mut c_void,
+    refcon: *mut c_void,
+  ) -> *mut c_void;
+  fn CGEventTapEnable(tap: *mut c_void, enable: bool);
+  fn CGEventGetIntegerValueField(event: *mut c_void, field: u32) -> i64;
+  fn CGEventGetFlags(event: *mut c_void) -> u64;
+  fn CGPreflightListenEventAccess() -> bool;
+  fn CGRequestListenEventAccess() -> bool;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+  fn CFMachPortCreateRunLoopSource(allocator: *mut c_void, port: *mut c_void, order: isize) -> *mut c_void;
+  fn CFRunLoopAddSource(rl: *mut c_void, source: *mut c_void, mode: *const c_void);
+  fn CFRunLoopGetCurrent() -> *mut c_void;
+  fn CFRunLoopRun();
+  static kCFRunLoopCommonModes: *const c_void;
+}
+
+const SESSION_EVENT_TAP: u32 = 1;
+const HEAD_INSERT_EVENT_TAP: u32 = 0;
+const TAP_OPTION_LISTEN_ONLY: u32 = 1;
+const EV_KEY_DOWN: u32 = 10;
+const EV_FLAGS_CHANGED: u32 = 12;
+const EV_TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFF_FFFE;
+const EV_TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
+const FIELD_KEYCODE: u32 = 9;
+const MASK_SHIFT: u64 = 0x0002_0000;
+const MASK_CTRL: u64 = 0x0004_0000;
+const MASK_ALT: u64 = 0x0008_0000;
+const MASK_CMD: u64 = 0x0010_0000;
+const MASK_MODS: u64 = MASK_SHIFT | MASK_CTRL | MASK_ALT | MASK_CMD;
+const KEYCODE_RIGHT_CTRL: i64 = 62;
+const DOUBLE_PRESS: Duration = Duration::from_millis(400);
+
+pub const EVENT: &str = "hyperlight-hotkey";
+
+#[derive(Debug, Clone)]
+struct Config {
+  enabled: bool,
+  voice: bool,
+  double_ctrl: bool,
+  combo_key: Option<u32>,
+  combo_mods: u64,
+}
+
+pub struct State {
+  config: Mutex<Config>,
+  last_ctrl_press: Mutex<Option<Instant>>,
+}
+
+impl Default for State {
+  fn default() -> Self {
+    Self {
+      config: Mutex::new(Config { enabled: true, voice: true, double_ctrl: true, combo_key: None, combo_mods: 0 }),
+      last_ctrl_press: Mutex::new(None),
+    }
+  }
+}
+
+struct TapContext {
+  app: tauri::AppHandle,
+  state: &'static State,
+}
+
+static TAP: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
+
+fn fire(ctx: &TapContext, voice: bool) {
+  if let Some(win) = ctx.app.get_webview_window("main") {
+    let _ = win.unminimize();
+    let _ = win.show();
+    let _ = win.set_focus();
+  }
+  let _ = ctx.app.emit(EVENT, serde_json::json!({ "voice": voice }));
+}
+
+fn is_double_ctrl(state: &State, event: *mut c_void) -> bool {
+  let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
+  let flags = unsafe { CGEventGetFlags(event) };
+  if keycode != KEYCODE_RIGHT_CTRL || flags & MASK_CTRL == 0 {
+    return false;
+  }
+  let now = Instant::now();
+  let Ok(mut last) = state.last_ctrl_press.lock() else { return false };
+  if last.is_some_and(|prev| now.duration_since(prev) <= DOUBLE_PRESS) {
+    *last = None;
+    return true;
+  }
+  *last = Some(now);
+  false
+}
+
+fn is_combo(cfg: &Config, event: *mut c_void) -> bool {
+  let Some(key) = cfg.combo_key else { return false };
+  let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
+  let flags = unsafe { CGEventGetFlags(event) };
+  keycode as u32 == key && flags & MASK_MODS == cfg.combo_mods
+}
+
+extern "C" fn tap_callback(_proxy: *mut c_void, etype: u32, event: *mut c_void, refcon: *mut c_void) -> *mut c_void {
+  if etype == EV_TAP_DISABLED_BY_TIMEOUT || etype == EV_TAP_DISABLED_BY_USER_INPUT {
+    // macOS disables slow taps; without re-enabling, the hotkey silently dies.
+    let tap = TAP.load(Ordering::Acquire);
+    if !tap.is_null() {
+      unsafe { CGEventTapEnable(tap, true) };
+    }
+    return event;
+  }
+  if event.is_null() || refcon.is_null() {
+    return event;
+  }
+  let ctx = unsafe { &*(refcon as *const TapContext) };
+  let Some(cfg) = ctx.state.config.lock().ok().map(|c| c.clone()) else { return event };
+  if !cfg.enabled {
+    return event;
+  }
+  let hit = match etype {
+    EV_FLAGS_CHANGED => cfg.double_ctrl && is_double_ctrl(ctx.state, event),
+    EV_KEY_DOWN => is_combo(&cfg, event),
+    _ => false,
+  };
+  if hit {
+    fire(ctx, cfg.voice);
+  }
+  event
+}
+
+/// Runs the event tap on its own run-loop thread, retrying until the user
+/// grants Input Monitoring so a later grant works without relaunch.
+pub fn spawn(app: tauri::AppHandle, state: &'static State) {
+  std::thread::spawn(move || {
+    let refcon = Box::into_raw(Box::new(TapContext { app, state })) as *mut c_void;
+    loop {
+      let tap = unsafe {
+        CGEventTapCreate(
+          SESSION_EVENT_TAP,
+          HEAD_INSERT_EVENT_TAP,
+          TAP_OPTION_LISTEN_ONLY,
+          (1u64 << EV_KEY_DOWN) | (1u64 << EV_FLAGS_CHANGED),
+          tap_callback,
+          refcon,
+        )
+      };
+      if tap.is_null() {
+        std::thread::sleep(Duration::from_secs(10));
+        continue;
+      }
+      TAP.store(tap, Ordering::Release);
+      unsafe {
+        let source = CFMachPortCreateRunLoopSource(std::ptr::null_mut(), tap, 0);
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopCommonModes);
+        CGEventTapEnable(tap, true);
+        CFRunLoopRun();
+      }
+      TAP.store(std::ptr::null_mut(), Ordering::Release);
+      std::thread::sleep(Duration::from_secs(2));
+    }
+  });
+}
+
+fn modifier_bits(names: &[String]) -> u64 {
+  names.iter().fold(0, |bits, n| {
+    bits
+      | match n.as_str() {
+        "shift" => MASK_SHIFT,
+        "ctrl" => MASK_CTRL,
+        "alt" => MASK_ALT,
+        "cmd" => MASK_CMD,
+        _ => 0,
+      }
+  })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+pub enum Hotkey {
+  Combo { key_code: u32, modifiers: Vec<String> },
+  DoubleCtrl(#[allow(dead_code)] String),
+}
+
+#[tauri::command]
+pub fn set_hotkey(state: tauri::State<'_, &'static State>, enabled: bool, voice: bool, hotkey: Hotkey) {
+  let (double_ctrl, combo_key, combo_mods) = match hotkey {
+    Hotkey::Combo { key_code, modifiers } => (false, Some(key_code), modifier_bits(&modifiers)),
+    Hotkey::DoubleCtrl(_) => (true, None, 0),
+  };
+  if let Ok(mut cfg) = state.config.lock() {
+    *cfg = Config { enabled, voice, double_ctrl, combo_key, combo_mods };
+  }
+}
+
+/// Shows the system Input Monitoring prompt once; afterwards macOS only lets
+/// the user grant it in System Settings, so open that pane instead.
+#[tauri::command]
+pub fn request_keyboard_access() -> bool {
+  if unsafe { CGPreflightListenEventAccess() } {
+    return true;
+  }
+  if unsafe { CGRequestListenEventAccess() } {
+    return true;
+  }
+  let _ = std::process::Command::new("open")
+    .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+    .spawn();
+  false
+}

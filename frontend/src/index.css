@@ -66,8 +66,16 @@ html.tauri {
 }
 
 :focus-visible {
-  outline: none;
+  /* Transparent outline stays visible in forced-colors mode, which strips box-shadow. */
+  outline: 2px solid transparent;
+  outline-offset: 1px;
   box-shadow: var(--focus-ring);
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --separator: rgba(var(--label-rgb), 0.6);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

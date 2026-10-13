@@ -9,6 +9,7 @@ interface VoiceInput {
   error: string | null
   toggle: () => void
   stop: () => void
+  cancel: () => void
 }
 
 function pickMimeType(): string {
@@ -53,6 +54,7 @@ export function useVoiceInput(onTranscript: (text: string, isFinal: boolean) => 
   const sessionRef = useRef(0)
   const modeRef = useRef<'cycling' | 'stopped'>('stopped')
   const textRef = useRef('')
+  const disposedRef = useRef(false)
 
   const clearTimer = () => {
     if (timerRef.current !== null) {
@@ -156,6 +158,22 @@ export function useVoiceInput(onTranscript: (text: string, isFinal: boolean) => 
     setListening(false)
   }, [])
 
+  // Stops recording and drops any transcript still in flight (e.g. after sending).
+  const cancel = useCallback(() => {
+    sessionRef.current += 1
+    clearTimer()
+    modeRef.current = 'stopped'
+    try {
+      recRef.current?.stop()
+    } catch {
+      // Already stopped
+    }
+    recRef.current = null
+    releaseStream()
+    textRef.current = ''
+    setListening(false)
+  }, [])
+
   const start = useCallback(async () => {
     if (!supported || recRef.current) return
     setError(null)
@@ -165,6 +183,10 @@ export function useVoiceInput(onTranscript: (text: string, isFinal: boolean) => 
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     } catch (err: any) {
       setError(micErrorMessage(err?.name))
+      return
+    }
+    if (disposedRef.current) {
+      stream.getTracks().forEach((t) => t.stop())
       return
     }
     streamRef.current = stream
@@ -181,6 +203,7 @@ export function useVoiceInput(onTranscript: (text: string, isFinal: boolean) => 
 
   useEffect(
     () => () => {
+      disposedRef.current = true
       clearTimer()
       modeRef.current = 'stopped'
       sessionRef.current += 1
@@ -195,7 +218,7 @@ export function useVoiceInput(onTranscript: (text: string, isFinal: boolean) => 
     []
   )
 
-  return { supported, listening, error, toggle, stop }
+  return { supported, listening, error, toggle, stop, cancel }
 }
 
 export { extForMime }

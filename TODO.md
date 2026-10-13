@@ -60,3 +60,7 @@
 - [x] Make chat answers super short (brevity rules in qa_engine prompt; needs backend restart)
 - [x] Cleanup + organize: routes/ package, jobs.py, app_state lazy init, google_sync/, app_config, Chat/Settings splits, SearchBox, lazy chunks, scan/audio/history perf fixes
 - [x] Fix blank screen on reopen: voice-search self-deadlock hung backend, add /api/health + Tauri health-check respawn, ErrorBoundary, corrupt-history guard
+- [ ] Bundle the Python backend as a signed sidecar (PyInstaller or similar) so release builds stop depending on a repo checkout and .venv
+- [ ] Decide distribution: Developer ID + notarization (feasible now) or Mac App Store (needs sandbox, sidecar, bookmarks, no Ollama, no private API)
+- [ ] Replace the AppleScript folder picker with the Tauri dialog plugin and persist security-scoped bookmarks
+- [ ] Drop `macOSPrivateApi` (App Store rejects it): needs an opaque window or a native glass approach that does not use a transparent WKWebView

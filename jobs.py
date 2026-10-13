@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
 import app_state
+import connectors
 import google_auth
 import logging_config
-import storage
+import sources
 
 logger = logging_config.get_logger("jobs")
 
@@ -37,10 +38,19 @@ def _sync_gmail(progress, cancel, opts: Dict[str, Any]) -> None:
     google_auth.sync_gmail(app_state.get_embedder(), app_state.get_storage(), on_progress=progress, cancel_check=cancel)
 
 
+def _index_apps(progress, cancel, opts: Dict[str, Any]) -> None:
+    connectors.index_applications(app_state.get_embedder(), app_state.get_storage())
+
+
 CLOUD_SOURCES: Dict[str, CloudSource] = {
     "google_drive_cloud": CloudSource("Google Drive", "https://drive.google.com", "google_drive", _sync_drive),
     "google_photos_cloud": CloudSource("Google Photos", str(google_auth.PHOTOS_CACHE_DIR), "google_photos", _sync_photos),
     "gmail_cloud": CloudSource("Gmail", "https://mail.google.com", "gmail", _sync_gmail),
+}
+
+# Indexed by a custom runner like the cloud sources, but local (not shown as a cloud job).
+SYSTEM_SOURCES: Dict[str, CloudSource] = {
+    "macos_apps": CloudSource("macOS Applications", "/Applications", sources.SYSTEM_SOURCE_TYPE, _index_apps),
 }
 
 
@@ -147,7 +157,6 @@ class IndexJobManager:
     def _worker(self, job: Job) -> None:
         store = app_state.get_storage()
         sc = app_state.get_scanner()
-        live_watcher = app_state.get_watcher()
 
         def on_progress(filename: str, current: int, total: int) -> None:
             with self.lock:
@@ -161,22 +170,19 @@ class IndexJobManager:
             with self.lock:
                 return self.cancel_requested
 
-        cloud = CLOUD_SOURCES.get(job.source)
-        if cloud:
-            name, track_path, kind = cloud.name, cloud.path, cloud.kind
+        runner = CLOUD_SOURCES.get(job.source) or SYSTEM_SOURCES.get(job.source)
+        if runner:
+            name, track_path, kind = runner.name, runner.path, runner.kind
         else:
             name, track_path, kind = job.name, str(job.path), job.source
         try:
-            storage.save_configured_source(name, track_path, kind, store.count_items_by_path(track_path))
-            if cloud:
-                cloud.run(on_progress, cancel_check, job.options)
+            sources.record_scan(name, track_path, kind, store.count_items_by_path(track_path))
+            if runner:
+                runner.run(on_progress, cancel_check, job.options)
             else:
-                live_watcher.sync_sources()
                 sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check)
             total_items = store.count_items_by_path(track_path)
-            storage.save_configured_source(name, track_path, kind, total_items)
-            if not cloud:
-                live_watcher.sync_sources()
+            sources.record_scan(name, track_path, kind, total_items)
             with self.lock:
                 if self.cancel_requested:
                     self.state = "cancelled"

@@ -11,6 +11,7 @@ import embedder
 import logging_config
 import qa_engine
 import scanner
+import sources
 import storage
 import watcher
 
@@ -72,7 +73,7 @@ def get_watcher() -> watcher.LiveWatcher:
     if _live_watcher is None:
         with _watcher_lock:
             if _live_watcher is None:
-                _live_watcher = watcher.LiveWatcher(get_embedder(), get_storage(), get_scanner())
+                _live_watcher = watcher.LiveWatcher(get_embedder(), get_storage(), get_scanner(), sources.watched_paths)
                 _live_watcher.start()
     return _live_watcher
 

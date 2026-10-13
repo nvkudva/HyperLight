@@ -3,7 +3,9 @@ from typing import Any, Dict
 
 import fastapi
 
+import app_config
 import app_state
+import sources
 import storage
 from routes.schemas import SettingsUpdateRequest, SourceWatchRequest
 
@@ -14,41 +16,29 @@ router = fastapi.APIRouter()
 def api_get_settings() -> Dict[str, Any]:
     settings = storage.get_app_settings()
     return {
-        "always_on_scanning": settings.get("always_on_scanning", True),
-        "custom_instructions": settings.get("custom_instructions", ""),
-        "hotkey_enabled": settings.get("hotkey_enabled", True),
-        "hotkey": settings.get("hotkey", "double_ctrl"),
-        "hotkey_voice": settings.get("hotkey_voice", True),
+        **{key: settings[key] for key in app_config.DEFAULT_SETTINGS},
         "watched_paths_count": len(getattr(app_state.peek_watcher(), "watches", {}) or {}),
     }
 
 
 @router.post("/api/settings")
 def api_update_settings(req: SettingsUpdateRequest) -> Dict[str, Any]:
-    updates = {}
-    if req.always_on_scanning is not None:
-        updates["always_on_scanning"] = req.always_on_scanning
-    if req.custom_instructions is not None:
-        updates["custom_instructions"] = req.custom_instructions.strip()[:4000]
-    if req.hotkey_enabled is not None:
-        updates["hotkey_enabled"] = req.hotkey_enabled
-    if req.hotkey_voice is not None:
-        updates["hotkey_voice"] = req.hotkey_voice
-    if req.hotkey is not None:
-        updates["hotkey"] = req.hotkey if isinstance(req.hotkey, str) else dict(req.hotkey)
+    updates = req.model_dump(exclude_none=True)
+    if "custom_instructions" in updates:
+        updates["custom_instructions"] = updates["custom_instructions"].strip()[:4000]
     if updates:
         storage.update_app_settings(updates)
-        app_state.get_watcher().sync_sources()
+    if "always_on_scanning" in updates:
+        sources.refresh()
     return api_get_settings()
 
 
 @router.post("/api/sources/watch")
 def api_set_source_watch(req: SourceWatchRequest) -> Dict[str, Any]:
-    storage.set_source_watch(req.path, req.enabled)
-    app_state.get_watcher().sync_sources()
+    sources.set_watch(req.path, req.enabled)
     return {
         "success": True,
-        "sources": storage.get_configured_sources(),
+        "sources": sources.list_all(),
     }
 
 

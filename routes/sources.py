@@ -8,6 +8,7 @@ import fastapi
 import app_state
 import connectors
 import logging_config
+import sources
 import storage
 from routes.schemas import BrowseFolderRequest, IndexRequest, LaunchRequest, RemoveSourceRequest, SourceWatchRequest
 
@@ -49,8 +50,7 @@ def api_drive_locations() -> Dict[str, Any]:
 
 @router.post("/api/index-apps")
 def api_index_apps() -> Dict[str, Any]:
-    count = connectors.index_applications(app_state.get_embedder(), app_state.get_storage())
-    return {"status": "success", "indexed_apps": count}
+    return {"status": app_state.get_jobs().start_indexing(Path("/Applications"), "macos_apps", "macOS Applications")}
 
 
 @router.post("/api/sources/apple-mail")
@@ -75,15 +75,12 @@ def api_open_settings(pane: str) -> Any:
 
 @router.get("/api/sources")
 def api_get_sources() -> Dict[str, Any]:
-    sources = storage.get_configured_sources()
-    return {"sources": sources}
+    return {"sources": sources.list_all()}
 
 
 @router.post("/api/remove-source")
 def api_remove_source(req: RemoveSourceRequest) -> Dict[str, str]:
-    app_state.get_storage().remove_items_by_path(req.path)
-    storage.remove_configured_source(req.path)
-    app_state.get_watcher().sync_sources()
+    sources.remove(req.path)
     return {"status": "removed"}
 
 
@@ -124,11 +121,17 @@ def api_stop_index() -> Dict[str, str]:
 
 @router.post("/api/browse-folder")
 def api_browse_folder(req: Optional[BrowseFolderRequest] = None) -> Dict[str, Any]:
-    prompt_str = (req.prompt if req and req.prompt else "Select a folder to index in Hyperlight").replace('"', '\\"')
+    prompt_str = req.prompt if req and req.prompt else "Select a folder to index in Hyperlight"
+    # The prompt goes in as argv, never spliced into the script, so it cannot inject AppleScript.
+    script = (
+        "on run argv\n"
+        'tell application "Finder"\nactivate\n'
+        "set sel to (choose folder with prompt (item 1 of argv))\n"
+        "POSIX path of sel\nend tell\nend run"
+    )
     try:
-        script = f'tell application "Finder"\nactivate\nset sel to (choose folder with prompt "{prompt_str}")\nPOSIX path of sel\nend tell'
         res = subprocess.run(
-            ["osascript", "-e", script],
+            ["osascript", "-e", script, prompt_str],
             capture_output=True,
             text=True,
             timeout=120,

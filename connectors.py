@@ -62,11 +62,11 @@ def index_applications(emb: embedder.Embedder, store: storage.Storage) -> int:
     for app_item, vec in zip(apps, vectors):
         app_item["vector"] = vec
         app_item["source"] = "macos_system"
-    count = store.add_items(apps)
-    storage.save_configured_source("macOS Applications", "/Applications", "macos_system", count)
-    return count
+    return store.add_items(apps)
 
 def launch_target(target_path: str) -> bool:
+    if target_path.startswith("-"):  # would be parsed as an `open` flag
+        return False
     try:
         subprocess.run(["open", target_path], check=True, timeout=5)
         return True
@@ -74,6 +74,8 @@ def launch_target(target_path: str) -> bool:
         return False
 
 def reveal_in_finder(target_path: str) -> bool:
+    if target_path.startswith("-"):
+        return False
     try:
         subprocess.run(["open", "-R", target_path], check=True, timeout=5)
         return True

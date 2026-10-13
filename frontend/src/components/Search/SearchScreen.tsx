@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import type { VoiceResult } from '../../hooks/useSearchSession'
 import type { Conversation, SearchResult } from '../../types'
 import { ResultCard } from './ResultCard'
 import styles from './SearchScreen.module.css'
@@ -14,9 +15,8 @@ interface SearchScreenProps {
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
-  audioCategories?: Record<string, SearchResult[]> | null
-  audioQuery?: string
-  audioSearching?: boolean
+  voiceResult: VoiceResult | null
+  voiceSearching: boolean
   history: Conversation[]
   feedApiRef: { current: FeedApi | null }
   feedMode: boolean
@@ -29,16 +29,15 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   onOpen,
   onReveal,
   onContextMenu,
-  audioCategories = null,
-  audioQuery = '',
-  audioSearching = false,
+  voiceResult,
+  voiceSearching,
   history,
   feedApiRef,
   feedMode,
 }) => {
   const feedRef = useRef<HTMLDivElement>(null)
   const q = query.trim()
-  const isAudio = audioCategories !== null
+  const isAudio = voiceResult !== null
   const hasQuery = q.length > 0 || isAudio
   const liveTitle = isAudio ? 'Voice search' : q
 
@@ -63,10 +62,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
     isAudio ? (
       <ResultCard
         cardId="live"
-        title={audioQuery ? `Voice: “${audioQuery}”` : 'Voice search'}
-        query={audioQuery}
-        snapshot={audioCategories ?? undefined}
-        snapshotSearching={audioSearching}
+        title={voiceResult.transcript ? `Voice: “${voiceResult.transcript}”` : 'Voice search'}
+        query={voiceResult.transcript}
+        snapshot={voiceResult.buckets}
+        snapshotSearching={voiceSearching}
         eager
         plain={!feedMode}
         onOpen={onOpen}

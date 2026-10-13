@@ -4,14 +4,13 @@ import tempfile
 import threading
 import wave
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import fastapi
 import numpy
 
-import app_state
 import logging_config
-from routes.search import group_spotlight
+import spotlight
 
 logger = logging_config.get_logger("routes.audio")
 
@@ -96,22 +95,11 @@ def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
                 transcript = (model.transcribe(tmp_path, fp16=False).get("text") or "").strip()
         except Exception as e:
             logger.error(f"Voice transcription failed, falling back to audio embedding: {e}")
-        if transcript:
-            query_vector = app_state.get_embedder().embed_query(transcript)
-            results = app_state.get_storage().search(query_vector, query_text=transcript, limit=60)
-        else:
-            query_vector = app_state.get_embedder().embed_audio(samples.tolist(), 16000)
-            if query_vector is None:
-                return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
-            results = app_state.get_storage().search(query_vector, query_text=None, limit=60)
-        categories = group_spotlight(results)
-        total_matches = sum(len(items) for items in categories.values())
-        logger.info(f"Audio search '{transcript[:60]}' -> {total_matches} matches across {len(categories)} categories")
-        return {
-            "query": transcript or "(voice search)",
-            "categories": categories,
-            "total_matches": total_matches,
-        }
+        response = spotlight.query_audio(transcript, samples, 16000)
+        if response is None:
+            return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
+        logger.info(f"Audio search '{transcript[:60]}' -> {response['total_matches']} matches across {len(response['buckets'])} buckets")
+        return response
     except wave.Error:
         logger.error("Audio search failed, unreadable WAV.")
         return fastapi.responses.JSONResponse(status_code=400, content={"error": "Unreadable audio file."})

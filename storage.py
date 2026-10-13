@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 import lancedb
@@ -54,6 +55,8 @@ class Storage:
                 self.db.drop_table(self.table_name)
                 self.table = self.db.create_table(self.table_name, schema=SCHEMA)
         self._known_ids: Optional[Set[str]] = None
+        # Watcher, index jobs and request handlers write concurrently.
+        self._lock = threading.RLock()
 
     def _known_id_set(self) -> Set[str]:
         """IDs already stored, cached in memory so batch dedupe is O(batch)."""
@@ -67,38 +70,39 @@ class Storage:
     def add_items(self, items: List[Dict[str, Any]]) -> int:
         if not items:
             return 0
-        existing_ids = self._known_id_set()
+        with self._lock:
+            existing_ids = self._known_id_set()
 
-        ids, vectors, types, paths, filenames, contents, sources, mtimes, metadatas = (
-            [], [], [], [], [], [], [], [], []
-        )
-        for item in items:
-            if item["id"] in existing_ids:
-                continue
-            ids.append(str(item["id"]))
-            vectors.append([float(v) for v in item["vector"]])
-            types.append(str(item.get("type", "document")))
-            paths.append(str(item.get("path", "")))
-            filenames.append(str(item.get("filename", "")))
-            contents.append(str(item.get("content", "")))
-            sources.append(str(item.get("source", "local")))
-            mtimes.append(float(item.get("modified_at", 0.0)))
-            metadatas.append(json.dumps(item.get("metadata", {})))
+            ids, vectors, types, paths, filenames, contents, sources, mtimes, metadatas = (
+                [], [], [], [], [], [], [], [], []
+            )
+            for item in items:
+                if item["id"] in existing_ids:
+                    continue
+                ids.append(str(item["id"]))
+                vectors.append([float(v) for v in item["vector"]])
+                types.append(str(item.get("type", "document")))
+                paths.append(str(item.get("path", "")))
+                filenames.append(str(item.get("filename", "")))
+                contents.append(str(item.get("content", "")))
+                sources.append(str(item.get("source", "local")))
+                mtimes.append(float(item.get("modified_at", 0.0)))
+                metadatas.append(json.dumps(item.get("metadata", {})))
 
-        if ids:
-            existing_ids.update(ids)
-            batch = pa.RecordBatch.from_arrays([
-                pa.array(ids, type=pa.string()),
-                pa.array(vectors, type=pa.list_(pa.float32(), 768)),
-                pa.array(types, type=pa.string()),
-                pa.array(paths, type=pa.string()),
-                pa.array(filenames, type=pa.string()),
-                pa.array(contents, type=pa.string()),
-                pa.array(sources, type=pa.string()),
-                pa.array(mtimes, type=pa.float64()),
-                pa.array(metadatas, type=pa.string()),
-            ], schema=SCHEMA)
-            self.table.add(pa.Table.from_batches([batch]))
+            if ids:
+                existing_ids.update(ids)
+                batch = pa.RecordBatch.from_arrays([
+                    pa.array(ids, type=pa.string()),
+                    pa.array(vectors, type=pa.list_(pa.float32(), 768)),
+                    pa.array(types, type=pa.string()),
+                    pa.array(paths, type=pa.string()),
+                    pa.array(filenames, type=pa.string()),
+                    pa.array(contents, type=pa.string()),
+                    pa.array(sources, type=pa.string()),
+                    pa.array(mtimes, type=pa.float64()),
+                    pa.array(metadatas, type=pa.string()),
+                ], schema=SCHEMA)
+                self.table.add(pa.Table.from_batches([batch]))
         return len(ids)
 
     def search(
@@ -222,39 +226,45 @@ class Storage:
             "sources": source_counts,
         }
 
-    def get_indexed_file_mtimes(self) -> Dict[str, float]:
+    def get_indexed_file_mtimes(self, under: Optional[str] = None) -> Dict[str, float]:
+        """Path -> mtime of indexed items, optionally only those at or beneath `under`."""
         if len(self.table) == 0:
             return {}
         try:
-            arrow_data = self.table.search().select(["path", "modified_at"]).to_arrow()
+            query = self.table.search().select(["path", "modified_at"])
+            if under:
+                query = query.where(self._path_filter(under))
+            arrow_data = query.limit(None).to_arrow()
             paths = arrow_data["path"].to_pylist()
             mtimes = arrow_data["modified_at"].to_pylist()
             return dict(zip(paths, mtimes))
         except Exception:
             return {}
 
+    @staticmethod
+    def _path_filter(target_path: str) -> str:
+        """SQL filter for the item at target_path and everything beneath it (raw and resolved)."""
+        clauses = []
+        for p in {target_path.rstrip("/") or "/", str(Path(target_path).expanduser().resolve())}:
+            q = p.replace("'", "''")
+            clauses.append(f"path = '{q}' OR starts_with(path, '{q.rstrip('/')}/')")
+        return " OR ".join(f"({c})" for c in clauses)
+
     def count_items_by_path(self, target_path: str) -> int:
         if len(self.table) == 0:
             return 0
-        df = self.table.search().select(["path"]).to_arrow()
-        paths = df["path"].to_pylist()
-        resolved = str(Path(target_path).expanduser().resolve())
-        return sum(1 for p in paths if p.startswith(target_path) or p.startswith(resolved))
+        return self.table.count_rows(self._path_filter(target_path))
 
     def remove_items_by_path(self, target_path: str) -> None:
         if len(self.table) == 0:
             return
-        resolved = str(Path(target_path).expanduser().resolve())
-        escaped_target = target_path.replace("'", "''")
-        escaped_resolved = resolved.replace("'", "''")
-        try:
-            self.table.delete(f"path LIKE '{escaped_target}%' OR path LIKE '{escaped_resolved}%'")
-        except Exception:
-            pass
-        self._known_ids = None
+        with self._lock:
+            self.table.delete(self._path_filter(target_path))
+            self._known_ids = None
 
     def clear(self) -> None:
-        self.db.drop_table(self.table_name)
-        self.table = self.db.create_table(self.table_name, schema=SCHEMA)
-        self._known_ids = set()
+        with self._lock:
+            self.db.drop_table(self.table_name)
+            self.table = self.db.create_table(self.table_name, schema=SCHEMA)
+            self._known_ids = set()
 

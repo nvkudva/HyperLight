@@ -930,7 +930,7 @@
     function renderSpotlightResults(data) {
       const container = document.getElementById('spotlightResults');
       const summary = document.getElementById('spotlightMatchSummary');
-      const cats = data.categories || {};
+      const cats = Object.fromEntries((data.buckets || []).map(b => [b.kind, b.items]));
       summary.innerText = `${data.total_matches} items`;
 
       if (data.total_matches === 0) {

@@ -81,15 +81,21 @@ class QAEngine:
             "Answer:"
         )
 
-        response = requests.post(
-            f"{self.ollama_host}/api/generate",
-            json={
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False,
-            },
-            timeout=60,
-        )
+        try:
+            response = requests.post(
+                f"{self.ollama_host}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                },
+                timeout=(3, 60),
+            )
+        except requests.RequestException as e:
+            return {
+                "answer": f"The local Gemma model is not reachable ({type(e).__name__}). Is Ollama running?",
+                "sources": sources,
+            }
 
         if response.status_code != 200:
             return {

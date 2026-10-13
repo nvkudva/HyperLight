@@ -35,11 +35,20 @@ class DebouncedHandler(watchdog.events.FileSystemEventHandler):
             with self.lock:
                 self.pending_events[event.src_path] = time.time()
 
-    def on_deleted(self, event: watchdog.events.FileSystemEvent) -> None:
-        if not event.is_directory and self._should_handle(event.src_path):
+    def _deleted(self, path: str, is_directory: bool) -> None:
+        if is_directory or self._should_handle(path):
             with self.lock:
-                self.pending_events.pop(event.src_path, None)
-            self.callback(event.src_path, "deleted")
+                self.pending_events.pop(path, None)
+            self.callback(path, "deleted")
+
+    def on_deleted(self, event: watchdog.events.FileSystemEvent) -> None:
+        self._deleted(event.src_path, event.is_directory)
+
+    def on_moved(self, event: watchdog.events.FileSystemEvent) -> None:
+        self._deleted(event.src_path, event.is_directory)
+        if event.is_directory or self._should_handle(event.dest_path):
+            with self.lock:
+                self.pending_events[event.dest_path] = time.time()
 
     def _process_queue(self) -> None:
         while self.running:
@@ -64,8 +73,10 @@ class LiveWatcher:
         emb: embedder.Embedder,
         store: storage.Storage,
         sc: scanner.Scanner,
+        watched_paths: Callable[[], Set[str]],
         on_indexed: Optional[Callable[[str, str], None]] = None,
     ):
+        self.watched_paths_fn = watched_paths
         self.embedder = emb
         self.storage = store
         self.scanner = sc
@@ -89,7 +100,8 @@ class LiveWatcher:
 
         source = "local"
         for src in storage.get_configured_sources():
-            if file_path.startswith(src.get("path", "")):
+            src_path = src.get("path", "")
+            if src_path and (file_path == src_path or file_path.startswith(src_path.rstrip("/") + "/")):
                 source = src.get("source_type", "local")
                 break
 
@@ -99,20 +111,7 @@ class LiveWatcher:
 
     def sync_sources(self) -> None:
         with self.lock:
-            settings = storage.get_app_settings()
-            always_on = settings.get("always_on_scanning", True)
-
-            if not always_on:
-                target_paths: Set[str] = set()
-            else:
-                sources = storage.get_configured_sources()
-                target_paths = {
-                    s["path"]
-                    for s in sources
-                    if s.get("source_type") != "macos_system"
-                    and s.get("watch_enabled", True)
-                    and os.path.exists(s["path"])
-                }
+            target_paths = self.watched_paths_fn()
 
             # Unschedule paths that should no longer be watched
             current_paths = set(self.watches.keys())

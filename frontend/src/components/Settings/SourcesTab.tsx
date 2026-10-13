@@ -123,7 +123,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
             <span>{statusSummary}</span>
           </button>
           <label className={styles.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
-            <input type="checkbox" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
+            <input type="checkbox" role="switch" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
             <span className={styles.slider} />
           </label>
         </div>
@@ -183,7 +183,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
               <tbody>
                 {sources.map((s) => {
                   const isApp = s.source_type === 'macos_system'
-                  const isWatchable = !isApp && !s.path.startsWith('http')
+                  const isWatchable = s.watchable
                   const isWatchOn = s.watch_enabled !== false
                   const job = jobForSource(s)
                   return (
@@ -217,6 +217,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                         {isGlobalAlwaysOn && isWatchable ? (
                           <label className={styles.switch} title={`Toggle live scan for ${s.name}`}>
                             <input
+                              role="switch"
                               type="checkbox"
                               checked={isWatchOn}
                               onChange={() => onToggleSourceWatch(s)}

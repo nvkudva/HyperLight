@@ -92,6 +92,16 @@
   line-height: 1.5;
 }
 
+.error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--red);
+  background: var(--red-tint);
+  border-radius: var(--r-sm);
+  padding: 0.5rem 0.75rem;
+  line-height: 1.5;
+}
+
 .footer {
   display: flex;
   justify-content: flex-end;

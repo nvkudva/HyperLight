@@ -46,6 +46,8 @@ export const ScanningTab: React.FC<ScanningTabProps> = ({
         </div>
         <label className={styles.switch} title="Toggle master always-on scanning">
           <input
+            role="switch"
+            aria-label="Toggle master always-on scanning"
             type="checkbox"
             checked={isGlobalAlwaysOn}
             onChange={onToggleAlwaysOn}
@@ -157,6 +159,8 @@ export const ScanningTab: React.FC<ScanningTabProps> = ({
                   <div className={styles.sourceControls}>
                     <label className={styles.switch} title={`Toggle continuous watching for ${s.name}`}>
                       <input
+                        role="switch"
+                        aria-label={`Toggle continuous watching for ${s.name}`}
                         type="checkbox"
                         checked={isWatchOn}
                         onChange={() => onToggleSourceWatch(s)}

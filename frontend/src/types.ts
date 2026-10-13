@@ -12,6 +12,12 @@ export interface SearchResult {
   metadata?: Record<string, any>
 }
 
+export interface SearchBucket {
+  kind: string
+  label: string
+  items: SearchResult[]
+}
+
 export interface ConfiguredSource {
   name: string
   path: string
@@ -19,6 +25,7 @@ export interface ConfiguredSource {
   items_count: number
   last_scanned?: number
   watch_enabled?: boolean
+  watchable: boolean
 }
 
 export type HotkeyConfig =
@@ -27,10 +34,10 @@ export type HotkeyConfig =
 
 export interface AppSettings {
   always_on_scanning: boolean
-  custom_instructions?: string
-  hotkey_enabled?: boolean
-  hotkey?: HotkeyConfig
-  hotkey_voice?: boolean
+  custom_instructions: string
+  hotkey_enabled: boolean
+  hotkey: HotkeyConfig
+  hotkey_voice: boolean
   watched_paths_count?: number
 }
 

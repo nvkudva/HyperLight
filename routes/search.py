@@ -1,9 +1,10 @@
 """Live text search and chat Q&A routes."""
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import fastapi
 
 import app_state
+import spotlight
 import storage
 from routes.schemas import ChatRequest, SpotlightRequest
 
@@ -17,58 +18,10 @@ META_DOC_KEYWORDS = [
     "how much", "how many", "total", "what is", "where is", "list", "who", "phone", "email"
 ]
 
-CATEGORY_PRIORITY = ["app", "video", "photo", "document", "audio", "text"]
-
-OFFICE_DOC_EXTENSIONS = {
-    ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",
-    ".key", ".pages", ".numbers", ".rtf", ".odt", ".odp",
-}
-
-
-def spotlight_bucket(r: Dict[str, Any]) -> str:
-    t = r["type"]
-    if t != "document":
-        return t
-    name = (r.get("filename") or r.get("path") or "").lower()
-    dot = name.rfind(".")
-    ext = name[dot:] if dot != -1 else ""
-    return "document" if ext in OFFICE_DOC_EXTENSIONS else "text"
-
-
-def group_spotlight(results: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """Bucket results (5 per category, first hit per path) in priority order."""
-    categories: Dict[str, List[Dict[str, Any]]] = {}
-    seen_paths = set()
-    for r in results:
-        t = spotlight_bucket(r)
-        if t not in categories:
-            categories[t] = []
-        if len(categories[t]) < 5 and r.get("path") not in seen_paths:
-            seen_paths.add(r.get("path"))
-            categories[t].append(r)
-    ordered = {t: categories[t] for t in CATEGORY_PRIORITY if t in categories}
-    for t, items in categories.items():
-        if t not in ordered:
-            ordered[t] = items
-    return ordered
-
 
 @router.post("/api/spotlight")
 def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
-    query_text = req.query.strip()
-    if not query_text:
-        return {"query": "", "categories": {}, "total_matches": 0}
-
-    query_vector = app_state.get_embedder().embed_query(query_text)
-    results = app_state.get_storage().search(query_vector, query_text=query_text, limit=max(req.limit, 60))
-
-    categories = group_spotlight(results)
-    total_matches = sum(len(items) for items in categories.values())
-    return {
-        "query": query_text,
-        "categories": categories,
-        "total_matches": total_matches,
-    }
+    return spotlight.query(req.query)
 
 
 @router.post("/api/chat")

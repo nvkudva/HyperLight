@@ -69,7 +69,7 @@ class AudioSearchFirstCallTest(unittest.TestCase):
 
         from fastapi.testclient import TestClient
 
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(app, base_url="http://127.0.0.1:8585", raise_server_exceptions=False) as client:
             res = client.post(
                 "/api/audio-search",
                 files={"file": ("clip.wav", _wav_bytes(), "audio/wav")},
@@ -81,11 +81,11 @@ class AudioSearchFirstCallTest(unittest.TestCase):
             self.assertEqual(health.status_code, 200)
             self.assertEqual(health.json(), {"ok": True})
 
-    def test_spotlight_limit_clamped(self):
+    def test_spotlight_query_length_capped(self):
         from routes.schemas import SpotlightRequest
 
         with self.assertRaises(Exception):
-            SpotlightRequest(query="x", limit=100000)
+            SpotlightRequest(query="x" * 501)
 
 
 if __name__ == "__main__":

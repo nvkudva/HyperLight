@@ -19,7 +19,6 @@ export interface SearchBoxVoice {
 }
 
 export interface SearchBoxSuggestions {
-  limit?: number
   onOpenResult: (item: SearchResult) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
 }
@@ -74,7 +73,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [selected, setSelected] = useState(-1)
-  const live = useLiveSearch(suggestions ? value : '', suggestions?.limit ?? 8)
+  const live = useLiveSearch(suggestions ? value : '')
   const list = suggestions && showSuggestions ? live.flatItems.slice(0, 7) : []
 
   const handleChange = (text: string) => {

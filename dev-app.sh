@@ -7,9 +7,9 @@
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$HOME/Applications/HyperlightDev.app"
-BIN="$ROOT/frontend/src-tauri/target/debug/app"
+BIN="$ROOT/frontend/src-tauri/target/debug/hyperlight"
 
-pkill -f "src-tauri/target/debug/app" 2>/dev/null || true
+pkill -f "src-tauri/target/debug/hyperlight" 2>/dev/null || true
 pkill -f "HyperlightDev.app/Contents/MacOS/Hyperlight" 2>/dev/null || true
 pkill -f "tauri dev" 2>/dev/null || true
 

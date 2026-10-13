@@ -1,5 +1,5 @@
 import React from "react";
-import { disconnectGoogle, indexAppleMail, indexDriveLocations, launchTarget, openSettingsPane, syncCloudDrive, syncCloudPhotos, syncGmail } from "../../api";
+import { ApiError, disconnectGoogle, indexAppleMail, indexDriveLocations, launchTarget, openSettingsPane, syncCloudDrive, syncCloudPhotos, syncGmail } from "../../api";
 import { DRIVE_DOWNLOAD_URL, useDriveLocations } from "../../hooks/useDriveLocations";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 import type { GoogleStatus, IndexJobStatus } from "../../types";
@@ -28,14 +28,15 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({ status, in
   };
 
   const handleIndexMail = async () => {
-    const res = await indexAppleMail();
-    if (res.error === "full_disk_access") {
-      onShowToast(res.message || "Grant Full Disk Access, then retry.", "amber");
-      openSettingsPane("full-disk-access");
-      return;
-    }
-    if (res.error) {
-      onShowToast(res.error, "red");
+    try {
+      await indexAppleMail();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "full_disk_access") {
+        onShowToast(err.message, "amber");
+        openSettingsPane("full-disk-access");
+      } else {
+        onShowToast((err as Error).message, "red");
+      }
       return;
     }
     onShowToast("Indexing Apple Mail...", "emerald");
@@ -66,11 +67,7 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({ status, in
 
   const handleSyncPhotos = async () => {
     try {
-      const res = await syncCloudPhotos();
-      if (res.error) {
-        onShowToast(res.error, "red");
-        return;
-      }
+      await syncCloudPhotos();
       onShowToast("Pick the photos to index in the Google Photos window that just opened.", "blue");
       onStartProgress();
     } catch (err: any) {

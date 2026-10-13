@@ -589,7 +589,7 @@ class Scanner:
         if total_files == 0:
             return 0
 
-        indexed_mtimes = self.storage.get_indexed_file_mtimes()
+        indexed_mtimes = self.storage.get_indexed_file_mtimes(under=str(target_path))
         indexed_items = 0
 
         doc_buffer: List[Dict[str, Any]] = []

@@ -1,10 +1,19 @@
 """Local JSON config: indexed sources and app settings (~/.hyperlight/config.json)."""
+import contextlib
 import json
+import logging
+import os
+import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
+
+logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path.home() / ".hyperlight" / "config.json"
+
+# Jobs, the watcher and request handlers all read-modify-write this file.
+_lock = threading.RLock()
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "always_on_scanning": True,
@@ -27,13 +36,29 @@ def _read_config() -> Dict[str, Any]:
         if "sources" not in data or not isinstance(data["sources"], list):
             data["sources"] = []
         return data
-    except Exception:
+    except (OSError, ValueError):
+        # Keep the unreadable file so the next write cannot silently erase sources.
+        backup = CONFIG_PATH.with_name(f"config.corrupt-{int(time.time())}.json")
+        with contextlib.suppress(OSError):
+            CONFIG_PATH.replace(backup)
+        logger.error("Unreadable %s moved to %s", CONFIG_PATH, backup)
         return {"sources": [], "settings": dict(DEFAULT_SETTINGS)}
 
 
 def _write_config(data: Dict[str, Any]) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp = CONFIG_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(tmp, CONFIG_PATH)
+
+
+@contextlib.contextmanager
+def _editing() -> Iterator[Dict[str, Any]]:
+    """Locked read-modify-write of the config; saves when the block exits cleanly."""
+    with _lock:
+        data = _read_config()
+        yield data
+        _write_config(data)
 
 
 def _resolve(path: str) -> str:
@@ -54,11 +79,10 @@ def get_app_settings() -> Dict[str, Any]:
 
 
 def update_app_settings(updates: Dict[str, Any]) -> Dict[str, Any]:
-    data = _read_config()
-    current = data.get("settings", {})
-    current.update(updates)
-    data["settings"] = current
-    _write_config(data)
+    with _editing() as data:
+        current = data.get("settings", {})
+        current.update(updates)
+        data["settings"] = current
     return current
 
 
@@ -75,53 +99,47 @@ def save_configured_source(
     name: str, path: str, source_type: str, items_count: int, watch_enabled: Optional[bool] = None
 ) -> None:
     resolved_path = _resolve(path)
-    data = _read_config()
-    sources = data.get("sources", [])
-    found = False
-    for s in sources:
-        if _matches(s.get("path", ""), path, resolved_path):
-            s["name"] = name
-            s["path"] = resolved_path
-            s["source_type"] = source_type
-            s["items_count"] = items_count
-            s["last_scanned"] = time.time()
-            if watch_enabled is not None:
-                s["watch_enabled"] = watch_enabled
-            elif "watch_enabled" not in s:
-                s["watch_enabled"] = True
-            found = True
-            break
-    if not found:
-        sources.append({
-            "name": name,
-            "path": resolved_path,
-            "source_type": source_type,
-            "items_count": items_count,
-            "last_scanned": time.time(),
-            "watch_enabled": True if watch_enabled is None else watch_enabled,
-        })
-    data["sources"] = sources
-    _write_config(data)
+    with _editing() as data:
+        sources = data.get("sources", [])
+        found = False
+        for s in sources:
+            if _matches(s.get("path", ""), path, resolved_path):
+                s["name"] = name
+                s["path"] = resolved_path
+                s["source_type"] = source_type
+                s["items_count"] = items_count
+                s["last_scanned"] = time.time()
+                if watch_enabled is not None:
+                    s["watch_enabled"] = watch_enabled
+                elif "watch_enabled" not in s:
+                    s["watch_enabled"] = True
+                found = True
+                break
+        if not found:
+            sources.append({
+                "name": name,
+                "path": resolved_path,
+                "source_type": source_type,
+                "items_count": items_count,
+                "last_scanned": time.time(),
+                "watch_enabled": True if watch_enabled is None else watch_enabled,
+            })
+        data["sources"] = sources
 
 
 def set_source_watch(path: str, enabled: bool) -> None:
     resolved_path = _resolve(path)
-    data = _read_config()
-    sources = data.get("sources", [])
-    for s in sources:
-        if _matches(s.get("path", ""), path, resolved_path):
-            s["watch_enabled"] = enabled
-            break
-    data["sources"] = sources
-    _write_config(data)
+    with _editing() as data:
+        for s in data["sources"]:
+            if _matches(s.get("path", ""), path, resolved_path):
+                s["watch_enabled"] = enabled
+                break
 
 
 def remove_configured_source(path: str) -> None:
     resolved_path = _resolve(path)
-    data = _read_config()
-    sources = [
-        s for s in data.get("sources", [])
-        if not _matches(s.get("path", ""), path, resolved_path)
-    ]
-    data["sources"] = sources
-    _write_config(data)
+    with _editing() as data:
+        data["sources"] = [
+            s for s in data["sources"]
+            if not _matches(s.get("path", ""), path, resolved_path)
+        ]

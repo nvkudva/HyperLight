@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  fetchAppSettings,
   fetchGoogleStatus,
   fetchSources,
   fetchStatus,
@@ -9,14 +8,14 @@ import {
 } from './api'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
 import { SearchScreen, type FeedApi } from './components/Search/SearchScreen'
-import { syncHotkeyToNative } from './components/Settings/ShortcutsTab'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { TopBar, type TopTab } from './components/TopBar/TopBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { ScanIndicator } from './components/common/ScanIndicator'
-import { useAudioSearch } from './hooks/useAudioSearch'
 import { useConversations } from './hooks/useConversations'
 import { useIndexPolling } from './hooks/useIndexPolling'
+import { useSearchSession } from './hooks/useSearchSession'
+import * as native from './native'
 
 const SettingsPage = React.lazy(() =>
   import('./components/Settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))
@@ -24,35 +23,10 @@ const SettingsPage = React.lazy(() =>
 const OnboardingWizard = React.lazy(() =>
   import('./components/Onboarding/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard }))
 )
-const PhotoLightbox = React.lazy(() =>
-  import('./components/Lightbox/PhotoLightbox').then((m) => ({ default: m.PhotoLightbox }))
-)
 import type { ConfiguredSource, ContextMenuState, GoogleStatus, SearchResult } from './types'
 import styles from './App.module.css'
 
 type Screen = 'search' | 'settings'
-
-const UNIFIED_WINDOW_SIZE: [number, number] = [1140, 780]
-
-async function resizeWindow() {
-  try {
-    const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window')
-    const [w, h] = UNIFIED_WINDOW_SIZE
-    await getCurrentWindow().setSize(new LogicalSize(w, h))
-  } catch {
-    // Not running inside Tauri
-  }
-}
-
-async function startWindowDrag(e: React.MouseEvent) {
-  if (e.button !== 0) return
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().startDragging()
-  } catch {
-    // Not running inside Tauri
-  }
-}
 
 function openResult(item: SearchResult) {
   launchTarget(item.path)
@@ -63,10 +37,6 @@ export const App: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0)
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, has_client_config: false })
   const [screen, setScreen] = useState<Screen>('search')
-  const [query, setQuery] = useState('')
-  const [audioCategories, setAudioCategories] = useState<Record<string, SearchResult[]> | null>(null)
-  const [audioQuery, setAudioQuery] = useState('')
-  const [audioSearching, setAudioSearching] = useState(false)
   const [focusIndexing, setFocusIndexing] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchKeyHandler = useRef<(e: React.KeyboardEvent) => void>(() => {})
@@ -74,9 +44,9 @@ export const App: React.FC = () => {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [backendDown, setBackendDown] = useState(false)
   const feedApiRef = useRef<FeedApi | null>(null)
-  const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
   const chats = useConversations()
+  const session = useSearchSession(chats.recordSearch, () => setScreen('search'))
 
   const reloadData = useCallback(async () => {
     try {
@@ -101,7 +71,7 @@ export const App: React.FC = () => {
   }, [reloadData])
 
   useEffect(() => {
-    resizeWindow()
+    native.resizeWindow()
     searchInputRef.current?.focus()
   }, [])
 
@@ -120,73 +90,16 @@ export const App: React.FC = () => {
 
   const handleTopBarQueryChange = (q: string) => {
     if (screen !== 'search') setScreen('search')
-    setAudioCategories(null)
-    setAudioQuery('')
-    setAudioSearching(false)
-    setQuery(q)
+    session.setQuery(q)
   }
 
-  const handleAudioSearching = () => {
+  native.useHotkey((voiceOn) => {
     setScreen('search')
-    setQuery('')
-    setAudioCategories(null)
-    setAudioQuery('')
-    setAudioSearching(true)
-  }
-
-  const handleAudioResults = (categories: Record<string, SearchResult[]>, transcript?: string) => {
-    setScreen('search')
-    setQuery('')
-    setAudioCategories(categories)
-    setAudioQuery(transcript?.trim() || '')
-    setAudioSearching(false)
-    if (transcript?.trim()) chats.recordSearch(transcript)
-  }
-
-  const voice = useAudioSearch({ onResults: handleAudioResults, onSearching: handleAudioSearching })
-  const voiceRef = useRef(voice)
-  voiceRef.current = voice
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    let cancelled = false
-    ;(async () => {
-      try {
-        const [{ listen }, settings] = await Promise.all([
-          import('@tauri-apps/api/event'),
-          fetchAppSettings().catch(() => null),
-        ])
-        if (cancelled) return
-        if (settings) await syncHotkeyToNative(settings)
-        unlisten = await listen<{ voice?: boolean }>('hyperlight-hotkey', async (event) => {
-          setScreen('search')
-          setAudioCategories(null)
-          setAudioQuery('')
-          setAudioSearching(false)
-          searchInputRef.current?.focus()
-          const v = voiceRef.current
-          if ((event.payload?.voice ?? true) && !v.listening && !v.searching && v.supported) {
-            const s = await fetchAppSettings().catch(() => null)
-            if (s?.hotkey_voice ?? true) v.toggle()
-          }
-        })
-      } catch {
-        // Browser build: no native hotkey bridge.
-      }
-    })()
-    return () => {
-      cancelled = true
-      unlisten?.()
-    }
-  }, [])
-
-  const recordSearch = chats.recordSearch
-  useEffect(() => {
-    const q = query.trim()
-    if (!q) return
-    const timer = window.setTimeout(() => recordSearch(q), 1000)
-    return () => clearTimeout(timer)
-  }, [query, recordSearch])
+    session.clearVoice()
+    searchInputRef.current?.focus()
+    const v = session.voice
+    if (voiceOn && !v.listening && !v.searching && v.supported) v.toggle()
+  })
 
   const handleTopBarKeyDown = (e: React.KeyboardEvent) => {
     if (screen === 'search') searchKeyHandler.current(e)
@@ -210,11 +123,15 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const handleContextMenu = (e: React.MouseEvent, path: string, filename: string) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, path: string, filename: string) => {
     e.preventDefault()
     e.stopPropagation()
     setContextMenu({ visible: true, x: e.clientX, y: e.clientY, path, filename })
-  }
+  }, [])
+
+  const registerSearchKeyHandler = useCallback((h: (e: React.KeyboardEvent) => void) => {
+    searchKeyHandler.current = h
+  }, [])
 
   const scanIndicator = <ScanIndicator status={indexStatus} onClick={() => openSettings(true)} />
 
@@ -241,14 +158,14 @@ export const App: React.FC = () => {
             justifyContent: 'center',
           }}
         >
-          <span>Backend not reachable. Search needs the local server on port 8585.</span>
+          <span>Hyperlight’s search service isn’t responding. It may still be starting.</span>
           <button onClick={() => void reloadData()} style={{ cursor: 'pointer' }}>
             Retry
           </button>
         </div>
       )}
       <TopBar
-        query={query}
+        query={session.query}
         onQueryChange={handleTopBarQueryChange}
         onInputKeyDown={handleTopBarKeyDown}
         inputRef={searchInputRef}
@@ -257,8 +174,8 @@ export const App: React.FC = () => {
         historyOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         accessory={scanIndicator}
-        onDragStart={startWindowDrag}
-        voice={voice}
+        onDragStart={native.startWindowDrag}
+        voice={session.voice}
       />
 
       <div className={styles.contentRow}>
@@ -273,16 +190,13 @@ export const App: React.FC = () => {
               />
             )}
             <SearchScreen
-              query={query}
+              query={session.query}
               onQueryChange={handleTopBarQueryChange}
-              audioCategories={audioCategories}
-              audioQuery={audioQuery}
-              audioSearching={audioSearching}
-              registerKeyHandler={(h) => {
-                searchKeyHandler.current = h
-              }}
+              voiceResult={session.voiceResult}
+              voiceSearching={session.voice.searching}
+              registerKeyHandler={registerSearchKeyHandler}
               onOpen={openResult}
-              onReveal={(p) => revealTarget(p)}
+              onReveal={revealTarget}
               onContextMenu={handleContextMenu}
               history={chats.conversations}
               feedApiRef={feedApiRef}
@@ -319,9 +233,6 @@ export const App: React.FC = () => {
       )}
 
       <ContextMenu state={contextMenu} onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))} />
-      <React.Suspense fallback={loadingFallback}>
-        <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />
-      </React.Suspense>
     </div>
     </ErrorBoundary>
   )

@@ -37,10 +37,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({ isLoading, onSendMessage, 
           activeClassName: styles.micActive,
           iconClassName: styles.micIcon,
         }}
-        suggestions={{ limit: 8, onOpenResult, onContextMenu }}
+        suggestions={{ onOpenResult, onContextMenu }}
         submit={{
           onSubmit: (text) => {
-            voice.stop()
+            voice.cancel()
             onSendMessage(text)
             setInputText('')
           },

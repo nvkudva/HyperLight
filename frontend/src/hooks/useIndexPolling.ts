@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { fetchIndexStatus } from '../api'
 import type { IndexJobStatus } from '../types'
 
-/** Polls /api/indexing-status (1s while running, 3s idle) and reports the latest state. */
+/** Polls /api/indexing-status (1s while running, 3s idle, paused while the window is hidden). */
 export function useIndexPolling(onSettledChange: () => void): {
   status: IndexJobStatus | null
   refresh: () => Promise<void>
@@ -18,15 +18,22 @@ export function useIndexPolling(onSettledChange: () => void): {
   }, [])
 
   useEffect(() => {
-    let timer: number
+    let timer: number | undefined
+    let cancelled = false
     let wasRunning = false
     let failures = 0
+    let inFlight = false
     const poll = async () => {
+      window.clearTimeout(timer)
+      timer = undefined
+      if (inFlight) return
+      inFlight = true
       try {
         const status = await fetchIndexStatus()
         if (failures > 0) onSettledChange()
         failures = 0
-        setIndexStatus(status)
+        // Idle polls usually return identical status; skip the app-wide re-render.
+        setIndexStatus((prev) => (prev && JSON.stringify(prev) === JSON.stringify(status) ? prev : status))
         if (wasRunning && !status.is_running) onSettledChange()
         wasRunning = status.is_running
       } catch {
@@ -40,10 +47,20 @@ export function useIndexPolling(onSettledChange: () => void): {
           wasRunning = false
         }
       }
+      inFlight = false
+      if (cancelled || (document.hidden && !wasRunning)) return
       timer = window.setTimeout(poll, wasRunning ? 1000 : 3000)
     }
-    poll()
-    return () => clearTimeout(timer)
+    const onVisibility = () => {
+      if (!document.hidden && timer === undefined) void poll()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    void poll()
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [onSettledChange])
 
   return { status: indexStatus, refresh }

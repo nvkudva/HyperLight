@@ -1,5 +1,5 @@
 """Shared request schemas for the API routes."""
-from typing import Any, Optional
+from typing import List, Literal, Optional, Union
 
 import pydantic
 
@@ -20,7 +20,6 @@ class RemoveSourceRequest(pydantic.BaseModel):
 
 class SpotlightRequest(pydantic.BaseModel):
     query: str = pydantic.Field(max_length=500)
-    limit: int = pydantic.Field(default=20, ge=1, le=100)
 
 
 class LaunchRequest(pydantic.BaseModel):
@@ -32,11 +31,17 @@ class GoogleTokenRequest(pydantic.BaseModel):
     refresh_token: Optional[str] = ""
 
 
+class HotkeyCombo(pydantic.BaseModel):
+    key_code: int = pydantic.Field(ge=0, le=127)
+    modifiers: List[Literal["ctrl", "alt", "shift", "cmd"]]
+    label: str = pydantic.Field(max_length=40)
+
+
 class SettingsUpdateRequest(pydantic.BaseModel):
     always_on_scanning: Optional[bool] = None
     custom_instructions: Optional[str] = None
     hotkey_enabled: Optional[bool] = None
-    hotkey: Optional[Any] = None
+    hotkey: Optional[Union[Literal["double_ctrl"], HotkeyCombo]] = None
     hotkey_voice: Optional[bool] = None
 
 

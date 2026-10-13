@@ -77,6 +77,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [appSettings, setAppSettings] = useState<AppSettings>({
     always_on_scanning: true,
     custom_instructions: '',
+    hotkey_enabled: true,
+    hotkey: 'double_ctrl',
+    hotkey_voice: true,
     watched_paths_count: 0,
   })
   const [draftInstructions, setDraftInstructions] = useState('')
@@ -100,9 +103,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }, [focusIndexing])
 
+  const toastTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
   const showToast = (msg: string, color = 'blue') => {
     setToast({ msg, color })
-    setTimeout(() => setToast(null), 5000)
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), 5000)
   }
 
   const handleReveal = async (path: string) => {
@@ -173,10 +179,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     showToast(`Adding '${manualPath.trim()}'...`, 'blue')
     try {
       const res = await startIndex(manualPath.trim(), 'local')
-      if (res.error) {
-        showToast(res.error, 'red')
-        return
-      }
       setManualPath('')
       showToast(res.status === 'queued' ? `Queued '${res.name}'.` : `Indexing started for '${res.name}'!`, 'emerald')
       onStartProgress()
@@ -249,8 +251,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     showToast('Indexing macOS applications...', 'blue')
     try {
       const data = await indexApps()
-      showToast(`Indexed ${data.indexed_apps} macOS applications!`, 'emerald')
-      onRefreshSources()
+      showToast(data.status === 'queued' ? 'macOS applications queued for indexing.' : 'Indexing macOS applications…', 'emerald')
+      onStartProgress()
     } catch (err: any) {
       showToast(`Error indexing apps: ${err.message}`, 'red')
     }

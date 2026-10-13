@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useLiveSearch } from '../../hooks/useLiveSearch'
-import type { SearchResult } from '../../types'
+import { flattenBuckets, useLiveSearch } from '../../hooks/useLiveSearch'
+import type { SearchBucket, SearchResult } from '../../types'
 import {
   AppIcon,
   AudioIcon,
@@ -14,19 +14,6 @@ import {
 import { ResultThumbnail, VISUAL_PREVIEW } from './ResultThumbnail'
 import styles from './SearchScreen.module.css'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  app: 'Applications',
-  contact: 'Contacts',
-  calendar: 'Calendar events',
-  email: 'Mail',
-  document: 'Documents',
-  photo: 'Photos',
-  video: 'Videos',
-  audio: 'Audio',
-  text: 'Text files',
-  webloc: 'Bookmarks',
-}
-
 const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
   app: [AppIcon, styles.indigo],
   contact: [ContactIcon, styles.green],
@@ -35,7 +22,6 @@ const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
   video: [VideoIcon, styles.red],
   audio: [AudioIcon, styles.indigo],
   text: [DocumentIcon, styles.accent],
-  webloc: [BookmarkIcon, styles.accent],
   bookmark: [BookmarkIcon, styles.accent],
 }
 
@@ -43,7 +29,7 @@ export interface ResultCardProps {
   cardId: string
   title: string
   query: string
-  snapshot?: Record<string, SearchResult[]>
+  snapshot?: SearchBucket[]
   snapshotSearching?: boolean
   eager?: boolean
   plain?: boolean
@@ -103,24 +89,16 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
       return () => ob.disconnect()
     }, [eager])
 
-    const live = useLiveSearch(snapshot ? '' : query, 30, 150, nearby)
-    const categories = snapshot ?? live.categories
+    const live = useLiveSearch(snapshot ? '' : query, 150, nearby)
+    const buckets = snapshot ?? live.buckets
     const isSearching = snapshot ? snapshotSearching : live.isSearching
 
     const [selected, setSelected] = useState(0)
-    const { flatItems, offsets } = useMemo(() => {
-      const off: Record<string, number> = {}
-      const flat: SearchResult[] = []
-      for (const [key, items] of Object.entries(categories)) {
-        off[key] = flat.length
-        flat.push(...(items || []))
-      }
-      return { flatItems: flat, offsets: off }
-    }, [categories])
+    const flatItems = useMemo(() => (snapshot ? flattenBuckets(snapshot) : live.flatItems), [snapshot, live.flatItems])
 
-    const [seenCategories, setSeenCategories] = useState(categories)
-    if (seenCategories !== categories) {
-      setSeenCategories(categories)
+    const [seenBuckets, setSeenBuckets] = useState(buckets)
+    if (seenBuckets !== buckets) {
+      setSeenBuckets(buckets)
       setSelected(0)
     }
 
@@ -187,13 +165,13 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
         ) : (
           <div className={styles.resultCardBody}>
             <div role="listbox" className={`${styles.results} custom-scroll`}>
-              {Object.entries(categories).map(([catKey, items]) => {
-                if (!items?.length) return null
+              {buckets.map((bucket, bucketIdx) => {
+                const offset = buckets.slice(0, bucketIdx).reduce((n, b) => n + b.items.length, 0)
                 return (
-                  <div key={catKey} role="group" aria-label={CATEGORY_LABELS[catKey] || catKey}>
-                    <div className={styles.categoryTitle}>{CATEGORY_LABELS[catKey] || catKey}</div>
-                    {items.map((item, idx) => {
-                      const index = offsets[catKey] + idx
+                  <div key={bucket.kind} role="group" aria-label={bucket.label}>
+                    <div className={styles.categoryTitle}>{bucket.label}</div>
+                    {bucket.items.map((item, idx) => {
+                      const index = offset + idx
                       const isSelected = index === selected
                       const terms = item.matched_terms?.length
                         ? item.matched_terms

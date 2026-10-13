@@ -24,9 +24,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
   })
   const { locations: driveLocations, reload: checkDrive } = useDriveLocations()
   const [needsDiskAccess, setNeedsDiskAccess] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (driveLocations) setPicked((p) => ({ ...p, ...Object.fromEntries(driveLocations.map((l) => [l.path, true])) }))
+    if (driveLocations) setPicked((p) => ({ ...Object.fromEntries(driveLocations.map((l) => [l.path, true])), ...p }))
   }, [driveLocations])
 
   const toggle = (key: string) => setPicked((p) => ({ ...p, [key]: !p[key] }))
@@ -39,20 +41,27 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
   )
 
   const startIndexing = async () => {
-    if (picked.appleMail) {
-      const res = await api.indexAppleMail()
-      if (res.error === 'full_disk_access') {
+    if (starting) return
+    setStarting(true)
+    setStartError(null)
+    try {
+      if (picked.appleMail) await api.indexAppleMail()
+      await Promise.all([
+        ...LOCAL_FOLDERS.filter((f) => picked[f.key]).map((f) => api.startIndex(f.path, 'local', f.label)),
+        api.indexDriveLocations((driveLocations ?? []).filter((l) => picked[l.path])),
+      ])
+      onStartProgress()
+      setStep(2)
+    } catch (err) {
+      if (err instanceof api.ApiError && err.code === 'full_disk_access') {
         setNeedsDiskAccess(true)
         setStep(0)
-        return
+      } else {
+        setStartError((err as Error).message)
       }
+    } finally {
+      setStarting(false)
     }
-    await Promise.all([
-      ...LOCAL_FOLDERS.filter((f) => picked[f.key]).map((f) => api.startIndex(f.path, 'local', f.label)),
-      api.indexDriveLocations((driveLocations ?? []).filter((l) => picked[l.path])),
-    ])
-    onStartProgress()
-    setStep(2)
   }
 
   return (
@@ -112,11 +121,16 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
                 </div>
               </>
             )}
+            {startError && (
+              <p className={styles.error} role="alert">
+                {startError}
+              </p>
+            )}
             <div className={styles.footer}>
               <button className={styles.secondaryBtn} onClick={() => setStep(0)}>
                 Back
               </button>
-              <button className={styles.primaryBtn} onClick={startIndexing}>
+              <button className={styles.primaryBtn} onClick={startIndexing} disabled={starting}>
                 {driveLocations?.length ? 'Start indexing' : 'Skip & start'}
               </button>
             </div>

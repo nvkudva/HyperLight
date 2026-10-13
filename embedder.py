@@ -1,6 +1,6 @@
 from pathlib import Path
 import threading
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Sequence
 import numpy
 import PIL.Image
 import sentence_transformers
@@ -73,12 +73,16 @@ class Embedder:
             else:
                 title = titles[i] if titles and i < len(titles) else "none"
                 formatted.append(f"title: {title or 'none'} | text: {cleaned}")
-        with self._text_lock:
-            vectors = self.model.encode(formatted, batch_size=batch_size, normalize_embeddings=True)
-            _empty_cache(self.device)
-        return vectors.tolist()
+        # Lock per batch so live queries interleave with indexing instead of waiting for all of it.
+        vectors: List[List[float]] = []
+        for i in range(0, len(formatted), batch_size):
+            with self._text_lock:
+                chunk = self.model.encode(formatted[i : i + batch_size], batch_size=batch_size, normalize_embeddings=True)
+                _empty_cache(self.device)
+            vectors.extend(chunk.tolist())
+        return vectors
 
-    def embed_audio(self, samples: List[float], sampling_rate: int = 16000) -> Optional[List[float]]:
+    def embed_audio(self, samples: Sequence[float], sampling_rate: int = 16000) -> Optional[List[float]]:
         try:
             audio = {"array": numpy.asarray(samples, dtype=numpy.float32), "sampling_rate": sampling_rate}
             with self._audio_lock:

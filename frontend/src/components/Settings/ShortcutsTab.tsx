@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { updateAppSettings } from '../../api'
+import * as native from '../../native'
 import type { AppSettings, HotkeyConfig } from '../../types'
 import styles from './SettingsPage.module.css'
 
@@ -29,32 +30,11 @@ function displayKey(code: string): string {
   return { Space: 'Space', Enter: 'Return', Escape: 'Esc', Tab: 'Tab', Backspace: 'Delete' }[code] ?? code
 }
 
-export function hotkeyLabel(hotkey?: HotkeyConfig): string {
-  if (!hotkey || hotkey === 'double_ctrl') return 'Double-press Right Ctrl'
+export function hotkeyLabel(hotkey: HotkeyConfig): string {
+  if (hotkey === 'double_ctrl') return 'Double-press Right Ctrl'
   return hotkey.label
 }
 
-export async function syncHotkeyToNative(settings: AppSettings): Promise<void> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('set_hotkey', {
-      enabled: settings.hotkey_enabled ?? true,
-      hotkey: settings.hotkey ?? 'double_ctrl',
-    })
-  } catch {
-    // Browser build or native bridge unavailable: settings still persist server-side.
-  }
-}
-
-export async function openAccessibilitySettings(): Promise<boolean> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('open_accessibility_settings')
-    return true
-  } catch {
-    return false
-  }
-}
 
 interface ShortcutsTabProps {
   settings: AppSettings
@@ -64,8 +44,8 @@ interface ShortcutsTabProps {
 
 export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotkey, onShowToast }) => {
   const [recording, setRecording] = useState(false)
-  const enabled = settings.hotkey_enabled ?? true
-  const voice = settings.hotkey_voice ?? true
+  const enabled = settings.hotkey_enabled
+  const voice = settings.hotkey_voice
 
   useEffect(() => {
     if (!recording) return
@@ -105,9 +85,10 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
 
   const handleReset = () => onSaveHotkey({ hotkey: 'double_ctrl' }, 'Shortcut reset to double-press Right Ctrl.')
 
-  const handleAccessibility = async () => {
-    const ok = await openAccessibilitySettings()
-    if (!ok) onShowToast('Open System Settings → Privacy & Security → Accessibility (desktop app only).', 'blue')
+  const handleKeyboardAccess = async () => {
+    const granted = await native.requestKeyboardAccess()
+    if (granted === null) onShowToast('Open System Settings → Privacy & Security → Input Monitoring (desktop app only).', 'blue')
+    else if (granted) onShowToast('Input Monitoring is allowed. The shortcut is active.', 'green')
   }
 
   return (
@@ -123,6 +104,8 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
           <label className={styles.switch} title="Toggle global shortcut">
             <input
               type="checkbox"
+              role="switch"
+              aria-label="Global shortcut"
               checked={enabled}
               onChange={() => void onSaveHotkey({ hotkey_enabled: !enabled })}
             />
@@ -159,6 +142,8 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
           <label className={styles.switch} title="Toggle voice on shortcut">
             <input
               type="checkbox"
+              role="switch"
+              aria-label="Voice on shortcut"
               checked={voice}
               onChange={() => void onSaveHotkey({ hotkey_voice: !voice })}
             />
@@ -170,14 +155,14 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <div className={styles.cardHeaderCol}>
-            <h2 className={styles.cardTitle}>Accessibility permission</h2>
+            <h2 className={styles.cardTitle}>Input Monitoring permission</h2>
             <p className={styles.cardSubtitle}>
               The desktop app watches for the shortcut system-wide. If pressing it does nothing,
-              allow Hyperlight under Privacy & Security → Accessibility.
+              allow Hyperlight under Privacy & Security → Input Monitoring.
             </p>
           </div>
-          <button className={styles.button} onClick={() => void handleAccessibility()}>
-            Open Settings
+          <button className={styles.button} onClick={() => void handleKeyboardAccess()}>
+            Allow…
           </button>
         </div>
       </div>
@@ -194,7 +179,7 @@ export async function saveHotkeyPatch(
   try {
     const updated = await updateAppSettings(patch)
     onSettings(updated)
-    await syncHotkeyToNative(updated)
+    await native.syncHotkey(updated)
     if (toastMsg) onShowToast(toastMsg, 'emerald')
   } catch (err: any) {
     onShowToast(`Failed to save shortcut: ${err.message}`, 'red')

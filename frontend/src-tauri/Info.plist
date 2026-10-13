@@ -2,7 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Hyperlight uses the microphone for voice search: your speech is transcribed so you can search files, photos and mail by voice.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Hyperlight asks Finder to show a folder picker and to reveal search results.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Hyperlight uses the microphone for voice search: your speech is transcribed so you can search files, photos and mail by voice.</string>
 </dict>
 </plist>

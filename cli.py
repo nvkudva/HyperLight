@@ -6,6 +6,7 @@ import time
 import embedder
 import qa_engine
 import scanner
+import sources
 import storage
 import watcher
 
@@ -108,8 +109,7 @@ def cmd_watch(args: argparse.Namespace) -> None:
     store = storage.Storage()
     sc = scanner.Scanner(emb, store)
 
-    sources = storage.get_configured_sources()
-    active_sources = [s for s in sources if s.get("source_type") != "macos_system"]
+    active_sources = [s for s in sources.list_all() if s["watchable"]]
     if not active_sources:
         print("No active folder sources configured to watch. Index a folder first using 'hyperlight index <path>'.")
         return
@@ -130,7 +130,7 @@ def cmd_watch(args: argparse.Namespace) -> None:
         elif action == "deleted":
             print(f"[{ts}] 🗑️ Removed from index: {filename}")
 
-    w = watcher.LiveWatcher(emb, store, sc, on_indexed=on_event)
+    w = watcher.LiveWatcher(emb, store, sc, sources.watched_paths, on_indexed=on_event)
     w.start()
     try:
         while True:
