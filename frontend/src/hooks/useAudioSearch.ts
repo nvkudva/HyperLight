@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { searchByAudio } from '../api'
-import { micErrorMessage } from './useVoiceInput'
+import { useSegmentedRecorder } from './useSegmentedRecorder'
 import type { SearchBucket } from '../types'
 
 const MAX_RECORD_MS = 90000
@@ -85,15 +85,6 @@ export function resampleMono(input: Float32Array, fromRate: number, toRate: numb
 // search, so results update as speech comes in without re-uploading minutes
 // of audio every segment. A 3s silence (or the 90s cap) stops the mic.
 export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks): AudioSearch {
-  const [supported] = useState(
-    () =>
-      typeof navigator !== 'undefined' &&
-      !!navigator.mediaDevices?.getUserMedia &&
-      typeof MediaRecorder !== 'undefined' &&
-      (typeof AudioContext !== 'undefined' ||
-        typeof (window as any).webkitAudioContext !== 'undefined')
-  )
-  const [listening, setListening] = useState(false)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const canvasElRef = useRef<HTMLCanvasElement | null>(null)
@@ -101,18 +92,11 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     canvasElRef.current = el
   }, [])
   const cbRef = useRef({ onResults, onSearching })
-  const streamRef = useRef<MediaStream | null>(null)
-  const recRef = useRef<MediaRecorder | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef<number | null>(null)
   const levelsRef = useRef<number[]>([])
-  const timerRef = useRef<number | null>(null)
-  const disposedRef = useRef(false)
-  const cycleTimerRef = useRef<number | null>(null)
-  const busyRef = useRef(false)
-  const sessionRef = useRef(0)
-  const modeRef = useRef<'live' | 'stopped'>('stopped')
+  const maxTimerRef = useRef<number | null>(null)
   const pcmRef = useRef<Float32Array[]>([])
   const pcmLenRef = useRef(0)
   const nativeRateRef = useRef(TARGET_RATE)
@@ -148,19 +132,18 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     ctx.globalAlpha = 1
   }, [])
 
+  const clearMaxTimer = () => {
+    if (maxTimerRef.current === null) return
+    window.clearTimeout(maxTimerRef.current)
+    maxTimerRef.current = null
+  }
+
   const teardownAudio = () => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-    if (cycleTimerRef.current !== null) {
-      window.clearTimeout(cycleTimerRef.current)
-      cycleTimerRef.current = null
-    }
+    clearMaxTimer()
     try {
       void ctxRef.current?.close()
     } catch {
@@ -170,24 +153,16 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     analyserRef.current = null
   }
 
-  const releaseStream = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-  }
-
   useEffect(() => {
     cbRef.current = { onResults, onSearching }
   })
 
-  const searchCumulative = useCallback(async (session: number, final: boolean) => {
-    if (session !== sessionRef.current) return
+  const searchCumulative = async (session: number, final: boolean) => {
+    if (!recorder.isCurrent(session)) return
     const total = pcmLenRef.current
     const rate = nativeRateRef.current
     if (total < rate * MIN_LIVE_SEC) {
-      if (final) {
-        setSearching(false)
-        releaseStream()
-      }
+      if (final) setSearching(false)
       return
     }
     if (!final && liveBusyRef.current) return
@@ -215,21 +190,58 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       }
       const wav = encodeWav(resampleMono(combined, rate, TARGET_RATE), TARGET_RATE)
       const res = await searchByAudio(wav)
-      if (session !== sessionRef.current) return
+      if (!recorder.isCurrent(session)) return
       cbRef.current.onResults(res.buckets || [], res.query || '')
-    } catch (err: any) {
-      if (final) setError(err?.message ?? 'Audio search failed.')
+    } catch (err) {
+      if (final) setError((err as Error)?.message ?? 'Audio search failed.')
     } finally {
       liveBusyRef.current = false
-      if (final) {
-        setSearching(false)
-        releaseStream()
-      }
+      if (final) setSearching(false)
     }
-  }, [])
+  }
 
-  const stopRef = useRef(() => {})
-  const cycleRef = useRef((_session: number) => {})
+  const finishSegment = (session: number, final: boolean) => {
+    if (final) teardownAudio()
+    void searchCumulative(session, final)
+  }
+
+  const handleSegment = (blob: Blob, session: number, final: boolean) => {
+    const decodeCtx = ctxRef.current
+    if (blob.size === 0 || !decodeCtx) {
+      finishSegment(session, final)
+      return
+    }
+    void blob
+      .arrayBuffer()
+      .then((buf) => decodeCtx.decodeAudioData(buf))
+      .then((decoded) => {
+        if (!recorder.isCurrent(session)) return
+        const mono = decoded.getChannelData(0)
+        pcmRef.current.push(new Float32Array(mono))
+        pcmLenRef.current += mono.length
+        nativeRateRef.current = decoded.sampleRate
+      })
+      .catch(() => {
+        // Undecodable segment: keep listening, next cycle carries on.
+      })
+      .finally(() => finishSegment(session, final))
+  }
+
+  const recorder = useSegmentedRecorder({
+    segmentMs: LIVE_SEGMENT_MS,
+    onSegment: handleSegment,
+    onError: setError,
+  })
+
+  const stop = () => {
+    clearMaxTimer()
+    recorder.stop()
+  }
+
+  const stopRef = useRef(stop)
+  useEffect(() => {
+    stopRef.current = stop
+  })
 
   const loopRef = useRef(() => {})
   useEffect(() => {
@@ -239,10 +251,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       const data = new Uint8Array(analyser.fftSize)
       analyser.getByteTimeDomainData(data)
       if (rmsOfTimeDomain(data) > VOICE_RMS) lastVoiceRef.current = performance.now()
-      else if (
-        modeRef.current === 'live' &&
-        performance.now() - lastVoiceRef.current > SILENCE_MS
-      ) {
+      else if (recorder.isRecording() && performance.now() - lastVoiceRef.current > SILENCE_MS) {
         stopRef.current()
         return
       }
@@ -262,134 +271,9 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       drawWave()
       rafRef.current = requestAnimationFrame(() => loopRef.current())
     }
-  }, [drawWave])
-
-  useEffect(() => {
-    cycleRef.current = (session: number) => {
-      const stream = streamRef.current
-      if (!stream || session !== sessionRef.current || modeRef.current !== 'live') return
-      const chunks: Blob[] = []
-      let rec: MediaRecorder
-      try {
-        rec = new MediaRecorder(stream)
-      } catch {
-        setError('Could not start audio recording on this device.')
-        modeRef.current = 'stopped'
-        setListening(false)
-        return
-      }
-      recRef.current = rec
-      rec.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunks.push(e.data)
-      }
-      rec.onstop = () => {
-        recRef.current = null
-        if (cycleTimerRef.current !== null) {
-          window.clearTimeout(cycleTimerRef.current)
-          cycleTimerRef.current = null
-        }
-        const stillLive = modeRef.current === 'live' && session === sessionRef.current
-        if (stillLive) cycleRef.current(session)
-        const type = (chunks[0]?.type || rec.mimeType || 'audio/webm').split(';')[0]
-        const blob = new Blob(chunks, { type })
-        if (blob.size === 0) {
-          void searchCumulative(session, !stillLive)
-          if (!stillLive) teardownAudio()
-          return
-        }
-        const decodeCtx = ctxRef.current
-        if (!decodeCtx) {
-          void searchCumulative(session, !stillLive)
-          if (!stillLive) teardownAudio()
-          return
-        }
-        void blob
-          .arrayBuffer()
-          .then((buf) => decodeCtx.decodeAudioData(buf))
-          .then((decoded) => {
-            if (session !== sessionRef.current) return
-            const mono = decoded.getChannelData(0)
-            pcmRef.current.push(new Float32Array(mono))
-            pcmLenRef.current += mono.length
-            nativeRateRef.current = decoded.sampleRate
-          })
-          .catch(() => {
-            // Undecodable segment: keep listening, next cycle carries on.
-          })
-          .finally(() => {
-            if (!stillLive) teardownAudio()
-            void searchCumulative(session, !stillLive)
-          })
-      }
-      try {
-        rec.start()
-      } catch {
-        setError('Could not start audio recording on this device.')
-        modeRef.current = 'stopped'
-        setListening(false)
-        return
-      }
-      cycleTimerRef.current = window.setTimeout(() => {
-        try {
-          rec.stop()
-        } catch {
-          // Already stopped
-        }
-      }, LIVE_SEGMENT_MS)
-    }
-  }, [searchCumulative])
-
-  const stop = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-    if (cycleTimerRef.current !== null) {
-      window.clearTimeout(cycleTimerRef.current)
-      cycleTimerRef.current = null
-    }
-    modeRef.current = 'stopped'
-    setListening(false)
-    const rec = recRef.current
-    if (rec && rec.state !== 'inactive') {
-      // The cycle-attached onstop appends the tail and runs the final search.
-      try {
-        rec.stop()
-      } catch {
-        teardownAudio()
-        releaseStream()
-      }
-    } else {
-      teardownAudio()
-      void searchCumulative(sessionRef.current, true)
-    }
-  }, [searchCumulative])
-
-  useEffect(() => {
-    stopRef.current = stop
   })
 
-  const start = useCallback(async () => {
-    if (!supported || busyRef.current || recRef.current) return
-    busyRef.current = true
-    setError(null)
-    levelsRef.current = []
-    pcmRef.current = []
-    pcmLenRef.current = 0
-    liveBusyRef.current = false
-    let stream: MediaStream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (err: any) {
-      setError(micErrorMessage(err?.name))
-      busyRef.current = false
-      return
-    }
-    if (disposedRef.current) {
-      stream.getTracks().forEach((t) => t.stop())
-      return
-    }
-    streamRef.current = stream
+  const attachWaveform = (stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext ?? AudioContext
       const audioCtx = new AudioCtx()
@@ -408,38 +292,37 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     } catch {
       // Waveform is decorative; recording continues without it.
     }
-    modeRef.current = 'live'
-    sessionRef.current += 1
+  }
+
+  const start = async () => {
+    setError(null)
+    levelsRef.current = []
+    pcmRef.current = []
+    pcmLenRef.current = 0
+    liveBusyRef.current = false
+    const stream = await recorder.start()
+    if (!stream) return
+    attachWaveform(stream)
     lastVoiceRef.current = performance.now()
-    setListening(true)
     cbRef.current.onSearching()
-    cycleRef.current(sessionRef.current)
-    busyRef.current = false
-    timerRef.current = window.setTimeout(() => stop(), MAX_RECORD_MS)
-  }, [supported, drawWave, stop])
+    maxTimerRef.current = window.setTimeout(() => stopRef.current(), MAX_RECORD_MS)
+  }
 
-  const toggle = useCallback(() => {
+  const toggle = () => {
     if (searching) return
-    if (listening) stop()
+    if (recorder.listening) stop()
     else void start()
-  }, [listening, searching, start, stop])
+  }
 
-  useEffect(
-    () => () => {
-      disposedRef.current = true
-      modeRef.current = 'stopped'
-      sessionRef.current += 1
-      teardownAudio()
-      try {
-        recRef.current?.stop()
-      } catch {
-        // Ignore teardown errors
-      }
-      recRef.current = null
-      releaseStream()
-    },
-    []
-  )
+  useEffect(() => teardownAudio, [])
 
-  return { supported, listening, searching, error, waveCanvas: setWaveCanvas, toggle, stop }
+  return {
+    supported: recorder.supported && (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined'),
+    listening: recorder.listening,
+    searching,
+    error,
+    waveCanvas: setWaveCanvas,
+    toggle,
+    stop,
+  }
 }
