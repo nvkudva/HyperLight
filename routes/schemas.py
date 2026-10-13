@@ -5,7 +5,7 @@ import pydantic
 
 
 class ChatRequest(pydantic.BaseModel):
-    message: str
+    message: str = pydantic.Field(max_length=4000)
 
 
 class IndexRequest(pydantic.BaseModel):
@@ -19,8 +19,8 @@ class RemoveSourceRequest(pydantic.BaseModel):
 
 
 class SpotlightRequest(pydantic.BaseModel):
-    query: str
-    limit: int = 20
+    query: str = pydantic.Field(max_length=500)
+    limit: int = pydantic.Field(default=20, ge=1, le=100)
 
 
 class LaunchRequest(pydantic.BaseModel):

@@ -56,6 +56,15 @@ export interface ResultCardProps {
 
 const kindOf = (item: SearchResult) => item.type ?? item.file_type ?? 'document'
 
+function highlight(text: string, terms: string[]): React.ReactNode {
+  const clean = terms.map((t) => t.trim()).filter((t) => t.length > 1)
+  if (!clean.length) return text
+  const pattern = new RegExp(`(${clean.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  return text.split(pattern).map((part, i) =>
+    i % 2 === 1 ? <mark key={i}>{part}</mark> : part
+  )
+}
+
 export const ResultCard: React.FC<ResultCardProps> = React.memo(
   ({
     cardId,
@@ -142,14 +151,16 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
       if (!registerKeyHandler) return
       registerKeyHandler(handleKeyDown)
       return () => registerKeyHandler(() => {})
-    })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected, flatItems, current])
 
     useEffect(() => {
       if (!eager) return
       const input = document.getElementById('unified-search-input')
       if (current) input?.setAttribute('aria-activedescendant', itemId(selected))
       else input?.removeAttribute('aria-activedescendant')
-    })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [eager, current, selected])
 
     const renderIcon = (kind: string, extra = '') => {
       const [Icon, tint] = ICONS[kind] ?? [DocumentIcon, styles.accent]
@@ -184,6 +195,10 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                     {items.map((item, idx) => {
                       const index = offsets[catKey] + idx
                       const isSelected = index === selected
+                      const terms = item.matched_terms?.length
+                        ? item.matched_terms
+                        : query.split(/\s+/)
+                      const desc = item.excerpt || item.path
                       return (
                         <div
                           key={item.path || idx}
@@ -198,8 +213,8 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                         >
                           <ResultThumbnail path={item.path} fallback={renderIcon(kindOf(item))} />
                           <div className={styles.itemText}>
-                            <div className={styles.itemTitle}>{item.filename}</div>
-                            <div className={styles.itemDesc}>{item.excerpt || item.path}</div>
+                            <div className={styles.itemTitle}>{highlight(item.filename, terms)}</div>
+                            <div className={styles.itemDesc}>{highlight(desc, terms)}</div>
                           </div>
                         </div>
                       )
@@ -231,12 +246,13 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                       preload="metadata"
                     />
                   </>
-                ) : kindOf(current) === 'photo' ? (
+                ) : kindOf(current) === 'photo' && !failedPreviews.has(current.path) ? (
                   <img
                     className={styles.previewImage}
                     src={`/api/thumbnail?path=${encodeURIComponent(current.path)}`}
                     alt={current.filename}
                     loading="lazy"
+                    onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}
                   />
                 ) : VISUAL_PREVIEW.test(current.path) && !failedPreviews.has(current.path) ? (
                   <img

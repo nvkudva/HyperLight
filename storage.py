@@ -164,9 +164,10 @@ class Storage:
 
             coverage = 0.0
             fn_bonus = 0.0
+            matched = []
             if q_terms:
-                matched_terms = sum(1 for t in q_terms if t in fn_lower or t in content_lower)
-                coverage = matched_terms / len(q_terms)
+                matched = [t for t in q_terms if t in fn_lower or t in content_lower]
+                coverage = len(matched) / len(q_terms)
                 if any(t == fn_lower or fn_lower.startswith(t) for t in q_terms):
                     fn_bonus = 0.35
                 elif any(t in fn_lower for t in q_terms):
@@ -189,6 +190,7 @@ class Storage:
                 "metadata": meta,
                 "score": adjusted_score,
                 "raw_distance": distance,
+                "matched_terms": matched,
             }
             if passes_gate:
                 gated.append(item)

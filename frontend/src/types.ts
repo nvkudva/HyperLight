@@ -8,6 +8,7 @@ export interface SearchResult {
   content?: string
   excerpt?: string
   score?: number
+  matched_terms?: string[]
   metadata?: Record<string, any>
 }
 

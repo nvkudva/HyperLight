@@ -8,7 +8,14 @@ const PERSIST_DEBOUNCE_MS = 500
 function load(): Conversation[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    return Array.isArray(parsed) ? parsed.slice(0, MAX_CONVERSATIONS) : []
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (c): c is Conversation =>
+          !!c && typeof c.id === 'string' && typeof c.title === 'string' && Array.isArray(c.messages)
+      )
+      .map((c) => ({ ...c, updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : 0 }))
+      .slice(0, MAX_CONVERSATIONS)
   } catch {
     return []
   }

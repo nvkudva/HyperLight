@@ -77,6 +77,10 @@ def get_watcher() -> watcher.LiveWatcher:
     return _live_watcher
 
 
+def peek_watcher() -> Any:
+    return _live_watcher
+
+
 def get_jobs():
     """Index job manager (lives in jobs.py to keep this module import-light)."""
     global _jobs

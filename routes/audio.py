@@ -11,6 +11,7 @@ import numpy
 
 import app_state
 import logging_config
+from routes.search import group_spotlight
 
 logger = logging_config.get_logger("routes.audio")
 
@@ -18,6 +19,7 @@ router = fastapi.APIRouter()
 
 _transcriber = None
 _transcribe_lock = threading.Lock()
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 def get_transcriber():
@@ -33,8 +35,10 @@ def get_transcriber():
 
 
 @router.post("/api/transcribe")
-async def api_transcribe(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
-    data = await file.read()
+def api_transcribe(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        return fastapi.responses.JSONResponse(status_code=413, content={"error": "Audio upload too large."})
     if not data:
         return fastapi.responses.JSONResponse(status_code=400, content={"error": "Empty audio upload."})
     suffix = Path(file.filename or "clip").suffix or ".webm"
@@ -59,8 +63,10 @@ async def api_transcribe(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
 
 
 @router.post("/api/audio-search")
-async def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
-    data = await file.read()
+def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        return fastapi.responses.JSONResponse(status_code=413, content={"error": "Audio upload too large."})
     if not data:
         return fastapi.responses.JSONResponse(status_code=400, content={"error": "Empty audio upload."})
     tmp_path = ""
@@ -83,21 +89,26 @@ async def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
         if n_channels > 1:
             samples = samples.reshape(-1, n_channels).mean(axis=1)
         samples = samples[: 16000 * 120]
-        query_vector = app_state.get_embedder().embed_audio(samples.tolist(), 16000)
-        if query_vector is None:
-            return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
-        results = app_state.get_storage().search(query_vector, query_text=None, limit=60)
-        categories: Dict[str, List[Dict[str, Any]]] = {}
-        for r in results:
-            t = r["type"]
-            if t not in categories:
-                categories[t] = []
-            if len(categories[t]) < 5:
-                categories[t].append(r)
+        transcript = ""
+        try:
+            model = get_transcriber()
+            with _transcribe_lock:
+                transcript = (model.transcribe(tmp_path, fp16=False).get("text") or "").strip()
+        except Exception as e:
+            logger.error(f"Voice transcription failed, falling back to audio embedding: {e}")
+        if transcript:
+            query_vector = app_state.get_embedder().embed_query(transcript)
+            results = app_state.get_storage().search(query_vector, query_text=transcript, limit=60)
+        else:
+            query_vector = app_state.get_embedder().embed_audio(samples.tolist(), 16000)
+            if query_vector is None:
+                return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
+            results = app_state.get_storage().search(query_vector, query_text=None, limit=60)
+        categories = group_spotlight(results)
         total_matches = sum(len(items) for items in categories.values())
-        logger.info(f"Audio search -> {total_matches} matches across {len(categories)} categories")
+        logger.info(f"Audio search '{transcript[:60]}' -> {total_matches} matches across {len(categories)} categories")
         return {
-            "query": "(voice search)",
+            "query": transcript or "(voice search)",
             "categories": categories,
             "total_matches": total_matches,
         }

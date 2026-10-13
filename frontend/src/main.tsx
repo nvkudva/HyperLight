@@ -5,8 +5,13 @@ import App from './App.tsx'
 
 if ('__TAURI_INTERNALS__' in window) document.documentElement.classList.add('tauri')
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const rootEl = document.getElementById('root')
+if (!rootEl) {
+  document.body.textContent = 'Hyperlight failed to start: missing root element. Reload the app.'
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}

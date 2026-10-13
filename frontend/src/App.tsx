@@ -12,6 +12,7 @@ import { SearchScreen, type FeedApi } from './components/Search/SearchScreen'
 import { syncHotkeyToNative } from './components/Settings/ShortcutsTab'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { TopBar, type TopTab } from './components/TopBar/TopBar'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { ScanIndicator } from './components/common/ScanIndicator'
 import { useAudioSearch } from './hooks/useAudioSearch'
 import { useConversations } from './hooks/useConversations'
@@ -64,12 +65,14 @@ export const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('search')
   const [query, setQuery] = useState('')
   const [audioCategories, setAudioCategories] = useState<Record<string, SearchResult[]> | null>(null)
+  const [audioQuery, setAudioQuery] = useState('')
   const [audioSearching, setAudioSearching] = useState(false)
   const [focusIndexing, setFocusIndexing] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchKeyHandler = useRef<(e: React.KeyboardEvent) => void>(() => {})
   const [isOnboarding, setIsOnboarding] = useState(() => !localStorage.getItem('onboarded'))
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [backendDown, setBackendDown] = useState(false)
   const feedApiRef = useRef<FeedApi | null>(null)
   const [lightboxPhoto, setLightboxPhoto] = useState<{ path: string; filename: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
@@ -81,8 +84,10 @@ export const App: React.FC = () => {
       setTotalItems(statsData.total || 0)
       setSources(sourcesData.sources || [])
       setGoogleStatus(gData)
+      setBackendDown(false)
     } catch (err) {
       console.error('Error loading initial data:', err)
+      setBackendDown(true)
     }
   }, [])
 
@@ -116,6 +121,7 @@ export const App: React.FC = () => {
   const handleTopBarQueryChange = (q: string) => {
     if (screen !== 'search') setScreen('search')
     setAudioCategories(null)
+    setAudioQuery('')
     setAudioSearching(false)
     setQuery(q)
   }
@@ -124,6 +130,7 @@ export const App: React.FC = () => {
     setScreen('search')
     setQuery('')
     setAudioCategories(null)
+    setAudioQuery('')
     setAudioSearching(true)
   }
 
@@ -131,6 +138,7 @@ export const App: React.FC = () => {
     setScreen('search')
     setQuery('')
     setAudioCategories(categories)
+    setAudioQuery(transcript?.trim() || '')
     setAudioSearching(false)
     if (transcript?.trim()) chats.recordSearch(transcript)
   }
@@ -153,6 +161,7 @@ export const App: React.FC = () => {
         unlisten = await listen<{ voice?: boolean }>('hyperlight-hotkey', async (event) => {
           setScreen('search')
           setAudioCategories(null)
+          setAudioQuery('')
           setAudioSearching(false)
           searchInputRef.current?.focus()
           const v = voiceRef.current
@@ -209,8 +218,35 @@ export const App: React.FC = () => {
 
   const scanIndicator = <ScanIndicator status={indexStatus} onClick={() => openSettings(true)} />
 
+  const loadingFallback = (
+    <div role="status" style={{ padding: '2rem', textAlign: 'center', color: 'var(--label-2)' }}>
+      Loading…
+    </div>
+  )
+
   return (
+    <ErrorBoundary>
     <div className={styles.appContainer}>
+      {backendDown && (
+        <div
+          role="alert"
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'var(--red-tint)',
+            color: 'var(--red)',
+            fontSize: '0.8125rem',
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span>Backend not reachable. Search needs the local server on port 8585.</span>
+          <button onClick={() => void reloadData()} style={{ cursor: 'pointer' }}>
+            Retry
+          </button>
+        </div>
+      )}
       <TopBar
         query={query}
         onQueryChange={handleTopBarQueryChange}
@@ -240,6 +276,7 @@ export const App: React.FC = () => {
               query={query}
               onQueryChange={handleTopBarQueryChange}
               audioCategories={audioCategories}
+              audioQuery={audioQuery}
               audioSearching={audioSearching}
               registerKeyHandler={(h) => {
                 searchKeyHandler.current = h
@@ -253,7 +290,7 @@ export const App: React.FC = () => {
             />
           </>
         ) : (
-          <React.Suspense fallback={null}>
+          <React.Suspense fallback={loadingFallback}>
           <SettingsPage
             totalItems={totalItems}
             sources={sources}
@@ -270,7 +307,7 @@ export const App: React.FC = () => {
       </div>
 
       {isOnboarding && (
-        <React.Suspense fallback={null}>
+        <React.Suspense fallback={loadingFallback}>
           <OnboardingWizard
             onStartProgress={refreshIndexStatus}
             onDone={() => {
@@ -282,10 +319,11 @@ export const App: React.FC = () => {
       )}
 
       <ContextMenu state={contextMenu} onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))} />
-      <React.Suspense fallback={null}>
+      <React.Suspense fallback={loadingFallback}>
         <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />
       </React.Suspense>
     </div>
+    </ErrorBoundary>
   )
 }
 

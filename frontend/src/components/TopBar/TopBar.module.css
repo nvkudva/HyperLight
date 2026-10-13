@@ -14,6 +14,10 @@
   user-select: none;
 }
 
+:global(html:not(.tauri)) .header {
+  padding-left: 1rem;
+}
+
 .searchIcon {
   width: 1.375rem;
   height: 1.375rem;

@@ -35,15 +35,8 @@ def spotlight_bucket(r: Dict[str, Any]) -> str:
     return "document" if ext in OFFICE_DOC_EXTENSIONS else "text"
 
 
-@router.post("/api/spotlight")
-def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
-    query_text = req.query.strip()
-    if not query_text:
-        return {"query": "", "categories": {}, "total_matches": 0}
-
-    query_vector = app_state.get_embedder().embed_query(query_text)
-    results = app_state.get_storage().search(query_vector, query_text=query_text, limit=max(req.limit, 60))
-
+def group_spotlight(results: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Bucket results (5 per category, first hit per path) in priority order."""
     categories: Dict[str, List[Dict[str, Any]]] = {}
     seen_paths = set()
     for r in results:
@@ -53,15 +46,27 @@ def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
         if len(categories[t]) < 5 and r.get("path") not in seen_paths:
             seen_paths.add(r.get("path"))
             categories[t].append(r)
-
-    total_matches = sum(len(items) for items in categories.values())
     ordered = {t: categories[t] for t in CATEGORY_PRIORITY if t in categories}
     for t, items in categories.items():
         if t not in ordered:
             ordered[t] = items
+    return ordered
+
+
+@router.post("/api/spotlight")
+def api_spotlight(req: SpotlightRequest) -> Dict[str, Any]:
+    query_text = req.query.strip()
+    if not query_text:
+        return {"query": "", "categories": {}, "total_matches": 0}
+
+    query_vector = app_state.get_embedder().embed_query(query_text)
+    results = app_state.get_storage().search(query_vector, query_text=query_text, limit=max(req.limit, 60))
+
+    categories = group_spotlight(results)
+    total_matches = sum(len(items) for items in categories.values())
     return {
         "query": query_text,
-        "categories": ordered,
+        "categories": categories,
         "total_matches": total_matches,
     }
 

@@ -206,11 +206,43 @@ fn open_accessibility_settings() {
     .spawn();
 }
 
+fn backend_healthy() -> bool {
+  use std::io::{Read, Write};
+  use std::net::TcpStream;
+  use std::time::Duration;
+  let Ok(mut stream) = TcpStream::connect_timeout(
+    &"127.0.0.1:8585".parse().unwrap(),
+    Duration::from_millis(500),
+  ) else {
+    return false;
+  };
+  let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+  let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+  if stream
+    .write_all(b"GET /api/health HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+    .is_err()
+  {
+    return false;
+  }
+  let mut buf = [0u8; 256];
+  match stream.read(&mut buf) {
+    Ok(n) => String::from_utf8_lossy(&buf[..n]).contains("200"),
+    Err(_) => false,
+  }
+}
+
 fn ensure_backend_running() {
   use std::net::TcpStream;
   use std::time::Duration;
-  if TcpStream::connect_timeout(&"127.0.0.1:8585".parse().unwrap(), Duration::from_millis(300)).is_ok() {
+  if backend_healthy() {
     return;
+  }
+  if TcpStream::connect_timeout(&"127.0.0.1:8585".parse().unwrap(), Duration::from_millis(300)).is_ok() {
+    // Port open but HTTP dead (hung backend): kill it so a fresh one can bind.
+    let _ = std::process::Command::new("/usr/bin/pkill")
+      .args(["-9", "-f", "Hyperlight/web_app.py"])
+      .status();
+    std::thread::sleep(Duration::from_millis(500));
   }
 
   let project_dir = "/Users/vijay/dev/projects/Hyperlight";
@@ -236,7 +268,7 @@ fn ensure_backend_running() {
       .spawn();
 
     for _ in 0..120 {
-      if TcpStream::connect_timeout(&"127.0.0.1:8585".parse().unwrap(), Duration::from_millis(300)).is_ok() {
+      if backend_healthy() {
         return;
       }
       std::thread::sleep(Duration::from_millis(500));

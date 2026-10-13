@@ -22,11 +22,9 @@ def api_thumbnail(path: str) -> Response:
     mime, _ = mimetypes.guess_type(str(file_path))
     if not mime or not mime.startswith("image/"):
         mime = "application/octet-stream"
-    try:
-        content = file_path.read_bytes()
-        return Response(content=content, media_type=mime)
-    except Exception:
-        return Response(status_code=500)
+    return fastapi.responses.FileResponse(
+        file_path, media_type=mime, headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 PREVIEW_CACHE_DIR = Path.home() / ".hyperlight" / "previews"
@@ -62,4 +60,6 @@ def api_preview(path: str, size: int = 800) -> Response:
             if not produced:
                 return Response(status_code=404)
             shutil.move(str(produced), cached)
-    return Response(content=cached.read_bytes(), media_type="image/png", headers={"Cache-Control": "max-age=3600"})
+    return fastapi.responses.FileResponse(
+        cached, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"}
+    )

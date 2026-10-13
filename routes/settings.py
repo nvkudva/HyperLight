@@ -19,7 +19,7 @@ def api_get_settings() -> Dict[str, Any]:
         "hotkey_enabled": settings.get("hotkey_enabled", True),
         "hotkey": settings.get("hotkey", "double_ctrl"),
         "hotkey_voice": settings.get("hotkey_voice", True),
-        "watched_paths_count": len(getattr(app_state.get_watcher(), "watches", {})),
+        "watched_paths_count": len(getattr(app_state.peek_watcher(), "watches", {}) or {}),
     }
 
 

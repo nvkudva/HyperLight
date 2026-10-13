@@ -18,6 +18,11 @@ def index_page() -> str:
     return TEMPLATE_PATH.read_text(encoding="utf-8")
 
 
+@router.get("/api/health")
+def health() -> dict:
+    return {"ok": True}
+
+
 @router.get("/vite.svg")
 def vite_svg() -> Response:
     svg_path = FRONTEND_DIST / "vite.svg"

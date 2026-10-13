@@ -12,8 +12,11 @@
 }
 
 .modal {
+  box-sizing: border-box;
   width: 100%;
   max-width: 28rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
   background: rgba(var(--surface-rgb), 0.86);
   backdrop-filter: blur(48px) saturate(190%);
   -webkit-backdrop-filter: blur(48px) saturate(190%);
@@ -137,6 +140,12 @@
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .options {
+    grid-template-columns: 1fr;
+  }
 }
 
 @keyframes popIn {

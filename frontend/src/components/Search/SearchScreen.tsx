@@ -15,6 +15,7 @@ interface SearchScreenProps {
   onReveal: (path: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
   audioCategories?: Record<string, SearchResult[]> | null
+  audioQuery?: string
   audioSearching?: boolean
   history: Conversation[]
   feedApiRef: { current: FeedApi | null }
@@ -29,6 +30,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   onReveal,
   onContextMenu,
   audioCategories = null,
+  audioQuery = '',
   audioSearching = false,
   history,
   feedApiRef,
@@ -61,8 +63,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
     isAudio ? (
       <ResultCard
         cardId="live"
-        title="Voice search"
-        query=""
+        title={audioQuery ? `Voice: “${audioQuery}”` : 'Voice search'}
+        query={audioQuery}
         snapshot={audioCategories ?? undefined}
         snapshotSearching={audioSearching}
         eager

@@ -59,3 +59,4 @@
 - [x] Shrink chat file previews (photo/doc/video grids + play badge)
 - [x] Make chat answers super short (brevity rules in qa_engine prompt; needs backend restart)
 - [x] Cleanup + organize: routes/ package, jobs.py, app_state lazy init, google_sync/, app_config, Chat/Settings splits, SearchBox, lazy chunks, scan/audio/history perf fixes
+- [x] Fix blank screen on reopen: voice-search self-deadlock hung backend, add /api/health + Tauri health-check respawn, ErrorBoundary, corrupt-history guard
