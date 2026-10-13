@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage, Conversation } from '../types'
 
 const STORAGE_KEY = 'conversations'
 const MAX_CONVERSATIONS = 100
 const PERSIST_DEBOUNCE_MS = 500
+// A search that extends the previous one within this window is the same search, typed further.
+const SAME_SEARCH_WINDOW_MS = 8000
 
 function load(): Conversation[] {
   try {
@@ -25,16 +27,26 @@ export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>(load)
   const [activeId, setActiveId] = useState<string | null>(null)
 
+  const persist = useCallback((items: Conversation[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+    } catch {
+      // Quota exceeded or unavailable: keep the session in memory.
+    }
+  }, [])
+
+  const latestRef = useRef(conversations)
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
-      } catch {
-        // Quota exceeded or unavailable: keep the session in memory.
-      }
-    }, PERSIST_DEBOUNCE_MS)
+    latestRef.current = conversations
+    const timer = window.setTimeout(() => persist(conversations), PERSIST_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [conversations])
+  }, [conversations, persist])
+
+  useEffect(() => {
+    const flush = () => persist(latestRef.current)
+    window.addEventListener('pagehide', flush)
+    return () => window.removeEventListener('pagehide', flush)
+  }, [persist])
 
   const create = useCallback((title: string, kind: 'search' | 'chat' = 'chat') => {
     const conv: Conversation = { id: `c_${Date.now()}`, title: title.slice(0, 60), kind, messages: [], updatedAt: Date.now() }
@@ -48,6 +60,16 @@ export function useConversations() {
     if (!title) return
     const key = title.toLowerCase()
     setConversations((prev) => {
+      const latest = prev[0]
+      const continuesLatest =
+        latest &&
+        (latest.kind ?? 'chat') === 'search' &&
+        Date.now() - latest.updatedAt < SAME_SEARCH_WINDOW_MS &&
+        key.startsWith(latest.title.toLowerCase())
+      if (continuesLatest) {
+        const message = { id: latest.messages[0]?.id ?? `user_${Date.now()}`, sender: 'user' as const, text: title, timestamp: Date.now() }
+        return [{ ...latest, title, messages: [message], updatedAt: Date.now() }, ...prev.slice(1)]
+      }
       const existing = prev.find((c) => (c.kind ?? 'chat') === 'search' && c.title.toLowerCase() === key)
       if (existing) {
         const updated = { ...existing, updatedAt: Date.now() }
