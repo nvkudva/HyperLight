@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { updateAppSettings } from '../../api'
 import * as native from '../../native'
 import type { AppSettings, HotkeyConfig } from '../../types'
-import styles from './SettingsPage.module.css'
+import styles from './ShortcutsTab.module.css'
+import shared from './SettingsShared.module.css'
 
 const CODE_TO_KEYCODE: Record<string, number> = {
   KeyA: 0, KeyS: 1, KeyD: 2, KeyF: 3, KeyH: 4, KeyG: 5, KeyZ: 6, KeyX: 7,
@@ -92,16 +93,16 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
   }
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardHeaderCol}>
-            <h2 className={styles.cardTitle}>Quick search shortcut</h2>
-            <p className={styles.cardSubtitle}>
+    <div className={shared.panel}>
+      <div className={shared.card}>
+        <div className={shared.cardHeader}>
+          <div className={shared.cardHeaderCol}>
+            <h2 className={shared.cardTitle}>Quick search shortcut</h2>
+            <p className={shared.cardSubtitle}>
               Opens Hyperlight anywhere on this Mac and starts voice search with the mic on.
             </p>
           </div>
-          <label className={styles.switch} title="Toggle global shortcut">
+          <label className={shared.switch} title="Toggle global shortcut">
             <input
               type="checkbox"
               role="switch"
@@ -109,37 +110,37 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
               checked={enabled}
               onChange={() => void onSaveHotkey({ hotkey_enabled: !enabled })}
             />
-            <span className={styles.slider} />
+            <span className={shared.slider} />
           </label>
         </div>
 
         <div className={styles.shortcutRow}>
           <span className={styles.shortcutPill}>{recording ? 'Press keys…' : hotkeyLabel(settings.hotkey)}</span>
           {recording ? (
-            <button className={styles.button} onClick={() => setRecording(false)}>
+            <button className={shared.button} onClick={() => setRecording(false)}>
               Cancel
             </button>
           ) : (
             <>
-              <button className={styles.button} onClick={() => setRecording(true)}>
+              <button className={shared.button} onClick={() => setRecording(true)}>
                 Change
               </button>
-              <button className={styles.button} onClick={handleReset}>
+              <button className={shared.button} onClick={handleReset}>
                 Reset
               </button>
             </>
           )}
         </div>
-        <p className={styles.promptHint}>Esc cancels recording. Combos need a modifier or function key.</p>
+        <p className={shared.promptHint}>Esc cancels recording. Combos need a modifier or function key.</p>
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardHeaderCol}>
-            <h2 className={styles.cardTitle}>Voice on shortcut</h2>
-            <p className={styles.cardSubtitle}>Turn the mic on automatically when the shortcut opens search.</p>
+      <div className={shared.card}>
+        <div className={shared.cardHeader}>
+          <div className={shared.cardHeaderCol}>
+            <h2 className={shared.cardTitle}>Voice on shortcut</h2>
+            <p className={shared.cardSubtitle}>Turn the mic on automatically when the shortcut opens search.</p>
           </div>
-          <label className={styles.switch} title="Toggle voice on shortcut">
+          <label className={shared.switch} title="Toggle voice on shortcut">
             <input
               type="checkbox"
               role="switch"
@@ -147,21 +148,21 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
               checked={voice}
               onChange={() => void onSaveHotkey({ hotkey_voice: !voice })}
             />
-            <span className={styles.slider} />
+            <span className={shared.slider} />
           </label>
         </div>
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardHeaderCol}>
-            <h2 className={styles.cardTitle}>Input Monitoring permission</h2>
-            <p className={styles.cardSubtitle}>
+      <div className={shared.card}>
+        <div className={shared.cardHeader}>
+          <div className={shared.cardHeaderCol}>
+            <h2 className={shared.cardTitle}>Input Monitoring permission</h2>
+            <p className={shared.cardSubtitle}>
               The desktop app watches for the shortcut system-wide. If pressing it does nothing,
               allow Hyperlight under Privacy & Security → Input Monitoring.
             </p>
           </div>
-          <button className={styles.button} onClick={() => void handleKeyboardAccess()}>
+          <button className={shared.button} onClick={() => void handleKeyboardAccess()}>
             Allow…
           </button>
         </div>

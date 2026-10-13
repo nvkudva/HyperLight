@@ -1,0 +1,93 @@
+.duoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+/* Source Items List */
+.sourceList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sourceInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.sourceDetails {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  gap: 0.5rem;
+}
+
+.sourceNameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.queueTitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.queueRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  background: var(--fill);
+  border-radius: var(--r-sm);
+  font-size: 0.75rem;
+}
+
+.queueName {
+  font-weight: 500;
+  color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Banner Notice */
+.bannerNotice {
+  padding: 0.85rem 1rem;
+  border-radius: var(--r-md);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  background: var(--fill);
+  border: 0.5px solid var(--separator);
+  color: var(--label-2);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.truncate {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}

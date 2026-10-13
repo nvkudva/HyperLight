@@ -27,6 +27,7 @@ import { ShortcutsTab, saveHotkeyPatch } from './ShortcutsTab'
 import { SourcesTab } from './SourcesTab'
 import { activeJobs, availablePresets } from './settingsUtils'
 import styles from './SettingsPage.module.css'
+import shared from './SettingsShared.module.css'
 
 const STATUS_CLASS: Record<string, string> = {
   blue: styles.statusInfo,
@@ -39,12 +40,12 @@ const STATUS_CLASS: Record<string, string> = {
 type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'shortcuts' | 'maintenance'
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
-  { id: 'sources', label: 'Sources', icon: FolderIcon, tint: styles.iconAccent },
+  { id: 'sources', label: 'Sources', icon: FolderIcon, tint: shared.iconAccent },
   { id: 'scanning', label: 'Real-Time Scanning', icon: ZapIcon, tint: styles.iconOrange },
-  { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: styles.iconGreen },
-  { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: styles.iconAccent },
-  { id: 'shortcuts', label: 'Shortcuts', icon: KeyboardIcon, tint: styles.iconIndigo },
-  { id: 'maintenance', label: 'Maintenance', icon: DatabaseIcon, tint: styles.iconIndigo },
+  { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: shared.iconGreen },
+  { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: shared.iconAccent },
+  { id: 'shortcuts', label: 'Shortcuts', icon: KeyboardIcon, tint: shared.iconIndigo },
+  { id: 'maintenance', label: 'Maintenance', icon: DatabaseIcon, tint: shared.iconIndigo },
 ]
 
 interface SettingsPageProps {
@@ -372,7 +373,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
         {/* TAB 3: CLOUD & ACCOUNTS */}
         {activeTab === 'cloud' && (
-          <div className={styles.panel}>
+          <div className={shared.panel}>
             <GoogleAccountCard
               status={googleStatus}
               indexStatus={indexStatus}

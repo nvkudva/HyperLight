@@ -1,5 +1,6 @@
 import React from 'react'
-import styles from './SettingsPage.module.css'
+import styles from './AssistantTab.module.css'
+import shared from './SettingsShared.module.css'
 
 interface AssistantTabProps {
   draftInstructions: string
@@ -16,18 +17,18 @@ export const AssistantTab: React.FC<AssistantTabProps> = ({
   onDraftChange,
   onSave,
 }) => (
-  <div className={styles.panel}>
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <div className={styles.cardHeaderCol}>
-          <h2 className={styles.cardTitle}>Custom instructions</h2>
-          <p className={styles.cardSubtitle}>
+  <div className={shared.panel}>
+    <div className={shared.card}>
+      <div className={shared.cardHeader}>
+        <div className={shared.cardHeaderCol}>
+          <h2 className={shared.cardTitle}>Custom instructions</h2>
+          <p className={shared.cardSubtitle}>
             Added to every chat answer prompt with highest priority. Photo-only replies and
             live search suggestions are unaffected.
           </p>
         </div>
         <button
-          className={`${styles.button} ${styles.primary}`}
+          className={`${shared.button} ${shared.primary}`}
           onClick={onSave}
           disabled={saving || draftInstructions === savedInstructions}
         >
@@ -44,7 +45,7 @@ export const AssistantTab: React.FC<AssistantTabProps> = ({
         onChange={(e) => onDraftChange(e.target.value)}
         aria-label="Custom assistant instructions"
       />
-      <p className={styles.promptHint}>{draftInstructions.length}/4000</p>
+      <p className={shared.promptHint}>{draftInstructions.length}/4000</p>
     </div>
   </div>
 )

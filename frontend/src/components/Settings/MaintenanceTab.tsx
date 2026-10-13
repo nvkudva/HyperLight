@@ -1,6 +1,6 @@
 import React from 'react'
 import type { ConfiguredSource } from '../../types'
-import styles from './SettingsPage.module.css'
+import shared from './SettingsShared.module.css'
 
 interface MaintenanceTabProps {
   totalItems: number
@@ -15,45 +15,45 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   localSources,
   onClearDb,
 }) => (
-  <div className={styles.panel}>
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <div className={styles.cardHeaderCol}>
-          <h2 className={styles.cardTitle}>Index Metrics</h2>
-          <p className={styles.cardSubtitle}>Local LanceDB vector store statistics</p>
+  <div className={shared.panel}>
+    <div className={shared.card}>
+      <div className={shared.cardHeader}>
+        <div className={shared.cardHeaderCol}>
+          <h2 className={shared.cardTitle}>Index Metrics</h2>
+          <p className={shared.cardSubtitle}>Local LanceDB vector store statistics</p>
         </div>
       </div>
 
-      <div className={styles.statGrid}>
-        <div className={styles.statCard}>
-          <span className={styles.statValue}>{totalItems.toLocaleString()}</span>
-          <span className={styles.statLabel}>Total Indexed Items</span>
+      <div className={shared.statGrid}>
+        <div className={shared.statCard}>
+          <span className={shared.statValue}>{totalItems.toLocaleString()}</span>
+          <span className={shared.statLabel}>Total Indexed Items</span>
         </div>
-        <div className={styles.statCard}>
-          <span className={styles.statValue}>{sources.length}</span>
-          <span className={styles.statLabel}>Configured Sources</span>
+        <div className={shared.statCard}>
+          <span className={shared.statValue}>{sources.length}</span>
+          <span className={shared.statLabel}>Configured Sources</span>
         </div>
-        <div className={styles.statCard}>
-          <span className={styles.statValue}>
+        <div className={shared.statCard}>
+          <span className={shared.statValue}>
             {localSources.filter((s) => s.watch_enabled !== false).length}
           </span>
-          <span className={styles.statLabel}>Live Watched Folders</span>
+          <span className={shared.statLabel}>Live Watched Folders</span>
         </div>
       </div>
     </div>
 
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <div className={styles.cardHeaderCol}>
-          <h2 className={styles.cardTitle} style={{ color: 'var(--red)' }}>
+    <div className={shared.card}>
+      <div className={shared.cardHeader}>
+        <div className={shared.cardHeaderCol}>
+          <h2 className={shared.cardTitle} style={{ color: 'var(--red)' }}>
             Reset Search Database
           </h2>
-          <p className={styles.cardSubtitle}>
+          <p className={shared.cardSubtitle}>
             Wipe the entire local LanceDB vector index. Your configured source folders will remain intact and
             can be re-indexed.
           </p>
         </div>
-        <button className={`${styles.button} ${styles.destructive}`} onClick={onClearDb}>
+        <button className={`${shared.button} ${shared.destructive}`} onClick={onClearDb}>
           Reset Database…
         </button>
       </div>

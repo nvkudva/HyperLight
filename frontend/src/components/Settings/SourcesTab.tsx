@@ -9,7 +9,8 @@ import {
   RevealIcon,
   TrashIcon,
 } from '../common/Icons'
-import styles from './SettingsPage.module.css'
+import styles from './SourcesTab.module.css'
+import shared from './SettingsShared.module.css'
 
 type ModalKind = 'folder' | 'cloud' | 'progress' | null
 
@@ -105,11 +106,11 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
     : `${totalItems.toLocaleString()} items indexed`
 
   return (
-    <div className={styles.panel}>
+    <div className={shared.panel}>
       <div className={styles.sourcesToolbar}>
-        <div className={styles.cardHeaderCol}>
-          <h2 className={styles.cardTitle}>Sources</h2>
-          <p className={styles.cardSubtitle}>
+        <div className={shared.cardHeaderCol}>
+          <h2 className={shared.cardTitle}>Sources</h2>
+          <p className={shared.cardSubtitle}>
             {sources.length} {sources.length === 1 ? 'source' : 'sources'} · {totalItems.toLocaleString()} items
           </p>
         </div>
@@ -122,16 +123,16 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
             <span className={`${styles.liveDot} ${isIndexing ? styles.liveDotActive : ''}`} />
             <span>{statusSummary}</span>
           </button>
-          <label className={styles.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
+          <label className={shared.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
             <input type="checkbox" role="switch" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
-            <span className={styles.slider} />
+            <span className={shared.slider} />
           </label>
         </div>
       </div>
 
       <div className={styles.addSourceRow}>
         <button className={styles.addSourceCard} onClick={() => setModal('folder')}>
-          <span className={`${styles.quickActionIcon} ${styles.iconAccent}`}>
+          <span className={`${styles.quickActionIcon} ${shared.iconAccent}`}>
             <FolderIcon className="w-4 h-4" />
           </span>
           <span className={styles.addSourceText}>
@@ -140,7 +141,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
           </span>
         </button>
         <button className={styles.addSourceCard} onClick={() => setModal('cloud')}>
-          <span className={`${styles.quickActionIcon} ${styles.iconGreen}`}>
+          <span className={`${styles.quickActionIcon} ${shared.iconGreen}`}>
             <CloudIcon className="w-4 h-4" />
           </span>
           <span className={styles.addSourceText}>
@@ -152,11 +153,11 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
         </button>
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardHeaderCol}>
-            <h2 className={styles.cardTitle}>Added Sources</h2>
-            <p className={styles.cardSubtitle}>
+      <div className={shared.card}>
+        <div className={shared.cardHeader}>
+          <div className={shared.cardHeaderCol}>
+            <h2 className={shared.cardTitle}>Added Sources</h2>
+            <p className={shared.cardSubtitle}>
               {isGlobalAlwaysOn
                 ? `Live scan watching ${watchedCount} ${watchedCount === 1 ? 'location' : 'locations'}`
                 : 'Real-time indexing is paused'}
@@ -165,7 +166,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
         </div>
 
         {sources.length === 0 ? (
-          <div className={styles.emptyState}>No sources yet. Add a folder or cloud account above.</div>
+          <div className={shared.emptyState}>No sources yet. Add a folder or cloud account above.</div>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.sourcesTable}>
@@ -190,10 +191,10 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                     <tr key={s.path}>
                       <td>
                         <span className={styles.cellSource}>
-                          <span className={`${styles.icon} ${isApp ? styles.iconIndigo : styles.iconAccent}`}>
+                          <span className={`${shared.icon} ${isApp ? shared.iconIndigo : shared.iconAccent}`}>
                             {isApp ? <AppIcon className="w-4 h-4" /> : <FolderIcon className="w-4 h-4" />}
                           </span>
-                          <span className={styles.sourceName}>{s.name}</span>
+                          <span className={shared.sourceName}>{s.name}</span>
                           {job?.state === 'running' && (
                             <span className={styles.jobInline} title={`Indexing file ${job.current_index.toLocaleString()} of ${job.total_files.toLocaleString()}`}>
                               <span className={styles.jobTrack}>
@@ -203,19 +204,19 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                             </span>
                           )}
                           {job?.state === 'queued' && (
-                            <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
+                            <span className={`${shared.badge} ${shared.badgeAccent}`}>Queued</span>
                           )}
                         </span>
                       </td>
                       <td>
-                        <span className={styles.sourcePath} title={s.path}>{s.path}</span>
+                        <span className={shared.sourcePath} title={s.path}>{s.path}</span>
                       </td>
                       <td className={styles.numCol}>
                         <span className={styles.filesCount}>{s.items_count.toLocaleString()}</span>
                       </td>
                       <td className={styles.numCol}>
                         {isGlobalAlwaysOn && isWatchable ? (
-                          <label className={styles.switch} title={`Toggle live scan for ${s.name}`}>
+                          <label className={shared.switch} title={`Toggle live scan for ${s.name}`}>
                             <input
                               role="switch"
                               type="checkbox"
@@ -223,7 +224,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                               onChange={() => onToggleSourceWatch(s)}
                               aria-label={`Live scan for ${s.name}`}
                             />
-                            <span className={styles.slider} />
+                            <span className={shared.slider} />
                           </label>
                         ) : (
                           <span className={styles.liveDash} title={isApp ? 'System source' : 'Not watchable'}>—</span>
@@ -269,26 +270,26 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
               <>
                 <div className={styles.modalHeader}>
                   <div>
-                    <h3 className={styles.cardTitle}>Add Folder</h3>
-                    <p className={styles.cardSubtitle}>Pick a common location, browse, or enter a path.</p>
+                    <h3 className={shared.cardTitle}>Add Folder</h3>
+                    <p className={shared.cardSubtitle}>Pick a common location, browse, or enter a path.</p>
                   </div>
                   <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
                 </div>
-                <button className={`${styles.button} ${styles.primary} ${styles.fullWidth}`} onClick={closeAnd(onBrowseFinder)}>
+                <button className={`${shared.button} ${shared.primary} ${styles.fullWidth}`} onClick={closeAnd(onBrowseFinder)}>
                   Choose Folder… (system picker)
                 </button>
                 <div className={styles.modalSectionTitle}>Common folders</div>
                 <ul className={styles.modalList}>
                   {COMMON_FOLDERS.map((f) => (
                     <li key={f.path} className={styles.modalRow}>
-                      <span className={`${styles.icon} ${styles.iconAccent}`}>
+                      <span className={`${shared.icon} ${shared.iconAccent}`}>
                         <FolderIcon className="w-4 h-4" />
                       </span>
                       <span className={styles.modalRowText}>
-                        <span className={styles.sourceName}>{f.label}</span>
-                        <span className={styles.sourcePath}>{f.path}</span>
+                        <span className={shared.sourceName}>{f.label}</span>
+                        <span className={shared.sourcePath}>{f.path}</span>
                       </span>
-                      <button className={styles.button} onClick={closeAnd(() => onIndexPreset(f.path))}>
+                      <button className={shared.button} onClick={closeAnd(() => onIndexPreset(f.path))}>
                         Add
                       </button>
                     </li>
@@ -317,12 +318,12 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                     value={manualPath}
                     onChange={(e) => onManualPathChange(e.target.value)}
                   />
-                  <button type="submit" className={`${styles.button} ${styles.primary}`}>Add</button>
+                  <button type="submit" className={`${shared.button} ${shared.primary}`}>Add</button>
                 </form>
                 <div className={styles.modalRowButtons}>
-                  <button className={styles.button} onClick={closeAnd(onConnectVolumes)}>Network Share…</button>
+                  <button className={shared.button} onClick={closeAnd(onConnectVolumes)}>Network Share…</button>
                   {!hasAppsSource && (
-                    <button className={styles.button} onClick={closeAnd(onIndexApps)}>Index Applications</button>
+                    <button className={shared.button} onClick={closeAnd(onIndexApps)}>Index Applications</button>
                   )}
                 </div>
               </>
@@ -332,25 +333,25 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
               <>
                 <div className={styles.modalHeader}>
                   <div>
-                    <h3 className={styles.cardTitle}>Add Cloud Account</h3>
-                    <p className={styles.cardSubtitle}>Connect a cloud account to index its files.</p>
+                    <h3 className={shared.cardTitle}>Add Cloud Account</h3>
+                    <p className={shared.cardSubtitle}>Connect a cloud account to index its files.</p>
                   </div>
                   <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
                 </div>
                 <ul className={styles.modalList}>
                   <li className={styles.modalRow}>
-                    <span className={`${styles.icon} ${styles.iconGreen}`}>
+                    <span className={`${shared.icon} ${shared.iconGreen}`}>
                       <GoogleLogo className="w-4 h-4" />
                     </span>
                     <span className={styles.modalRowText}>
-                      <span className={styles.sourceName}>
+                      <span className={shared.sourceName}>
                         Google
-                        {googleConnected && <span className={`${styles.badge} ${styles.badgeSuccess}`}>● Connected</span>}
+                        {googleConnected && <span className={`${shared.badge} ${shared.badgeSuccess}`}>● Connected</span>}
                       </span>
-                      <span className={styles.sourcePath}>Drive · Photos · Gmail</span>
+                      <span className={shared.sourcePath}>Drive · Photos · Gmail</span>
                     </span>
                     <button
-                      className={`${styles.button} ${googleConnected ? '' : styles.primary}`}
+                      className={`${shared.button} ${googleConnected ? '' : shared.primary}`}
                       onClick={() => { setModal(null); onOpenCloudTab() }}
                     >
                       {googleConnected ? 'Manage' : 'Connect'}
@@ -358,14 +359,14 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                   </li>
                   {COMING_SOON_CLOUDS.map((name) => (
                     <li key={name} className={`${styles.modalRow} ${styles.modalRowDisabled}`}>
-                      <span className={`${styles.icon} ${styles.iconNeutral}`}>
+                      <span className={`${shared.icon} ${shared.iconNeutral}`}>
                         <CloudIcon className="w-4 h-4" />
                       </span>
                       <span className={styles.modalRowText}>
-                        <span className={styles.sourceName}>{name}</span>
-                        <span className={styles.sourcePath}>Cloud storage sync</span>
+                        <span className={shared.sourceName}>{name}</span>
+                        <span className={shared.sourcePath}>Cloud storage sync</span>
                       </span>
-                      <span className={`${styles.badge} ${styles.badgeNeutral}`}>Coming soon</span>
+                      <span className={`${shared.badge} ${shared.badgeNeutral}`}>Coming soon</span>
                     </li>
                   ))}
                 </ul>
@@ -376,8 +377,8 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
               <>
                 <div className={styles.modalHeader}>
                   <div>
-                    <h3 className={styles.cardTitle}>Indexing Progress</h3>
-                    <p className={styles.cardSubtitle}>
+                    <h3 className={shared.cardTitle}>Indexing Progress</h3>
+                    <p className={shared.cardSubtitle}>
                       {isIndexing
                         ? `${runningJobs.length} running · ${queuedJobs.length} queued · ${filesRead.toLocaleString()} files read`
                         : 'Indexer is idle. All sources are up to date.'}
@@ -386,17 +387,17 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                   <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
                 </div>
                 {runningJobs.length === 0 && queuedJobs.length === 0 ? (
-                  <div className={styles.emptyState}>Nothing indexing right now.</div>
+                  <div className={shared.emptyState}>Nothing indexing right now.</div>
                 ) : (
                   <ul className={styles.modalList}>
                     {runningJobs.map((j) => (
                       <li key={j.path || j.name} className={styles.modalRow}>
-                        <span className={`${styles.icon} ${styles.iconAccent}`}>
+                        <span className={`${shared.icon} ${shared.iconAccent}`}>
                           <FolderIcon className="w-4 h-4" />
                         </span>
                         <span className={styles.modalRowText}>
-                          <span className={styles.sourceName}>{j.name}</span>
-                          <span className={styles.sourcePath} title={j.path || j.name}>
+                          <span className={shared.sourceName}>{j.name}</span>
+                          <span className={shared.sourcePath} title={j.path || j.name}>
                             {j.total_files > 0
                               ? `${j.current_index.toLocaleString()} / ${j.total_files.toLocaleString()} files · ${Math.round(j.percent)}%`
                               : 'Discovering files…'}
@@ -407,19 +408,19 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                             </span>
                           )}
                         </span>
-                        <span className={`${styles.badge} ${styles.badgeSuccess}`}>● Running</span>
+                        <span className={`${shared.badge} ${shared.badgeSuccess}`}>● Running</span>
                       </li>
                     ))}
                     {queuedJobs.map((j) => (
                       <li key={j.path || j.name} className={styles.modalRow}>
-                        <span className={`${styles.icon} ${styles.iconNeutral}`}>
+                        <span className={`${shared.icon} ${shared.iconNeutral}`}>
                           <FolderIcon className="w-4 h-4" />
                         </span>
                         <span className={styles.modalRowText}>
-                          <span className={styles.sourceName}>{j.name}</span>
-                          <span className={styles.sourcePath}>Waiting to start</span>
+                          <span className={shared.sourceName}>{j.name}</span>
+                          <span className={shared.sourcePath}>Waiting to start</span>
                         </span>
-                        <span className={`${styles.badge} ${styles.badgeAccent}`}>Queued</span>
+                        <span className={`${shared.badge} ${shared.badgeAccent}`}>Queued</span>
                       </li>
                     ))}
                   </ul>
