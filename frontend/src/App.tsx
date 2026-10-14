@@ -47,6 +47,12 @@ export const App: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, path: '', filename: '' })
   const chats = useConversations()
   const session = useSearchSession(chats.recordSearch, () => setScreen('search'))
+  const screenRef = useRef(screen)
+  const cancelSearchRef = useRef(session.cancelSearch)
+  useEffect(() => {
+    screenRef.current = screen
+    cancelSearchRef.current = session.cancelSearch
+  })
 
   const reloadData = useCallback(async () => {
     try {
@@ -118,6 +124,11 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && screenRef.current === 'search') {
+        cancelSearchRef.current()
+        searchInputRef.current?.focus()
+        return
+      }
       if (!(e.metaKey || e.ctrlKey)) return
       const key = e.key.toLowerCase()
       if (key === 'k') {
@@ -212,7 +223,6 @@ export const App: React.FC = () => {
             )}
             <SearchScreen
               query={session.query}
-              onQueryChange={handleTopBarQueryChange}
               voiceResult={session.voiceResult}
               voiceSearching={session.voice.searching}
               registerKeyHandler={registerSearchKeyHandler}

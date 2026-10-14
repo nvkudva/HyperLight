@@ -35,7 +35,6 @@ export interface ResultCardProps {
   eager?: boolean
   plain?: boolean
   registerKeyHandler?: (h: (e: React.KeyboardEvent) => void) => void
-  onQueryChange?: (q: string) => void
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
@@ -64,7 +63,6 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     eager = false,
     plain = false,
     registerKeyHandler,
-    onQueryChange,
     onOpen,
     onReveal,
     onContextMenu,
@@ -121,9 +119,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     const itemId = (index: number) => `search-item-${cardId}-${index}`
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onQueryChange?.('')
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
         if (!flatItems.length) return
         const next = (selected + (e.key === 'ArrowDown' ? 1 : -1) + flatItems.length) % flatItems.length

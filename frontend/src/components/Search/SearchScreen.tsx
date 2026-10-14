@@ -10,7 +10,6 @@ export interface FeedApi {
 
 interface SearchScreenProps {
   query: string
-  onQueryChange: (q: string) => void
   registerKeyHandler: (h: (e: React.KeyboardEvent) => void) => void
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
@@ -24,7 +23,6 @@ interface SearchScreenProps {
 
 export const SearchScreen: React.FC<SearchScreenProps> = ({
   query,
-  onQueryChange,
   registerKeyHandler,
   onOpen,
   onReveal,
@@ -80,7 +78,6 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         eager
         plain={!feedMode}
         registerKeyHandler={registerKeyHandler}
-        onQueryChange={onQueryChange}
         onOpen={onOpen}
         onReveal={onReveal}
         onContextMenu={onContextMenu}

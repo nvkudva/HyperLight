@@ -22,6 +22,7 @@ interface AudioSearch {
   waveCanvas: (el: HTMLCanvasElement | null) => void
   toggle: () => void
   stop: () => void
+  reset: () => void
 }
 
 interface AudioSearchCallbacks {
@@ -102,6 +103,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
   const nativeRateRef = useRef(TARGET_RATE)
   const liveBusyRef = useRef(false)
   const lastVoiceRef = useRef(0)
+  const generationRef = useRef(0)
 
   const accentRef = useRef('')
   const drawWave = useCallback(() => {
@@ -159,6 +161,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
 
   const searchCumulative = async (session: number, final: boolean) => {
     if (!recorder.isCurrent(session)) return
+    const generation = generationRef.current
     const total = pcmLenRef.current
     const rate = nativeRateRef.current
     if (total < rate * MIN_LIVE_SEC) {
@@ -190,7 +193,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       }
       const wav = encodeWav(resampleMono(combined, rate, TARGET_RATE), TARGET_RATE)
       const res = await searchByAudio(wav)
-      if (!recorder.isCurrent(session)) return
+      if (!recorder.isCurrent(session) || generation !== generationRef.current) return
       cbRef.current.onResults(res.buckets || [], res.query || '')
     } catch (err) {
       if (final && recorder.isCurrent(session)) setError((err as Error)?.message ?? 'Audio search failed.')
@@ -207,6 +210,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
 
   const handleSegment = (blob: Blob, session: number, final: boolean) => {
     const decodeCtx = ctxRef.current
+    const generation = generationRef.current
     if (blob.size === 0 || !decodeCtx) {
       finishSegment(session, final)
       return
@@ -215,7 +219,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       .arrayBuffer()
       .then((buf) => decodeCtx.decodeAudioData(buf))
       .then((decoded) => {
-        if (!recorder.isCurrent(session)) return
+        if (!recorder.isCurrent(session) || generation !== generationRef.current) return
         const mono = decoded.getChannelData(0)
         pcmRef.current.push(new Float32Array(mono))
         pcmLenRef.current += mono.length
@@ -236,6 +240,17 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
   const stop = () => {
     clearMaxTimer()
     recorder.stop()
+  }
+
+  // Drops the audio heard so far and any search in flight. The mic keeps
+  // recording, so later speech starts a fresh search.
+  const reset = () => {
+    generationRef.current += 1
+    pcmRef.current = []
+    pcmLenRef.current = 0
+    liveBusyRef.current = false
+    lastVoiceRef.current = performance.now()
+    setSearching(false)
   }
 
   const stopRef = useRef(stop)
@@ -324,5 +339,6 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     waveCanvas: setWaveCanvas,
     toggle,
     stop,
+    reset,
   }
 }

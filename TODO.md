@@ -64,3 +64,13 @@
 - [ ] Decide distribution: Developer ID + notarization (feasible now) or Mac App Store (needs sandbox, sidecar, bookmarks, no Ollama, no private API)
 - [ ] Replace the AppleScript folder picker with the Tauri dialog plugin and persist security-scoped bookmarks
 - [ ] Drop `macOSPrivateApi` (App Store rejects it): needs an opaque window or a native glass approach that does not use a transparent WKWebView
+- [ ] Previews: show .yaml, .toml, .xml, .ini, .html as code
+- [ ] Previews: show .tsv as a table
+- [ ] Previews: show .svg as an inline image
+- [ ] Previews: show .ics as calendar events and .vcf as contact cards
+- [ ] Previews: show .eml as headers plus body
+- [ ] Previews: show .webloc as a link
+- [ ] Previews: show .srt and .vtt subtitles
+- [ ] Previews: show .ipynb as notebook cells
+- [ ] Previews: show .zip as a file listing
+- [ ] Previews: send .epub and .odt through the QuickLook preview

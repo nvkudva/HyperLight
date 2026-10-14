@@ -41,6 +41,13 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
 
   const clearVoice = useCallback(() => setVoiceResult(null), [])
 
+  const voiceReset = voice.reset
+  const cancelSearch = useCallback(() => {
+    voiceReset()
+    setQueryState('')
+    setVoiceResult(null)
+  }, [voiceReset])
+
   useEffect(() => {
     const q = query.trim()
     if (!q) return
@@ -48,7 +55,7 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
     return () => clearTimeout(timer)
   }, [query, recordSearch])
 
-  return { query, setQuery, voice, voiceResult, clearVoice }
+  return { query, setQuery, voice, voiceResult, clearVoice, cancelSearch }
 }
 
 export type SearchSession = ReturnType<typeof useSearchSession>
