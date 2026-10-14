@@ -27,6 +27,16 @@ export async function startWindowDrag(e: React.MouseEvent) {
   }
 }
 
+// Hides instead of closing so the global hotkey can bring the window back.
+export async function hideWindow() {
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().hide()
+  } catch {
+    // Not running inside Tauri
+  }
+}
+
 export async function syncHotkey(settings: AppSettings): Promise<void> {
   try {
     const { invoke } = await import('@tauri-apps/api/core')

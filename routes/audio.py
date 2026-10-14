@@ -92,7 +92,7 @@ def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
         try:
             model = get_transcriber()
             with _transcribe_lock:
-                transcript = (model.transcribe(tmp_path, fp16=False).get("text") or "").strip()
+                transcript = (model.transcribe(samples, fp16=False).get("text") or "").strip()
         except Exception as e:
             logger.error(f"Voice transcription failed, falling back to audio embedding: {e}")
         response = spotlight.query_audio(transcript, samples, 16000)

@@ -39,12 +39,6 @@
   --sidebar-blur: blur(40px) saturate(180%);
 }
 
-html.tauri {
-  --app-bg: transparent;
-  --sidebar-bg: transparent;
-  --sidebar-blur: none;
-}
-
 @media (prefers-color-scheme: dark) {
   :root {
     --label-rgb: 245, 245, 247;

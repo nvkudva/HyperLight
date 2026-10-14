@@ -1,7 +1,8 @@
 import React from 'react'
 import type { useAudioSearch } from '../../hooks/useAudioSearch'
-import { HistoryIcon, SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
+import { ClearIcon, HistoryIcon, SearchIcon, SettingsIcon, XIcon } from '../common/Icons'
 import { SearchBox } from '../common/SearchBox'
+import * as native from '../../native'
 import styles from './TopBar.module.css'
 
 export type TopTab = 'search' | 'settings'
@@ -17,6 +18,7 @@ interface TopBarProps {
   onToggleHistory: () => void
   accessory?: React.ReactNode
   onDragStart: (e: React.MouseEvent) => void
+  onActivateSearch: () => void
   voice: ReturnType<typeof useAudioSearch>
 }
 
@@ -31,6 +33,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleHistory,
   accessory,
   onDragStart,
+  onActivateSearch,
   voice,
 }) => {
   const audioActive = voice.listening || voice.searching
@@ -50,7 +53,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   return (
     <header
       className={styles.header}
-      onMouseDown={(e) => e.target === e.currentTarget && onDragStart(e)}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onDragStart(e)
+        else if (e.target === inputRef.current) onActivateSearch()
+      }}
     >
       <SearchBox
         id="unified-search-input"
@@ -89,7 +95,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 aria-label="Clear search"
                 title="Clear search"
               >
-                <XIcon className={styles.tabIcon} />
+                <ClearIcon className={styles.tabIcon} />
               </button>
             )}
             {accessory}
@@ -98,8 +104,11 @@ export const TopBar: React.FC<TopBarProps> = ({
         voice={{
           supported: voice.supported,
           listening: voice.listening,
-          disabled: !voice.supported || voice.searching,
-          toggle: voice.toggle,
+          disabled: !voice.supported,
+          toggle: () => {
+            onActivateSearch()
+            voice.toggle()
+          },
           micLabel: voice.listening ? 'Stop voice search' : 'Voice search',
           micTitle:
             voice.error ??
@@ -136,6 +145,11 @@ export const TopBar: React.FC<TopBarProps> = ({
           <HistoryIcon className={styles.tabIcon} />
         </button>
         {tab('settings', 'Settings', 'Settings (⌘,)', SettingsIcon)}
+        {'__TAURI_INTERNALS__' in window && (
+          <button className={styles.iconButton} onClick={() => void native.hideWindow()} aria-label="Close" title="Close">
+            <XIcon className={styles.tabIcon} />
+          </button>
+        )}
       </nav>
     </header>
   )

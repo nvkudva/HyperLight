@@ -99,7 +99,14 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
             </p>
           </div>
         ) : (
-          liveCard
+          <>
+            {isAudio && (
+              <p className={styles.voiceTranscript}>
+                {voiceResult.transcript ? `Heard: “${voiceResult.transcript}”` : 'Heard: no words recognised'}
+              </p>
+            )}
+            {liveCard}
+          </>
         )}
 
         <footer className={styles.statusBar}>
@@ -122,7 +129,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
           </p>
         </div>
       ) : (
-        <div ref={feedRef} id="search-feed" className={`${styles.feed} custom-scroll`}>
+        <div ref={feedRef} id="search-feed" className={styles.feed}>
           {liveCard}
           {cards.map((c) => (
             <ResultCard

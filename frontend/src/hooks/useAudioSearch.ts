@@ -193,7 +193,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       if (!recorder.isCurrent(session)) return
       cbRef.current.onResults(res.buckets || [], res.query || '')
     } catch (err) {
-      if (final) setError((err as Error)?.message ?? 'Audio search failed.')
+      if (final && recorder.isCurrent(session)) setError((err as Error)?.message ?? 'Audio search failed.')
     } finally {
       liveBusyRef.current = false
       if (final) setSearching(false)
@@ -300,16 +300,16 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     pcmRef.current = []
     pcmLenRef.current = 0
     liveBusyRef.current = false
+    setSearching(false)
     const stream = await recorder.start()
     if (!stream) return
-    attachWaveform(stream)
     lastVoiceRef.current = performance.now()
+    attachWaveform(stream)
     cbRef.current.onSearching()
     maxTimerRef.current = window.setTimeout(() => stopRef.current(), MAX_RECORD_MS)
   }
 
   const toggle = () => {
-    if (searching) return
     if (recorder.listening) stop()
     else void start()
   }

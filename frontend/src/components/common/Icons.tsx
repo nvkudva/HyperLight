@@ -141,6 +141,13 @@ export const XIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' 
   </svg>
 )
 
+export const ClearIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="m15 9-6 6M9 9l6 6" />
+  </svg>
+)
+
 export const MailIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
     <rect x="2" y="4" width="20" height="16" rx="2" />

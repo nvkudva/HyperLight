@@ -98,7 +98,7 @@ export const App: React.FC = () => {
     session.clearVoice()
     searchInputRef.current?.focus()
     const v = session.voice
-    if (voiceOn && !v.listening && !v.searching && v.supported) v.toggle()
+    if (voiceOn && !v.listening && v.supported) v.toggle()
   })
 
   const handleTopBarKeyDown = (e: React.KeyboardEvent) => {
@@ -175,6 +175,10 @@ export const App: React.FC = () => {
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         accessory={scanIndicator}
         onDragStart={native.startWindowDrag}
+        onActivateSearch={() => {
+          setScreen('search')
+          setHistoryOpen(false)
+        }}
         voice={session.voice}
       />
 

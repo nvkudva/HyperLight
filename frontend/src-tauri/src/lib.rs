@@ -21,10 +21,14 @@ fn load_ui_when_backend_ready(app: tauri::AppHandle) {
 }
 
 #[cfg(target_os = "macos")]
-fn apply_window_glass(win: &tauri::WebviewWindow) {
-  use window_vibrancy::{LiquidGlassOptions, NSGlassEffectViewStyle, NSVisualEffectMaterial};
-  if window_vibrancy::apply_liquid_glass(win, LiquidGlassOptions::new(NSGlassEffectViewStyle::Regular)).is_err() {
-    let _ = window_vibrancy::apply_vibrancy(win, NSVisualEffectMaterial::Sidebar, None, None);
+fn hide_traffic_lights(win: &tauri::WebviewWindow) {
+  use objc2_app_kit::{NSWindow, NSWindowButton};
+  let Ok(ptr) = win.ns_window() else { return };
+  let ns_window = unsafe { &*(ptr as *const NSWindow) };
+  for kind in [NSWindowButton::CloseButton, NSWindowButton::MiniaturizeButton, NSWindowButton::ZoomButton] {
+    if let Some(button) = ns_window.standardWindowButton(kind) {
+      button.setHidden(true);
+    }
   }
 }
 
@@ -41,7 +45,7 @@ pub fn run() {
       hotkey::spawn(app.handle().clone(), hotkey_state);
       #[cfg(target_os = "macos")]
       if let Some(win) = app.get_webview_window("main") {
-        apply_window_glass(&win);
+        hide_traffic_lights(&win);
       }
       load_ui_when_backend_ready(app.handle().clone());
       Ok(())
