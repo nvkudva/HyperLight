@@ -1,4 +1,9 @@
-"""Microphone transcription and voice-search routes."""
+"""Voice routes: EmbeddingGemma audio search, plus dictation transcription.
+
+Audio search embeds the WAV straight with EmbeddingGemma and vector-searches
+(no Whisper). /api/transcribe stays for chat dictation, where the literal
+words are the message being composed.
+"""
 import os
 import tempfile
 import threading
@@ -88,17 +93,10 @@ def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
         if n_channels > 1:
             samples = samples.reshape(-1, n_channels).mean(axis=1)
         samples = samples[: 16000 * 120]
-        transcript = ""
-        try:
-            model = get_transcriber()
-            with _transcribe_lock:
-                transcript = (model.transcribe(samples, fp16=False).get("text") or "").strip()
-        except Exception as e:
-            logger.error(f"Voice transcription failed, falling back to audio embedding: {e}")
-        response = spotlight.query_audio(transcript, samples, 16000)
+        response = spotlight.query_audio(samples, 16000)
         if response is None:
             return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
-        logger.info(f"Audio search '{transcript[:60]}' -> {response['total_matches']} matches across {len(response['buckets'])} buckets")
+        logger.info(f"Audio search -> {response['total_matches']} matches across {len(response['buckets'])} buckets")
         return response
     except wave.Error:
         logger.error("Audio search failed, unreadable WAV.")

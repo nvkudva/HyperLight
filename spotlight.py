@@ -77,10 +77,8 @@ def query(text: str) -> Dict[str, Any]:
     return respond(text, _search(vector, text))
 
 
-def query_audio(transcript: str, samples: Sequence[float], rate: int) -> Optional[Dict[str, Any]]:
-    """Search by transcript when there is one, else by the audio embedding. None if embedding fails."""
-    if transcript:
-        return query(transcript)
+def query_audio(samples: Sequence[float], rate: int) -> Optional[Dict[str, Any]]:
+    """Search by the audio embedding directly (no transcription). None if embedding fails."""
     vector = app_state.get_embedder().embed_audio(samples, rate)
     if vector is None:
         return None

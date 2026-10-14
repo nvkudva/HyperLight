@@ -99,7 +99,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
           <>
             {isAudio && (
               <p className={styles.voiceTranscript}>
-                {voiceResult.transcript ? `Heard: “${voiceResult.transcript}”` : 'Heard: no words recognised'}
+                {voiceResult.transcript ? `Matched: “${voiceResult.transcript}”` : 'No matches yet'}
               </p>
             )}
             {liveCard}

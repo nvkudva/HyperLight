@@ -1,8 +1,8 @@
-"""Regression: first-ever /api/audio-search deadlocked the whole server.
+"""Voice search goes straight to EmbeddingGemma audio embedding, no Whisper.
 
-It acquired _transcribe_lock, then get_transcriber() tried to acquire the
-same non-reentrant lock while loading Whisper, blocking the event loop
-forever (blank screen on reopen: port open, HTTP dead).
+History: first-ever /api/audio-search once deadlocked the whole server via
+_transcribe_lock + get_transcriber(). Audio search no longer transcribes:
+samples -> embed_audio -> vector search, query stays empty.
 Run: .venv/bin/python -m unittest tests.test_audio_routes -v
 """
 import io
@@ -30,15 +30,20 @@ import routes.audio as audio  # noqa: E402
 
 
 class _FakeEmbedder:
+    audio_calls = 0
+    text_calls = 0
+
     def embed_query(self, text):
+        type(self).text_calls += 1
         return [0.0] * 768
 
     def embed_audio(self, samples, rate):
+        type(self).audio_calls += 1
         return [0.0] * 768
 
 
 class _FakeStorage:
-    def search(self, vector, query_text=None, limit=60):
+    def search(self, vector, query_text=None, limit=60, photo_limit=40):
         return []
 
 
@@ -55,6 +60,8 @@ def _wav_bytes() -> bytes:
 class AudioSearchFirstCallTest(unittest.TestCase):
     def setUp(self):
         audio._transcriber = None
+        _FakeEmbedder.audio_calls = 0
+        _FakeEmbedder.text_calls = 0
         app_state.get_embedder = lambda: _FakeEmbedder()
         app_state.get_storage = lambda: _FakeStorage()
 
@@ -76,7 +83,11 @@ class AudioSearchFirstCallTest(unittest.TestCase):
                 timeout=30,
             )
             self.assertEqual(res.status_code, 200, res.text)
-            self.assertEqual(res.json()["query"], "tax invoice")
+            # No transcription: audio embedding searched directly, no query text.
+            self.assertEqual(res.json()["query"], "")
+            self.assertGreaterEqual(_FakeEmbedder.audio_calls, 1)
+            self.assertEqual(_FakeEmbedder.text_calls, 0)
+            self.assertIsNone(audio._transcriber)
             health = client.get("/api/health", timeout=5)
             self.assertEqual(health.status_code, 200)
             self.assertEqual(health.json(), {"ok": True})

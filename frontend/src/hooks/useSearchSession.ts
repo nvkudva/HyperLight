@@ -28,10 +28,13 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
     },
     onResults: (buckets, transcript) => {
       onActivityRef.current()
-      if (!transcript.trim()) return
+      // No transcription: Gemma returns matches, not words. Label the result
+      // by the top match it identified; fall back to any transcript text.
+      const topItem = buckets[0]?.items[0]
+      const label = transcript.trim() || topItem?.filename || 'Voice search'
       setQueryState('')
-      setVoiceResult({ transcript: transcript.trim(), buckets })
-      if (transcript.trim()) recordSearch(transcript)
+      setVoiceResult({ transcript: label, buckets })
+      recordSearch(label)
     },
   })
 
