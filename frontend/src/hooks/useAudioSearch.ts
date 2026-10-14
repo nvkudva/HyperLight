@@ -23,6 +23,7 @@ interface AudioSearch {
   toggle: () => void
   stop: () => void
   reset: () => void
+  cancel: () => void
 }
 
 interface AudioSearchCallbacks {
@@ -104,6 +105,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
   const liveBusyRef = useRef(false)
   const lastVoiceRef = useRef(0)
   const generationRef = useRef(0)
+  const heardVoiceRef = useRef(false)
 
   const accentRef = useRef('')
   const drawWave = useCallback(() => {
@@ -164,7 +166,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     const generation = generationRef.current
     const total = pcmLenRef.current
     const rate = nativeRateRef.current
-    if (total < rate * MIN_LIVE_SEC) {
+    if (total < rate * MIN_LIVE_SEC || !heardVoiceRef.current) {
       if (final) setSearching(false)
       return
     }
@@ -250,7 +252,16 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     pcmLenRef.current = 0
     liveBusyRef.current = false
     lastVoiceRef.current = performance.now()
+    heardVoiceRef.current = false
     setSearching(false)
+  }
+
+  // Stops the mic and discards everything: no search runs for the audio so far.
+  const cancel = () => {
+    reset()
+    clearMaxTimer()
+    recorder.cancel()
+    teardownAudio()
   }
 
   const stopRef = useRef(stop)
@@ -265,7 +276,10 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
       if (!analyser) return
       const data = new Uint8Array(analyser.fftSize)
       analyser.getByteTimeDomainData(data)
-      if (rmsOfTimeDomain(data) > VOICE_RMS) lastVoiceRef.current = performance.now()
+      if (rmsOfTimeDomain(data) > VOICE_RMS) {
+        lastVoiceRef.current = performance.now()
+        heardVoiceRef.current = true
+      }
       else if (recorder.isRecording() && performance.now() - lastVoiceRef.current > SILENCE_MS) {
         stopRef.current()
         return
@@ -315,6 +329,7 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     pcmRef.current = []
     pcmLenRef.current = 0
     liveBusyRef.current = false
+    heardVoiceRef.current = false
     setSearching(false)
     const stream = await recorder.start()
     if (!stream) return
@@ -340,5 +355,6 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     toggle,
     stop,
     reset,
+    cancel,
   }
 }

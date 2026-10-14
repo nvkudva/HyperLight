@@ -17,12 +17,10 @@ import {
   DatabaseIcon,
   FolderIcon,
   KeyboardIcon,
-  ZapIcon,
 } from '../common/Icons'
 import { GoogleAccountCard } from '../Google/GoogleAccountCard'
 import { AssistantTab } from './AssistantTab'
 import { MaintenanceTab } from './MaintenanceTab'
-import { ScanningTab } from './ScanningTab'
 import { ShortcutsTab, saveHotkeyPatch } from './ShortcutsTab'
 import { SourcesTab } from './SourcesTab'
 import { activeJobs, availablePresets } from './settingsUtils'
@@ -37,11 +35,10 @@ const STATUS_CLASS: Record<string, string> = {
   slate: styles.statusNeutral,
 }
 
-type SettingsTab = 'sources' | 'scanning' | 'cloud' | 'assistant' | 'shortcuts' | 'maintenance'
+type SettingsTab = 'sources' | 'cloud' | 'assistant' | 'shortcuts' | 'maintenance'
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
   { id: 'sources', label: 'Sources', icon: FolderIcon, tint: shared.iconAccent },
-  { id: 'scanning', label: 'Real-Time Scanning', icon: ZapIcon, tint: styles.iconOrange },
   { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: shared.iconGreen },
   { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: shared.iconAccent },
   { id: 'shortcuts', label: 'Shortcuts', icon: KeyboardIcon, tint: shared.iconIndigo },
@@ -54,7 +51,6 @@ interface SettingsPageProps {
   googleStatus: GoogleStatus
   indexStatus?: IndexJobStatus | null
   onRefreshSources: () => void
-  onRefreshGoogleStatus: () => void
   onStartProgress: () => void
   onRevealTarget: (path: string) => Promise<{ success: boolean; path: string }>
   focusIndexing?: boolean
@@ -66,13 +62,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   googleStatus,
   indexStatus,
   onRefreshSources,
-  onRefreshGoogleStatus,
   onStartProgress,
   onRevealTarget,
   focusIndexing,
 }) => {
   const titleRef = useRef<HTMLHeadingElement>(null)
-  const [activeTab, setActiveTab] = useState<SettingsTab>(focusIndexing ? 'scanning' : 'sources')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('sources')
   const [manualPath, setManualPath] = useState('')
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
   const [appSettings, setAppSettings] = useState<AppSettings>({
@@ -97,11 +92,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   }, [])
 
   useEffect(() => {
-    if (focusIndexing) {
-      setActiveTab('scanning')
-    } else {
-      titleRef.current?.focus()
-    }
+    if (focusIndexing) setActiveTab('sources')
+    else titleRef.current?.focus()
   }, [focusIndexing])
 
   const toastTimer = useRef<number | undefined>(undefined)
@@ -282,7 +274,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const presets = availablePresets(sources)
   const hasAppsSource = sources.some((s) => s.source_type === 'macos_system')
   const jobs = activeJobs(indexStatus)
-  const queuedJobs = jobs.filter((j) => j.state === 'queued')
   const jobForSource = (s: ConfiguredSource) =>
     jobs.find((j) => (j.path ? j.path === s.path : j.name === s.name))
 
@@ -305,7 +296,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <Icon className="w-3.5 h-3.5" />
               </span>
               <span>{t.label}</span>
-              {t.id === 'scanning' && indexStatus?.is_running && <span className={`${styles.tabDot} ${styles.navDot}`} />}
             </button>
           )
         })}
@@ -317,10 +307,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <h1 ref={titleRef} tabIndex={-1} className={styles.title}>
               {activeLabel}
             </h1>
-            <div className={styles.headerMeta}>
-              <span>{totalItems.toLocaleString()} items</span>
-              {isGlobalAlwaysOn && <span className={styles.tabDot} title="Live Real-Time Watching Active" />}
-            </div>
           </header>
 
           {toast && (
@@ -358,26 +344,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           />
         )}
 
-        {/* TAB 2: REAL-TIME SCANNING */}
-        {activeTab === 'scanning' && (
-          <ScanningTab
-            isGlobalAlwaysOn={isGlobalAlwaysOn}
-            watchedCount={appSettings.watched_paths_count ?? localSources.length}
-            localSources={localSources}
-            indexStatus={indexStatus}
-            queuedJobs={queuedJobs}
-            onToggleAlwaysOn={handleToggleAlwaysOn}
-            onToggleSourceWatch={handleToggleSourceWatch}
-          />
-        )}
-
         {/* TAB 3: CLOUD & ACCOUNTS */}
         {activeTab === 'cloud' && (
           <div className={shared.panel}>
             <GoogleAccountCard
-              status={googleStatus}
-              indexStatus={indexStatus}
-              onRefreshStatus={onRefreshGoogleStatus}
+              sources={sources}
+              onRefreshSources={onRefreshSources}
               onShowToast={showToast}
               onStartProgress={onStartProgress}
             />

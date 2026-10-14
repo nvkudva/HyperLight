@@ -32,6 +32,8 @@ function openResult(item: SearchResult) {
   launchTarget(item.path)
 }
 
+const DOUBLE_ESCAPE_MS = 500
+
 export const App: React.FC = () => {
   const [sources, setSources] = useState<ConfiguredSource[]>([])
   const [totalItems, setTotalItems] = useState(0)
@@ -49,7 +51,10 @@ export const App: React.FC = () => {
   const session = useSearchSession(chats.recordSearch, () => setScreen('search'))
   const screenRef = useRef(screen)
   const cancelSearchRef = useRef(session.cancelSearch)
+  const cancelVoiceRef = useRef(session.cancelVoice)
+  const lastEscapeRef = useRef(0)
   useEffect(() => {
+    cancelVoiceRef.current = session.cancelVoice
     screenRef.current = screen
     cancelSearchRef.current = session.cancelSearch
   })
@@ -125,7 +130,10 @@ export const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && screenRef.current === 'search') {
-        cancelSearchRef.current()
+        const now = performance.now()
+        if (now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) cancelVoiceRef.current()
+        else cancelSearchRef.current()
+        lastEscapeRef.current = now
         searchInputRef.current?.focus()
         return
       }
@@ -243,7 +251,6 @@ export const App: React.FC = () => {
             indexStatus={indexStatus}
             focusIndexing={focusIndexing}
             onRefreshSources={reloadData}
-            onRefreshGoogleStatus={() => fetchGoogleStatus().then(setGoogleStatus)}
             onStartProgress={refreshIndexStatus}
             onRevealTarget={(p) => revealTarget(p)}
           />

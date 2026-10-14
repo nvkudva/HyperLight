@@ -28,6 +28,7 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
     },
     onResults: (buckets, transcript) => {
       onActivityRef.current()
+      if (!transcript.trim()) return
       setQueryState('')
       setVoiceResult({ transcript: transcript.trim(), buckets })
       if (transcript.trim()) recordSearch(transcript)
@@ -42,11 +43,17 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
   const clearVoice = useCallback(() => setVoiceResult(null), [])
 
   const voiceReset = voice.reset
+  const voiceCancel = voice.cancel
   const cancelSearch = useCallback(() => {
     voiceReset()
     setQueryState('')
     setVoiceResult(null)
   }, [voiceReset])
+
+  const cancelVoice = useCallback(() => {
+    voiceCancel()
+    setVoiceResult(null)
+  }, [voiceCancel])
 
   useEffect(() => {
     const q = query.trim()
@@ -55,7 +62,7 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
     return () => clearTimeout(timer)
   }, [query, recordSearch])
 
-  return { query, setQuery, voice, voiceResult, clearVoice, cancelSearch }
+  return { query, setQuery, voice, voiceResult, clearVoice, cancelSearch, cancelVoice }
 }
 
 export type SearchSession = ReturnType<typeof useSearchSession>

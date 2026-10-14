@@ -413,3 +413,9 @@
 .fullWidth {
   width: 100%;
 }
+
+.liveLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--label-2);
+}

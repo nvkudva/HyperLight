@@ -123,6 +123,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
             <span className={`${styles.liveDot} ${isIndexing ? styles.liveDotActive : ''}`} />
             <span>{statusSummary}</span>
           </button>
+          <span className={styles.liveLabel}>Live scanning</span>
           <label className={shared.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
             <input type="checkbox" role="switch" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
             <span className={shared.slider} />
