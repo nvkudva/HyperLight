@@ -54,7 +54,7 @@ pub fn run() {
       }
       hotkey::request_keyboard_access(app.handle().clone());
       #[cfg(target_os = "macos")]
-      permission::request_microphone_if_missing();
+      permission::request_microphone_access();
       hotkey::spawn(app.handle().clone(), hotkey_state);
       #[cfg(target_os = "macos")]
       app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -67,6 +67,8 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![hotkey::set_hotkey, hotkey::request_keyboard_access, hotkey::keyboard_access_granted,
+      permission::microphone_access_granted,
+      permission::request_microphone_access,
       permission::start_permission_drag,
       permission::close_permission_helper,
     ])

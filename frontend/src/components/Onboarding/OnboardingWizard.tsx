@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import * as api from '../../api'
+import * as native from '../../native'
 import { DRIVE_DOWNLOAD_URL, useDriveLocations } from '../../hooks/useDriveLocations'
 import type { DriveLocation } from '../../types'
 import styles from './OnboardingWizard.module.css'
@@ -45,6 +46,20 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
       .catch(() => setIcloudLocations([]))
   }, [])
 
+  const [keyboardGranted, setKeyboardGranted] = useState<boolean | null>(null)
+  const [micGranted, setMicGranted] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (step !== 1) return
+    const check = () => {
+      void native.keyboardAccessGranted().then(setKeyboardGranted)
+      void native.microphoneAccessGranted().then(setMicGranted)
+    }
+    check()
+    const timer = window.setInterval(check, 1500)
+    return () => window.clearInterval(timer)
+  }, [step])
+
   const toggle = (key: string) => setPicked((p) => ({ ...p, [key]: !p[key] }))
 
   const checkbox = (key: string, label: string) => (
@@ -85,7 +100,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <div className={styles.dots}>
-          {[0, 1].map((i) => (
+          {[0, 1, 2].map((i) => (
             <span key={i} className={i === step ? styles.dotActive : styles.dot} />
           ))}
         </div>
@@ -135,6 +150,36 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
         )}
 
         {step === 1 && (
+          <>
+            <h1 className={styles.title}>Allow access</h1>
+            <p className={styles.subtitle}>Hyperlight needs two permissions. macOS asks once; you can change them later in System Settings.</p>
+            <div className={styles.options}>
+              <div className={styles.permission}>
+                <span>Keyboard shortcut{keyboardGranted ? ' ✓' : ''}</span>
+                {!keyboardGranted && (
+                  <button className={styles.secondaryBtn} onClick={() => void native.requestKeyboardAccess()}>
+                    Allow
+                  </button>
+                )}
+              </div>
+              <div className={styles.permission}>
+                <span>Microphone{micGranted ? ' ✓' : ''}</span>
+                {!micGranted && (
+                  <button className={styles.secondaryBtn} onClick={() => void native.requestMicrophoneAccess()}>
+                    Allow
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className={styles.footer}>
+              <button className={styles.primaryBtn} onClick={() => setStep(2)}>
+                Continue
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
           <>
             <h1 className={styles.title}>You're set</h1>
             <p className={styles.subtitle}>

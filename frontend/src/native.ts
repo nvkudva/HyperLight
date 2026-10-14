@@ -72,6 +72,26 @@ export async function keyboardAccessGranted(): Promise<boolean | null> {
   }
 }
 
+// Whether microphone access is already granted. null outside the desktop app.
+export async function microphoneAccessGranted(): Promise<boolean | null> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    return await invoke<boolean>('microphone_access_granted')
+  } catch {
+    return null
+  }
+}
+
+// Shows the macOS microphone prompt, or opens System Settings if it was denied.
+export async function requestMicrophoneAccess(): Promise<boolean | null> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    return await invoke<boolean>('request_microphone_access')
+  } catch {
+    return null
+  }
+}
+
 // Calls onOpen when the menu bar icon asks for the history or settings view.
 export function useOpenViewRequest(onOpen: (view: 'history' | 'settings') => void) {
   const handlerRef = useRef(onOpen)

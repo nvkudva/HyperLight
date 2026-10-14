@@ -130,26 +130,44 @@ const AV_MEDIA_TYPE_AUDIO: &str = "soun";
 const MIC_STATUS_NOT_DETERMINED: isize = 0;
 const MIC_STATUS_AUTHORIZED: isize = 3;
 
-/// Asks for microphone access at launch. macOS shows its prompt only once, so
-/// a previously denied or restricted mic sends the user to the Settings pane.
-pub fn request_microphone_if_missing() {
+fn microphone_status() -> Option<isize> {
+  use objc2::msg_send;
+  use objc2::runtime::AnyClass;
+  use objc2_foundation::NSString;
+
+  let capture_device = AnyClass::get(c"AVCaptureDevice")?;
+  let media_type = NSString::from_str(AV_MEDIA_TYPE_AUDIO);
+  Some(unsafe { msg_send![capture_device, authorizationStatusForMediaType: &*media_type] })
+}
+
+#[tauri::command]
+pub fn microphone_access_granted() -> bool {
+  microphone_status() == Some(MIC_STATUS_AUTHORIZED)
+}
+
+/// Asks for microphone access. macOS shows its prompt only once, so a
+/// previously denied or restricted mic sends the user to the Settings pane.
+/// Returns true only when access is already granted.
+#[tauri::command]
+pub fn request_microphone_access() -> bool {
   use block2::RcBlock;
   use objc2::msg_send;
   use objc2::runtime::{AnyClass, Bool};
   use objc2_foundation::NSString;
 
-  let Some(capture_device) = AnyClass::get(c"AVCaptureDevice") else { return };
-  let media_type = NSString::from_str(AV_MEDIA_TYPE_AUDIO);
-  let status: isize = unsafe { msg_send![capture_device, authorizationStatusForMediaType: &*media_type] };
+  let Some(status) = microphone_status() else { return false };
   if status == MIC_STATUS_AUTHORIZED {
-    return;
+    return true;
   }
   if status == MIC_STATUS_NOT_DETERMINED {
+    let Some(capture_device) = AnyClass::get(c"AVCaptureDevice") else { return false };
+    let media_type = NSString::from_str(AV_MEDIA_TYPE_AUDIO);
     let on_answer = RcBlock::new(|_granted: Bool| {});
     let _: () = unsafe { msg_send![capture_device, requestAccessForMediaType: &*media_type, completionHandler: &*on_answer] };
-    return;
+    return false;
   }
   let _ = std::process::Command::new("open")
     .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
     .spawn();
+  false
 }
