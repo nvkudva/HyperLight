@@ -84,13 +84,18 @@ struct TapContext {
 
 static TAP: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
-fn fire(ctx: &TapContext, voice: bool) {
-  if let Some(win) = ctx.app.get_webview_window("main") {
+pub fn show_window(app: &tauri::AppHandle) {
+  if let Some(win) = app.get_webview_window("main") {
     let _ = win.unminimize();
     let _ = win.show();
     let _ = win.set_focus();
   }
-  let _ = ctx.app.emit(EVENT, serde_json::json!({ "voice": voice }));
+}
+
+/// Brings the window forward and tells the UI to focus search, or start recording when `voice`.
+pub fn reveal(app: &tauri::AppHandle, voice: bool) {
+  show_window(app);
+  let _ = app.emit(EVENT, serde_json::json!({ "voice": voice }));
 }
 
 fn is_double_ctrl(state: &State, event: *mut c_void) -> bool {
@@ -139,7 +144,7 @@ extern "C" fn tap_callback(_proxy: *mut c_void, etype: u32, event: *mut c_void, 
     _ => false,
   };
   if hit {
-    fire(ctx, cfg.voice);
+    reveal(&ctx.app, cfg.voice);
   }
   event
 }
@@ -208,10 +213,22 @@ pub fn set_hotkey(state: tauri::State<'_, &'static State>, enabled: bool, voice:
   }
 }
 
+#[tauri::command]
+pub fn keyboard_access_granted() -> bool {
+  unsafe { CGPreflightListenEventAccess() }
+}
+
+/// Asks for Input Monitoring at launch so the user is not left with a dead hotkey.
+pub fn prompt_if_missing() {
+  if !unsafe { CGPreflightListenEventAccess() } {
+    unsafe { CGRequestListenEventAccess() };
+  }
+}
+
 /// Shows the system Input Monitoring prompt once; afterwards macOS only lets
 /// the user grant it in System Settings, so open that pane instead.
 #[tauri::command]
-pub fn request_keyboard_access() -> bool {
+pub fn request_keyboard_access(app: tauri::AppHandle) -> bool {
   if unsafe { CGPreflightListenEventAccess() } {
     return true;
   }
@@ -221,5 +238,6 @@ pub fn request_keyboard_access() -> bool {
   let _ = std::process::Command::new("open")
     .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
     .spawn();
+  crate::permission::show_helper(&app);
   false
 }

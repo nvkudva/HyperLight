@@ -27,6 +27,9 @@ __all__ = [
     "remove_configured_source",
 ]
 
+# A photo passes the relevance gate when it is this many std-devs above the photo average.
+PHOTO_GATE_Z = 0.8
+
 SCHEMA = pa.schema([
     pa.field("id", pa.string()),
     pa.field("vector", pa.list_(pa.float32(), 768)),
@@ -112,18 +115,30 @@ class Storage:
         item_type: Optional[str] = None,
         exclude_type: Optional[str] = None,
         limit: int = 10,
+        photo_limit: int = 0,
     ) -> List[Dict[str, Any]]:
+        """Ranked records. With `photo_limit` and no type filter, photos get their own
+        candidate pool and result budget so text hits cannot crowd them out."""
         if len(self.table) == 0:
             return []
 
         search_limit = max(limit * 5, 200)
-        query = self.table.search(query_vector).metric("cosine").limit(search_limit)
-        if item_type and item_type != "all":
-            query = query.where(f"type = '{item_type}'")
-        elif exclude_type:
-            query = query.where(f"type != '{exclude_type}'")
 
-        results = query.to_arrow().to_pylist()
+        def fetch(where: Optional[str]) -> List[Dict[str, Any]]:
+            query = self.table.search(query_vector).metric("cosine").limit(search_limit)
+            if where:
+                query = query.where(where)
+            return query.to_arrow().to_pylist()
+
+        split_photos = photo_limit > 0 and not (item_type and item_type != "all") and not exclude_type
+        if split_photos:
+            results = fetch("type = 'photo'") + fetch("type != 'photo'")
+        elif item_type and item_type != "all":
+            results = fetch(f"type = '{item_type}'")
+        elif exclude_type:
+            results = fetch(f"type != '{exclude_type}'")
+        else:
+            results = fetch(None)
         if not results:
             return []
 
@@ -150,11 +165,18 @@ class Storage:
         deviation = max(variance ** 0.5, 0.02)
         z_scores = [(c - c_mean) / deviation for c in centered_sims]
 
+        photo_sims = [s for s, m in zip(sims, mods) if m == "photo"]
+        photo_mean = sum(photo_sims) / len(photo_sims) if photo_sims else 0.0
+        photo_dev = max(
+            (sum((s - photo_mean) ** 2 for s in photo_sims) / len(photo_sims)) ** 0.5 if photo_sims else 0.0,
+            0.02,
+        )
+
         z_weight, cov_weight, fn_weight = (0.04, 0.40, 1.5) if is_lookup else (0.12, 0.20, 1.0)
 
         formatted = []
         gated = []
-        for row, z in zip(results, z_scores):
+        for row, z, sim, mod in zip(results, z_scores, sims, mods):
             meta = {}
             if row.get("metadata"):
                 try:
@@ -181,7 +203,8 @@ class Storage:
             word_bonus = cov_weight * (coverage ** 1.5) + fn_bonus * fn_weight
 
             adjusted_score = max(0.0, distance - z_boost - word_bonus)
-            passes_gate = (z >= 1.5) or (coverage >= 0.5) or (fn_bonus > 0.0)
+            photo_z = (sim - photo_mean) / photo_dev if mod == "photo" else 0.0
+            passes_gate = (z >= 1.5) or (coverage >= 0.5) or (fn_bonus > 0.0) or photo_z >= PHOTO_GATE_Z
 
             item = {
                 "id": row["id"],
@@ -202,7 +225,11 @@ class Storage:
 
         candidates = gated or formatted
         candidates.sort(key=lambda x: x["score"])
-        return candidates[:limit]
+        if not split_photos:
+            return candidates[:limit]
+        photos = [c for c in candidates if c["type"] == "photo"][:photo_limit]
+        others = [c for c in candidates if c["type"] != "photo"][:limit]
+        return sorted(photos + others, key=lambda x: x["score"])
 
     def get_stats(self) -> Dict[str, Any]:
         count = len(self.table)

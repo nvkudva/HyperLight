@@ -84,8 +84,8 @@ export const App: React.FC = () => {
 
   const selectTab = (tab: TopTab) => {
     if (tab === 'settings') setFocusIndexing(false)
-    setScreen(tab)
-    if (tab === 'search') searchInputRef.current?.focus()
+    setScreen(tab === screen ? 'search' : tab)
+    if (tab === 'search' || tab === screen) searchInputRef.current?.focus()
   }
 
   const handleTopBarQueryChange = (q: string) => {
@@ -99,6 +99,16 @@ export const App: React.FC = () => {
     searchInputRef.current?.focus()
     const v = session.voice
     if (voiceOn && !v.listening && v.supported) v.toggle()
+  })
+
+  native.useOpenViewRequest((view) => {
+    setFocusIndexing(false)
+    if (view === 'settings') {
+      setScreen('settings')
+    } else {
+      setScreen('search')
+      setHistoryOpen(true)
+    }
   })
 
   const handleTopBarKeyDown = (e: React.KeyboardEvent) => {
@@ -172,7 +182,14 @@ export const App: React.FC = () => {
         activeTab={screen}
         onSelectTab={selectTab}
         historyOpen={historyOpen}
-        onToggleHistory={() => setHistoryOpen((v) => !v)}
+        onToggleHistory={() => {
+          if (screen !== 'search') {
+            setScreen('search')
+            setHistoryOpen(true)
+          } else {
+            setHistoryOpen((v) => !v)
+          }
+        }}
         accessory={scanIndicator}
         onDragStart={native.startWindowDrag}
         onActivateSearch={() => {

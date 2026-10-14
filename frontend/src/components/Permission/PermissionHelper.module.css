@@ -1,0 +1,58 @@
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 100vh;
+  padding: 0 1.25rem;
+  background: var(--app-bg);
+  color: var(--label);
+  border: 0.5px solid var(--separator);
+  user-select: none;
+  cursor: default;
+}
+
+.icon {
+  width: 4.5rem;
+  height: 4.5rem;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.icon:active {
+  cursor: grabbing;
+}
+
+.done {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.text strong {
+  font-size: 0.9375rem;
+}
+
+.text span {
+  color: var(--label-2);
+}
+
+.close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}

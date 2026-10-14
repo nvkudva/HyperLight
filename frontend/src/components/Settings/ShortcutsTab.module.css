@@ -14,3 +14,27 @@
   color: var(--label);
   border: 0.5px solid var(--separator);
 }
+
+.permissionWarning {
+  padding: 0.75rem 1rem;
+  border-radius: var(--r-sm);
+  background: var(--orange-tint);
+  color: var(--orange);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.statusOk,
+.statusMissing {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.statusOk {
+  color: var(--green);
+}
+
+.statusMissing {
+  color: var(--orange);
+}

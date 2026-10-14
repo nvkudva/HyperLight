@@ -38,6 +38,22 @@ def api_media(path: str) -> Response:
     return fastapi.responses.FileResponse(file_path)
 
 
+TEXT_PREVIEW_BYTES = 64 * 1024
+TEXT_PREVIEW_EXTENSIONS = scanner.TEXT_EXTENSIONS | scanner.CODE_EXTENSIONS | {".log", ".xml", ".toml", ".ini", ".rtf"}
+
+
+@router.get("/api/text")
+def api_text(path: str) -> Response:
+    """First 64 KB of a text-like file, for the preview pane."""
+    file_path = Path(path).resolve()
+    if not file_path.is_file() or file_path.suffix.lower() not in TEXT_PREVIEW_EXTENSIONS:
+        return Response(status_code=404)
+    with file_path.open("rb") as handle:
+        raw = handle.read(TEXT_PREVIEW_BYTES)
+    return Response(raw.decode("utf-8", errors="replace"), media_type="text/plain; charset=utf-8",
+                    headers={"Cache-Control": "private, max-age=60"})
+
+
 @router.get("/api/preview")
 def api_preview(path: str, size: int = 800) -> Response:
     file_path = Path(path).resolve()

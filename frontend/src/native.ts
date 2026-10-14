@@ -62,6 +62,62 @@ export async function requestKeyboardAccess(): Promise<boolean | null> {
   }
 }
 
+// Whether Input Monitoring is already granted. null outside the desktop app.
+export async function keyboardAccessGranted(): Promise<boolean | null> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    return await invoke<boolean>('keyboard_access_granted')
+  } catch {
+    return null
+  }
+}
+
+// Calls onOpen when the menu bar icon asks for the history or settings view.
+export function useOpenViewRequest(onOpen: (view: 'history' | 'settings') => void) {
+  const handlerRef = useRef(onOpen)
+  useEffect(() => {
+    handlerRef.current = onOpen
+  })
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+    import('@tauri-apps/api/event')
+      .then(({ listen }) =>
+        listen<'history' | 'settings'>('hyperlight-open-view', (event) => handlerRef.current(event.payload))
+      )
+      .then((off) => {
+        if (cancelled) off()
+        else unlisten = off
+      })
+      .catch(() => {
+        // Browser build: no menu bar icon.
+      })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+}
+
+export async function startPermissionDrag(): Promise<void> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('start_permission_drag')
+  } catch {
+    // Not running from an app bundle, or not in Tauri.
+  }
+}
+
+export async function closePermissionHelper(): Promise<void> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('close_permission_helper')
+  } catch {
+    // Not running inside Tauri
+  }
+}
+
 // Pushes saved hotkey settings to the shell once, then calls onHotkey with
 // the voice flag the shell resolved from those settings.
 export function useHotkey(onHotkey: (voice: boolean) => void) {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-keyboard-access-granted"
+description = "Enables the keyboard_access_granted command without any pre-configured scope."
+commands.allow = ["keyboard_access_granted"]
+
+[[permission]]
+identifier = "deny-keyboard-access-granted"
+description = "Denies the keyboard_access_granted command without any pre-configured scope."
+commands.deny = ["keyboard_access_granted"]

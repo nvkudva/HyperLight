@@ -8,7 +8,9 @@ from typing import Any, Dict, List, Optional, Sequence
 import app_state
 
 CANDIDATE_LIMIT = 60
+PHOTO_CANDIDATES = 40
 PER_BUCKET = 5
+PER_BUCKET_OVERRIDES = {"photo": 30}
 
 BUCKET_LABELS = {
     "app": "Applications",
@@ -47,7 +49,7 @@ def group(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for r in results:
         kind = bucket_of(r)
         items = items_by_kind.setdefault(kind, [])
-        if len(items) < PER_BUCKET and r.get("path") not in seen_paths:
+        if len(items) < PER_BUCKET_OVERRIDES.get(kind, PER_BUCKET) and r.get("path") not in seen_paths:
             seen_paths.add(r.get("path"))
             items.append(r)
     kinds = [k for k in BUCKET_ORDER if k in items_by_kind]
@@ -86,4 +88,4 @@ def query_audio(transcript: str, samples: Sequence[float], rate: int) -> Optiona
 
 
 def _search(vector: List[float], text: Optional[str]) -> List[Dict[str, Any]]:
-    return group(app_state.get_storage().search(vector, query_text=text, limit=CANDIDATE_LIMIT))
+    return group(app_state.get_storage().search(vector, query_text=text, limit=CANDIDATE_LIMIT, photo_limit=PHOTO_CANDIDATES))

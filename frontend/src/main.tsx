@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { PermissionHelper } from './components/Permission/PermissionHelper'
 
 if ('__TAURI_INTERNALS__' in window) document.documentElement.classList.add('tauri')
 
@@ -11,7 +12,7 @@ if (!rootEl) {
 } else {
   createRoot(rootEl).render(
     <StrictMode>
-      <App />
+      {new URLSearchParams(window.location.search).has('permission') ? <PermissionHelper /> : <App />}
     </StrictMode>,
   )
 }

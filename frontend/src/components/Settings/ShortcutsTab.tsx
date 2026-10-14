@@ -45,8 +45,16 @@ interface ShortcutsTabProps {
 
 export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotkey, onShowToast }) => {
   const [recording, setRecording] = useState(false)
+  const [keyboardGranted, setKeyboardGranted] = useState<boolean | null>(null)
   const enabled = settings.hotkey_enabled
   const voice = settings.hotkey_voice
+
+  useEffect(() => {
+    const check = () => void native.keyboardAccessGranted().then(setKeyboardGranted)
+    check()
+    window.addEventListener('focus', check)
+    return () => window.removeEventListener('focus', check)
+  }, [])
 
   useEffect(() => {
     if (!recording) return
@@ -88,12 +96,19 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
 
   const handleKeyboardAccess = async () => {
     const granted = await native.requestKeyboardAccess()
+    if (granted !== null) setKeyboardGranted(granted)
     if (granted === null) onShowToast('Open System Settings → Privacy & Security → Input Monitoring (desktop app only).', 'blue')
     else if (granted) onShowToast('Input Monitoring is allowed. The shortcut is active.', 'green')
   }
 
   return (
     <div className={shared.panel}>
+      {keyboardGranted === false && (
+        <div className={styles.permissionWarning} role="alert">
+          <strong>Shortcut is not active.</strong> Hyperlight needs Input Monitoring access to hear the
+          shortcut outside the app. Click Allow… below, then switch the toggle on in System Settings.
+        </div>
+      )}
       <div className={shared.card}>
         <div className={shared.cardHeader}>
           <div className={shared.cardHeaderCol}>
@@ -156,10 +171,17 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
       <div className={shared.card}>
         <div className={shared.cardHeader}>
           <div className={shared.cardHeaderCol}>
-            <h2 className={shared.cardTitle}>Input Monitoring permission</h2>
+            <h2 className={shared.cardTitle}>
+              Input Monitoring permission
+              {keyboardGranted !== null && (
+                <span className={keyboardGranted ? styles.statusOk : styles.statusMissing}>
+                  {keyboardGranted ? 'Allowed' : 'Not allowed'}
+                </span>
+              )}
+            </h2>
             <p className={shared.cardSubtitle}>
               The desktop app watches for the shortcut system-wide. If pressing it does nothing,
-              allow Hyperlight under Privacy & Security → Input Monitoring.
+              click Allow… and drag the Hyperlight icon into the Input Monitoring list.
             </p>
           </div>
           <button className={shared.button} onClick={() => void handleKeyboardAccess()}>

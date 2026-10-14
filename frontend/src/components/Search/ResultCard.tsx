@@ -12,6 +12,7 @@ import {
   VideoIcon,
 } from '../common/Icons'
 import { ResultThumbnail, VISUAL_PREVIEW } from './ResultThumbnail'
+import { TextPreview } from './TextPreview'
 import styles from './SearchScreen.module.css'
 
 const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
@@ -39,6 +40,8 @@ export interface ResultCardProps {
   onReveal: (path: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
 }
+
+const PHOTOS_COLLAPSED = 12
 
 const kindOf = (item: SearchResult) => item.type ?? item.file_type ?? 'document'
 
@@ -90,11 +93,21 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     }, [eager])
 
     const live = useLiveSearch(snapshot ? '' : query, 150, nearby)
-    const buckets = snapshot ?? live.buckets
+    const allBuckets = snapshot ?? live.buckets
     const isSearching = snapshot ? snapshotSearching : live.isSearching
 
+    const [photosExpanded, setPhotosExpanded] = useState(false)
+    const buckets = useMemo(
+      () =>
+        photosExpanded
+          ? allBuckets
+          : allBuckets.map((b) => (b.kind === 'photo' ? { ...b, items: b.items.slice(0, PHOTOS_COLLAPSED) } : b)),
+      [allBuckets, photosExpanded]
+    )
+    const hiddenPhotos = (allBuckets.find((b) => b.kind === 'photo')?.items.length ?? 0) - PHOTOS_COLLAPSED
+
     const [selected, setSelected] = useState(0)
-    const flatItems = useMemo(() => (snapshot ? flattenBuckets(snapshot) : live.flatItems), [snapshot, live.flatItems])
+    const flatItems = useMemo(() => flattenBuckets(buckets), [buckets])
 
     const [seenBuckets, setSeenBuckets] = useState(buckets)
     if (seenBuckets !== buckets) {
@@ -197,6 +210,11 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                         </div>
                       )
                     })}
+                    {bucket.kind === 'photo' && !photosExpanded && hiddenPhotos > 0 && (
+                      <button className={styles.showMore} onClick={() => setPhotosExpanded(true)}>
+                        Show {hiddenPhotos} more photos
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -247,7 +265,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                 <h2 className={styles.previewTitle}>{current.filename}</h2>
                 <p className={styles.previewPath}>{current.path}</p>
                 {current.content && !['photo', 'video', 'audio'].includes(kindOf(current)) && (!VISUAL_PREVIEW.test(current.path) || failedPreviews.has(current.path)) && (
-                  <p className={styles.previewContent}>{current.content.slice(0, 700)}</p>
+                  <TextPreview path={current.path} snippet={current.content} />
                 )}
                 <div className={styles.previewActions}>
                   <button className={`${styles.actionButton} ${styles.primary}`} onClick={() => onOpen(current)}>
