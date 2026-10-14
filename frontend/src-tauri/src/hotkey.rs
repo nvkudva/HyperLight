@@ -277,13 +277,6 @@ pub fn keyboard_access_granted() -> bool {
   unsafe { CGPreflightListenEventAccess() }
 }
 
-/// Asks for Input Monitoring at launch so the user is not left with a dead hotkey.
-pub fn prompt_if_missing() {
-  if !unsafe { CGPreflightListenEventAccess() } {
-    unsafe { CGRequestListenEventAccess() };
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use super::{DoubleTap, MASK_ALT, MASK_CTRL, double_tap_for, register_press, tap_matches};

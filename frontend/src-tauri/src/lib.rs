@@ -52,7 +52,9 @@ pub fn run() {
       if cfg!(debug_assertions) {
         app.handle().plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?;
       }
-      hotkey::prompt_if_missing();
+      hotkey::request_keyboard_access(app.handle().clone());
+      #[cfg(target_os = "macos")]
+      permission::request_microphone_if_missing();
       hotkey::spawn(app.handle().clone(), hotkey_state);
       #[cfg(target_os = "macos")]
       app.set_activation_policy(tauri::ActivationPolicy::Accessory);

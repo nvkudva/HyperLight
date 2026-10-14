@@ -24,6 +24,9 @@ const SETTINGS_POLL: Duration = Duration::from_millis(150);
 const SETTINGS_POLL_ATTEMPTS: u32 = 20;
 const ICON_PNG: &[u8] = include_bytes!("../icons/128x128.png");
 
+#[link(name = "AVFoundation", kind = "framework")]
+unsafe extern "C" {}
+
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
   fn CGRectMakeWithDictionaryRepresentation(dict: CFDictionaryRef, rect: *mut CGRect) -> bool;
@@ -121,4 +124,32 @@ pub fn close_permission_helper(app: tauri::AppHandle) {
   if let Some(win) = app.get_webview_window(LABEL) {
     let _ = win.close();
   }
+}
+
+const AV_MEDIA_TYPE_AUDIO: &str = "soun";
+const MIC_STATUS_NOT_DETERMINED: isize = 0;
+const MIC_STATUS_AUTHORIZED: isize = 3;
+
+/// Asks for microphone access at launch. macOS shows its prompt only once, so
+/// a previously denied or restricted mic sends the user to the Settings pane.
+pub fn request_microphone_if_missing() {
+  use block2::RcBlock;
+  use objc2::msg_send;
+  use objc2::runtime::{AnyClass, Bool};
+  use objc2_foundation::NSString;
+
+  let Some(capture_device) = AnyClass::get(c"AVCaptureDevice") else { return };
+  let media_type = NSString::from_str(AV_MEDIA_TYPE_AUDIO);
+  let status: isize = unsafe { msg_send![capture_device, authorizationStatusForMediaType: &*media_type] };
+  if status == MIC_STATUS_AUTHORIZED {
+    return;
+  }
+  if status == MIC_STATUS_NOT_DETERMINED {
+    let on_answer = RcBlock::new(|_granted: Bool| {});
+    let _: () = unsafe { msg_send![capture_device, requestAccessForMediaType: &*media_type, completionHandler: &*on_answer] };
+    return;
+  }
+  let _ = std::process::Command::new("open")
+    .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+    .spawn();
 }
