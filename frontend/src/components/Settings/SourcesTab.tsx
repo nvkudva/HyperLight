@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import type { ConfiguredSource, IndexJobInfo, IndexJobStatus } from '../../types'
+import { fetchICloudLocations } from '../../api'
+import type { ConfiguredSource, DriveLocation, IndexJobInfo, IndexJobStatus } from '../../types'
 import {
   AppIcon,
   CloudIcon,
@@ -34,6 +35,7 @@ interface SourcesTabProps {
   onIndexPreset: (p: string) => void
   onIndexApps: () => void
   onIndexSettings: () => void
+  onIndexICloud: (locations: DriveLocation[]) => void
   onToggleAlwaysOn: () => void
   onToggleSourceWatch: (s: ConfiguredSource) => void
   onReveal: (path: string) => void
@@ -52,7 +54,7 @@ const COMMON_FOLDERS: Array<{ label: string; path: string }> = [
   { label: 'Music', path: '~/Music' },
 ]
 
-const COMING_SOON_CLOUDS = ['iCloud Drive', 'Dropbox', 'OneDrive']
+const COMING_SOON_CLOUDS = ['Dropbox', 'OneDrive']
 
 export const SourcesTab: React.FC<SourcesTabProps> = ({
   sources,
@@ -74,6 +76,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   onIndexPreset,
   onIndexApps,
   onIndexSettings,
+  onIndexICloud,
   onToggleAlwaysOn,
   onToggleSourceWatch,
   onReveal,
@@ -82,6 +85,13 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   onOpenCloudTab,
 }) => {
   const [modal, setModal] = useState<ModalKind>(null)
+  const [icloudLocations, setIcloudLocations] = useState<DriveLocation[]>([])
+
+  useEffect(() => {
+    fetchICloudLocations()
+      .then((res) => setIcloudLocations(res.locations))
+      .catch(() => setIcloudLocations([]))
+  }, [])
 
   useEffect(() => {
     if (!modal) return
@@ -365,6 +375,20 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                       {googleConnected ? 'Manage' : 'Connect'}
                     </button>
                   </li>
+                  {icloudLocations.map((loc) => (
+                    <li key={loc.path} className={styles.modalRow}>
+                      <span className={`${shared.icon} ${shared.iconNeutral}`}>
+                        <CloudIcon className="w-4 h-4" />
+                      </span>
+                      <span className={styles.modalRowText}>
+                        <span className={shared.sourceName}>iCloud Drive</span>
+                        <span className={shared.sourcePath}>{loc.path}</span>
+                      </span>
+                      <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); onIndexICloud(icloudLocations) }}>
+                        Index
+                      </button>
+                    </li>
+                  ))}
                   {COMING_SOON_CLOUDS.map((name) => (
                     <li key={name} className={`${styles.modalRow} ${styles.modalRowDisabled}`}>
                       <span className={`${shared.icon} ${shared.iconNeutral}`}>

@@ -48,6 +48,11 @@ def api_drive_locations() -> Dict[str, Any]:
     return {"locations": locations}
 
 
+@router.get("/api/icloud-locations")
+def api_icloud_locations() -> Dict[str, Any]:
+    return {"locations": connectors.get_icloud_drive_locations()}
+
+
 @router.post("/api/index-apps")
 def api_index_apps() -> Dict[str, Any]:
     return {"status": app_state.get_jobs().start_indexing(Path("/Applications"), "macos_apps", "macOS Applications")}

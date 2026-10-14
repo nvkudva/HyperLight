@@ -668,9 +668,9 @@ class Scanner:
                     reporter.report(chunk_files[-1][0].name, processed_files)
                     continue
 
-                # imap streams results so progress and embedding advance
-                # file-by-file instead of waiting for the whole chunk.
-                for kind, fp, chunks in pool.imap(self._parse_file, files_to_parse):
+                # map streams results in order so progress and embedding
+                # advance file-by-file instead of waiting for the whole chunk.
+                for kind, fp, chunks in pool.map(self._parse_file, files_to_parse):
                     if kind == "image":
                         image_buffer.append(fp)
                         if len(image_buffer) >= IMG_BATCH_SIZE:

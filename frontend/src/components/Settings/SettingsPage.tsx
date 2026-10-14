@@ -5,6 +5,7 @@ import {
   fetchAppSettings,
   fetchNetworkVolumes,
   indexApps,
+  indexICloudLocations,
   indexSettings,
   removeSource,
   rescanSource,
@@ -12,7 +13,7 @@ import {
   toggleSourceWatch,
   updateAppSettings,
 } from '../../api'
-import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
+import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus } from '../../types'
 import {
   ChatIcon,
   CloudIcon,
@@ -263,6 +264,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
+  const handleIndexICloud = async (locations: DriveLocation[]) => {
+    showToast('Indexing iCloud Drive...', 'blue')
+    try {
+      await indexICloudLocations(locations)
+      showToast('Indexing iCloud Drive…', 'emerald')
+      onStartProgress()
+      onRefreshSources()
+    } catch (err: any) {
+      showToast(`Error indexing iCloud Drive: ${err.message}`, 'red')
+    }
+  }
+
   const handleIndexPreset = (p: string) => {
     showToast(`Indexing ${p}...`, 'blue')
     startIndex(p, 'local')
@@ -354,6 +367,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             onIndexPreset={handleIndexPreset}
             onIndexApps={handleIndexApps}
             onIndexSettings={handleIndexSettings}
+            onIndexICloud={handleIndexICloud}
             onToggleAlwaysOn={handleToggleAlwaysOn}
             onToggleSourceWatch={handleToggleSourceWatch}
             onReveal={handleReveal}

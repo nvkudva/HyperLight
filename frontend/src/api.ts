@@ -159,6 +159,14 @@ export async function indexSettings(): Promise<{ status: JobStart }> {
   return post('/api/index-settings')
 }
 
+export async function fetchICloudLocations(): Promise<{ locations: DriveLocation[] }> {
+  return get('/api/icloud-locations')
+}
+
+export function indexICloudLocations(locations: DriveLocation[]) {
+  return Promise.all(locations.map((loc) => startIndex(loc.path, 'icloud_drive', loc.name)))
+}
+
 export async function openSettingsPane(pane: 'full-disk-access' | 'internet-accounts'): Promise<{ success: boolean }> {
   return post(`/api/open-settings/${pane}`)
 }

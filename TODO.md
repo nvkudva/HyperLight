@@ -76,3 +76,5 @@
 - [ ] Previews: send .epub and .odt through the QuickLook preview
 - [x] Index macOS System Settings panes (curated catalog, EmbeddingGemma vectors, Spotlight Settings bucket, click opens pane)
 - [ ] Add optional per-setting actions so results can flip the switch, not just open the pane: no public generic toggle API exists (Siri uses private system intents), so cover scriptable settings via AppleScript dictionaries (dark mode verified: System Events appearance preferences), Shortcuts actions, or defaults write; confirm with user before executing; skip Accessibility UI clicking (fragile)
+- [x] Add iCloud Drive as a cloud source (auto-detect ~/Library/Mobile Documents/com~apple~CloudDocs, Index button in Settings cloud modal, icloud_drive source type, live watcher covers it)
+- [x] Fix folder scans broken by ThreadPoolExecutor.imap (no such method): use pool.map so scan_path parses and stores files again

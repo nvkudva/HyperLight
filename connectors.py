@@ -168,6 +168,12 @@ def get_mounted_network_volumes() -> List[Dict[str, str]]:
             pass
     return volumes
 
+def get_icloud_drive_locations(home: Optional[Path] = None) -> List[Dict[str, str]]:
+    cloud_docs = (home or Path.home()) / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    if cloud_docs.is_dir():
+        return [{"name": "iCloud Drive", "path": str(cloud_docs.resolve()), "account": "iCloud"}]
+    return []
+
 def get_google_drive_locations() -> List[Dict[str, str]]:
     locations = []
     home = Path.home()
