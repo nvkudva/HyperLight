@@ -154,6 +154,16 @@ def api_index(req: IndexRequest) -> Dict[str, Any]:
             content={"error": f"Path '{req.path}' does not exist on disk."},
         )
     folder_name = req.name or target.name or str(target)
+    for s in sources.list_all():
+        try:
+            existing = Path(s.get("path", "")).expanduser().resolve()
+        except Exception:
+            continue
+        if existing == target or target in existing.parents or existing in target.parents:
+            return fastapi.responses.JSONResponse(
+                status_code=409,
+                content={"error": "duplicate_source", "message": f"'{folder_name}' overlaps an already-added source ('{s.get('name') or existing}')."},
+            )
     status = app_state.get_jobs().start_indexing(target, req.source, folder_name)
     return {"status": status, "path": str(target), "source": req.source, "name": folder_name}
 

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { fetchICloudLocations } from '../../api'
+import { fetchDriveLocations, fetchICloudLocations } from '../../api'
 import type { ConfiguredSource, DriveLocation, IndexJobInfo, IndexJobStatus } from '../../types'
 import {
   AppIcon,
   CloudIcon,
   FolderIcon,
-  GoogleLogo,
+  MailIcon,
   RescanIcon,
   RevealIcon,
   TrashIcon,
@@ -13,7 +13,7 @@ import {
 import styles from './SourcesTab.module.css'
 import shared from './SettingsShared.module.css'
 
-type ModalKind = 'folder' | 'cloud' | 'progress' | null
+type ModalKind = 'add' | 'progress' | null
 
 interface SourcesTabProps {
   sources: ConfiguredSource[]
@@ -25,34 +25,23 @@ interface SourcesTabProps {
   totalItems: number
   indexStatus?: IndexJobStatus | null
   jobs: IndexJobInfo[]
-  googleConnected: boolean
   manualPath: string
   onManualPathChange: (path: string) => void
   jobForSource: (s: ConfiguredSource) => IndexJobInfo | undefined
   onBrowseFinder: () => void
-  onConnectVolumes: () => void
   onAddManual: (e?: React.FormEvent) => void
   onIndexPreset: (p: string) => void
   onIndexApps: () => void
   onIndexSettings: () => void
   onIndexICloud: (locations: DriveLocation[]) => void
+  onIndexDrive: (locations: DriveLocation[]) => void
+  onIndexAppleMail: () => void
   onToggleAlwaysOn: () => void
   onToggleSourceWatch: (s: ConfiguredSource) => void
   onReveal: (path: string) => void
   onRescan: (s: ConfiguredSource) => void
   onRemoveSource: (path: string) => void
-  onOpenCloudTab: () => void
 }
-
-const COMMON_FOLDERS: Array<{ label: string; path: string }> = [
-  { label: 'Home', path: '~' },
-  { label: 'Documents', path: '~/Documents' },
-  { label: 'Desktop', path: '~/Desktop' },
-  { label: 'Downloads', path: '~/Downloads' },
-  { label: 'Pictures', path: '~/Pictures' },
-  { label: 'Videos', path: '~/Movies' },
-  { label: 'Music', path: '~/Music' },
-]
 
 const COMING_SOON_CLOUDS = ['Dropbox', 'OneDrive']
 
@@ -66,31 +55,34 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   totalItems,
   indexStatus,
   jobs,
-  googleConnected,
   manualPath,
   onManualPathChange,
   jobForSource,
   onBrowseFinder,
-  onConnectVolumes,
   onAddManual,
   onIndexPreset,
   onIndexApps,
   onIndexSettings,
   onIndexICloud,
+  onIndexDrive,
+  onIndexAppleMail,
   onToggleAlwaysOn,
   onToggleSourceWatch,
   onReveal,
   onRescan,
   onRemoveSource,
-  onOpenCloudTab,
 }) => {
   const [modal, setModal] = useState<ModalKind>(null)
   const [icloudLocations, setIcloudLocations] = useState<DriveLocation[]>([])
+  const [driveLocations, setDriveLocations] = useState<DriveLocation[]>([])
 
   useEffect(() => {
     fetchICloudLocations()
       .then((res) => setIcloudLocations(res.locations))
       .catch(() => setIcloudLocations([]))
+    fetchDriveLocations()
+      .then((res) => setDriveLocations(res.locations))
+      .catch(() => setDriveLocations([]))
   }, [])
 
   useEffect(() => {
@@ -108,6 +100,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   const isIndexing = indexStatus?.is_running || runningJobs.length > 0
 
   const addedPaths = new Set(sources.map((s) => s.path))
+  const hasMailSource = sources.some((s) => s.source_type === 'apple_mail')
   const quickPresets = availablePresets.filter((p) => !addedPaths.has(p))
 
   const closeAnd = (fn: () => void) => () => {
@@ -146,24 +139,13 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
       </div>
 
       <div className={styles.addSourceRow}>
-        <button className={styles.addSourceCard} onClick={() => setModal('folder')}>
+        <button className={styles.addSourceCard} onClick={() => setModal('add')}>
           <span className={`${styles.quickActionIcon} ${shared.iconAccent}`}>
             <FolderIcon className="w-4 h-4" />
           </span>
           <span className={styles.addSourceText}>
-            <span className={styles.addSourceTitle}>Add Folder</span>
-            <span className={styles.addSourceSubtitle}>Local folders or network drives</span>
-          </span>
-        </button>
-        <button className={styles.addSourceCard} onClick={() => setModal('cloud')}>
-          <span className={`${styles.quickActionIcon} ${shared.iconGreen}`}>
-            <CloudIcon className="w-4 h-4" />
-          </span>
-          <span className={styles.addSourceText}>
-            <span className={styles.addSourceTitle}>Add Cloud Account</span>
-            <span className={styles.addSourceSubtitle}>
-              {googleConnected ? 'Google connected · manage' : 'Google, iCloud, Dropbox…'}
-            </span>
+            <span className={styles.addSourceTitle}>Add Source</span>
+            <span className={styles.addSourceSubtitle}>Folders, services & cloud drives</span>
           </span>
         </button>
       </div>
@@ -250,7 +232,13 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                           <button className={styles.iconButton} onClick={() => onReveal(s.path)} title="Reveal in Finder" aria-label={`Reveal ${s.name} in Finder`}>
                             <RevealIcon className="w-4 h-4" />
                           </button>
-                          <button className={styles.iconButton} onClick={() => onRescan(s)} title="Re-index this source" aria-label={`Re-index ${s.name}`}>
+                          <button
+                            className={styles.iconButton}
+                            onClick={() => onRescan(s)}
+                            disabled={!!job}
+                            title={job ? 'Already indexing' : 'Re-index this source'}
+                            aria-label={`Re-index ${s.name}`}
+                          >
                             <RescanIcon className="w-4 h-4" />
                           </button>
                           <button
@@ -278,41 +266,25 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
             className={styles.modal}
             role="dialog"
             aria-modal="true"
-            aria-label={modal === 'folder' ? 'Add folder' : modal === 'cloud' ? 'Add cloud account' : 'Indexing progress'}
+            aria-label={modal === 'add' ? 'Add source' : 'Indexing progress'}
             onClick={(e) => e.stopPropagation()}
           >
-            {modal === 'folder' && (
+            {modal === 'add' && (
               <>
                 <div className={styles.modalHeader}>
                   <div>
-                    <h3 className={shared.cardTitle}>Add Folder</h3>
-                    <p className={shared.cardSubtitle}>Pick a common location, browse, or enter a path.</p>
+                    <h3 className={shared.cardTitle}>Add Source</h3>
+                    <p className={shared.cardSubtitle}>Folders, services, or cloud drives synced to this Mac.</p>
                   </div>
                   <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
                 </div>
                 <button className={`${shared.button} ${shared.primary} ${styles.fullWidth}`} onClick={closeAnd(onBrowseFinder)}>
                   Choose Folder… (system picker)
                 </button>
-                <div className={styles.modalSectionTitle}>Common folders</div>
-                <ul className={styles.modalList}>
-                  {COMMON_FOLDERS.map((f) => (
-                    <li key={f.path} className={styles.modalRow}>
-                      <span className={`${shared.icon} ${shared.iconAccent}`}>
-                        <FolderIcon className="w-4 h-4" />
-                      </span>
-                      <span className={styles.modalRowText}>
-                        <span className={shared.sourceName}>{f.label}</span>
-                        <span className={shared.sourcePath}>{f.path}</span>
-                      </span>
-                      <button className={shared.button} onClick={closeAnd(() => onIndexPreset(f.path))}>
-                        Add
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+
                 {quickPresets.length > 0 && (
                   <>
-                    <div className={styles.modalSectionTitle}>Suggested</div>
+                    <div className={styles.modalSectionTitle}>Common folders</div>
                     <div className={styles.chipRow}>
                       {quickPresets.map((p) => (
                         <button key={p} className={styles.chip} title={p} onClick={closeAnd(() => onIndexPreset(p))}>
@@ -335,46 +307,72 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                   />
                   <button type="submit" className={`${shared.button} ${shared.primary}`}>Add</button>
                 </form>
-                <div className={styles.modalRowButtons}>
-                  <button className={shared.button} onClick={closeAnd(onConnectVolumes)}>Network Share…</button>
-                  {!hasAppsSource && (
-                    <button className={shared.button} onClick={closeAnd(onIndexApps)}>Index Applications</button>
-                  )}
-                  {!hasSettingsSource && (
-                    <button className={shared.button} onClick={closeAnd(onIndexSettings)}>Index Settings</button>
-                  )}
-                </div>
-              </>
-            )}
-
-            {modal === 'cloud' && (
-              <>
-                <div className={styles.modalHeader}>
-                  <div>
-                    <h3 className={shared.cardTitle}>Add Cloud Account</h3>
-                    <p className={shared.cardSubtitle}>Connect a cloud account to index its files.</p>
-                  </div>
-                  <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
-                </div>
+                <div className={styles.modalSectionTitle}>Services</div>
                 <ul className={styles.modalList}>
                   <li className={styles.modalRow}>
-                    <span className={`${shared.icon} ${shared.iconGreen}`}>
-                      <GoogleLogo className="w-4 h-4" />
+                    <span className={`${shared.icon} ${shared.iconAccent}`}>
+                      <MailIcon className="w-4 h-4" />
                     </span>
                     <span className={styles.modalRowText}>
-                      <span className={shared.sourceName}>
-                        Google
-                        {googleConnected && <span className={`${shared.badge} ${shared.badgeSuccess}`}>● Connected</span>}
-                      </span>
-                      <span className={shared.sourcePath}>Drive · Photos · Gmail</span>
+                      <span className={shared.sourceName}>Apple Mail</span>
+                      <span className={shared.sourcePath}>Needs Full Disk Access</span>
                     </span>
-                    <button
-                      className={`${shared.button} ${googleConnected ? '' : shared.primary}`}
-                      onClick={() => { setModal(null); onOpenCloudTab() }}
-                    >
-                      {googleConnected ? 'Manage' : 'Connect'}
-                    </button>
+                    {hasMailSource ? (
+                      <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
+                    ) : (
+                      <button className={shared.button} onClick={closeAnd(onIndexAppleMail)}>Index</button>
+                    )}
                   </li>
+                  <li className={styles.modalRow}>
+                    <span className={`${shared.icon} ${shared.iconIndigo}`}>
+                      <AppIcon className="w-4 h-4" />
+                    </span>
+                    <span className={styles.modalRowText}>
+                      <span className={shared.sourceName}>Applications</span>
+                      <span className={shared.sourcePath}>Installed macOS apps</span>
+                    </span>
+                    {hasAppsSource ? (
+                      <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
+                    ) : (
+                      <button className={shared.button} onClick={closeAnd(onIndexApps)}>Index</button>
+                    )}
+                  </li>
+                  <li className={styles.modalRow}>
+                    <span className={`${shared.icon} ${shared.iconIndigo}`}>
+                      <AppIcon className="w-4 h-4" />
+                    </span>
+                    <span className={styles.modalRowText}>
+                      <span className={shared.sourceName}>System Settings</span>
+                      <span className={shared.sourcePath}>macOS settings panes</span>
+                    </span>
+                    {hasSettingsSource ? (
+                      <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
+                    ) : (
+                      <button className={shared.button} onClick={closeAnd(onIndexSettings)}>Index</button>
+                    )}
+                  </li>
+                </ul>
+
+                <div className={styles.modalSectionTitle}>Cloud drives · via sync app</div>
+                <ul className={styles.modalList}>
+                  {driveLocations.map((loc) => (
+                    <li key={loc.path} className={styles.modalRow}>
+                      <span className={`${shared.icon} ${shared.iconGreen}`}>
+                        <CloudIcon className="w-4 h-4" />
+                      </span>
+                      <span className={styles.modalRowText}>
+                        <span className={shared.sourceName}>Google Drive</span>
+                        <span className={shared.sourcePath}>{loc.path} · via sync app</span>
+                      </span>
+                      {addedPaths.has(loc.path) ? (
+                        <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
+                      ) : (
+                        <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); onIndexDrive(driveLocations) }}>
+                          Index
+                        </button>
+                      )}
+                    </li>
+                  ))}
                   {icloudLocations.map((loc) => (
                     <li key={loc.path} className={styles.modalRow}>
                       <span className={`${shared.icon} ${shared.iconNeutral}`}>
@@ -382,11 +380,15 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                       </span>
                       <span className={styles.modalRowText}>
                         <span className={shared.sourceName}>iCloud Drive</span>
-                        <span className={shared.sourcePath}>{loc.path}</span>
+                        <span className={shared.sourcePath}>{loc.path} · via sync app</span>
                       </span>
-                      <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); onIndexICloud(icloudLocations) }}>
-                        Index
-                      </button>
+                      {addedPaths.has(loc.path) ? (
+                        <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
+                      ) : (
+                        <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); onIndexICloud(icloudLocations) }}>
+                          Index
+                        </button>
+                      )}
                     </li>
                   ))}
                   {COMING_SOON_CLOUDS.map((name) => (
@@ -396,7 +398,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                       </span>
                       <span className={styles.modalRowText}>
                         <span className={shared.sourceName}>{name}</span>
-                        <span className={shared.sourcePath}>Cloud storage sync</span>
+                        <span className={shared.sourcePath}>Via sync app</span>
                       </span>
                       <span className={`${shared.badge} ${shared.badgeNeutral}`}>Coming soon</span>
                     </li>

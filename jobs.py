@@ -182,8 +182,11 @@ class IndexJobManager:
             name, track_path, kind = job.name, str(job.path), job.source
         try:
             if job.options.get("rescan"):
+                pre_count = store.count_items_by_path(track_path)
                 store.remove_items_by_path(track_path)
-            sources.record_scan(name, track_path, kind, store.count_items_by_path(track_path))
+                sources.record_scan(name, track_path, kind, pre_count)
+            else:
+                sources.record_scan(name, track_path, kind, store.count_items_by_path(track_path))
             if runner:
                 runner.run(on_progress, cancel_check, job.options)
             else:

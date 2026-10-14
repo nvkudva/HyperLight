@@ -88,6 +88,8 @@ class QAEngine:
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
+                    "keep_alive": "30m",
+                    "options": {"num_ctx": 2048},
                 },
                 timeout=(3, 60),
             )

@@ -1,6 +1,6 @@
 import type { ConfiguredSource, IndexJobInfo, IndexJobStatus } from '../../types'
 
-export const SOURCE_PRESETS = ['~/Documents', '~/Desktop', '~/Downloads', '~/Pictures']
+export const SOURCE_PRESETS = ['~/Documents', '~/Desktop', '~/Downloads', '~/Pictures', '~/Movies', '~/Music']
 
 export function availablePresets(sources: ConfiguredSource[]): string[] {
   const addedNames = new Set(sources.map((s) => s.path.replace(/\/$/, '').split('/').pop()?.toLowerCase()))

@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 import datetime
 import email
 import email.policy
@@ -104,7 +104,7 @@ def extract_ocr_text(path: Path) -> str:
         if not url:
             return ""
         request = Vision.VNRecognizeTextRequest.alloc().init()
-        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelFast)
         request.setUsesLanguageCorrection_(True)
         handler = Vision.VNImageRequestHandler.alloc().initWithURL_options_(url, None)
         handler.performRequests_error_([request], None)
@@ -301,7 +301,7 @@ class Scanner:
                     try:
                         if pdf is None:
                             pdf = pdfium.PdfDocument(str(path))
-                        vec = self.embedder.embed_image(pdf[page_num].render(scale=1.5).to_pil())
+                        vec = self.embedder.embed_image(pdf[page_num].render(scale=1.0).to_pil())
                     except Exception:
                         vec = None
                     if vec:
@@ -616,27 +616,26 @@ class Scanner:
 
         doc_buffer: List[Dict[str, Any]] = []
         image_buffer: List[Path] = []
-        BATCH_SIZE = 16
-        IMG_BATCH_SIZE = 8
+        BATCH_SIZE = 64
+        IMG_BATCH_SIZE = 16
+
+        embed_pool = ThreadPoolExecutor(max_workers=1)
+        pending: List[Future] = []
 
         def flush_docs():
-            nonlocal indexed_items, doc_buffer
-            indexed_items += embed_and_store(self.embedder, self.storage, doc_buffer, source, batch_size=BATCH_SIZE)
-            doc_buffer = []
+            nonlocal doc_buffer
+            if not doc_buffer:
+                return
+            batch, doc_buffer = doc_buffer, []
+            pending.append(embed_pool.submit(
+                embed_and_store, self.embedder, self.storage, batch, source, BATCH_SIZE))
 
         def flush_images():
-            nonlocal indexed_items, image_buffer
+            nonlocal image_buffer
             if not image_buffer:
                 return
-            vectors = self.embedder.embed_images(image_buffer, batch_size=IMG_BATCH_SIZE)
-            records = []
-            for img_path, vec in zip(image_buffer, vectors):
-                if vec is None:
-                    continue
-                records.append({**build_photo_record(img_path, vec), "source": source})
-            if records:
-                indexed_items += self.storage.add_items(records)
-            image_buffer = []
+            batch, image_buffer = image_buffer, []
+            pending.append(embed_pool.submit(self._embed_image_batch, batch, source, IMG_BATCH_SIZE))
 
         workers = min(8, os.cpu_count() or 4)
         CHUNK_SIZE = 64
@@ -686,8 +685,25 @@ class Scanner:
 
         flush_docs()
         flush_images()
+        total_batches = len(pending)
+        for i, future in enumerate(pending):
+            if total_batches > 1:
+                reporter.report(f"Embedding batch {i + 1}/{total_batches}...", processed_files)
+            indexed_items += future.result()
+        embed_pool.shutdown(wait=True)
 
         return indexed_items
+
+    def _embed_image_batch(self, image_buffer: List[Path], source: str, batch_size: int) -> int:
+        vectors = self.embedder.embed_images(image_buffer, batch_size=batch_size)
+        records = []
+        for img_path, vec in zip(image_buffer, vectors):
+            if vec is None:
+                continue
+            records.append({**build_photo_record(img_path, vec), "source": source})
+        if records:
+            return self.storage.add_items(records)
+        return 0
 
     def _parse_file(self, file_path: Path) -> Tuple[str, Path, List[Dict[str, Any]]]:
         ext = file_path.suffix.lower()

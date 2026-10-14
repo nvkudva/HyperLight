@@ -66,6 +66,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         snapshotSearching={voiceSearching}
         eager
         plain={!feedMode}
+        registerKeyHandler={registerKeyHandler}
         onOpen={onOpen}
         onReveal={onReveal}
         onContextMenu={onContextMenu}

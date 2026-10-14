@@ -51,6 +51,10 @@ export async function fetchStatus(): Promise<{ total: number; photos: number; do
   return get('/api/status')
 }
 
+export async function warmup(): Promise<{ status: string }> {
+  return post('/api/warmup')
+}
+
 export async function fetchSources(): Promise<{ sources: ConfiguredSource[] }> {
   return get('/api/sources')
 }

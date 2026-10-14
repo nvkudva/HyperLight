@@ -1,6 +1,6 @@
 from pathlib import Path
 import threading
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 import numpy
 import PIL.Image
 import sentence_transformers
@@ -38,17 +38,29 @@ class Embedder:
         self._text_lock = threading.Lock()
         self._image_lock = threading.Lock()
         self._audio_lock = threading.Lock()
+        self._query_cache: Dict[str, List[float]] = {}
+        self._query_cache_lock = threading.Lock()
 
     def embed_query(self, query: str) -> List[float]:
         cleaned = _clip(query.strip())
-        if cleaned.lower().startswith("code:"):
+        key = cleaned.lower()
+        with self._query_cache_lock:
+            hit = self._query_cache.get(key)
+        if hit is not None:
+            return hit
+        if key.startswith("code:"):
             code_query = cleaned[5:].strip()
             prompt = f"task: code retrieval | query: {code_query}"
         else:
             prompt = f"task: search result | query: {cleaned}"
         with self._text_lock:
             vec = self.model.encode(prompt, normalize_embeddings=True)
-        return vec.tolist()
+        result = vec.tolist()
+        with self._query_cache_lock:
+            if len(self._query_cache) >= 256:
+                self._query_cache.pop(next(iter(self._query_cache)))
+            self._query_cache[key] = result
+        return result
 
     def embed_text(self, text: str, title: Optional[str] = None, is_query: bool = False) -> List[float]:
         if is_query:
@@ -62,7 +74,7 @@ class Embedder:
             vec = self.model.encode(doc_str, normalize_embeddings=True)
         return vec.tolist()
 
-    def embed_texts(self, texts: List[str], titles: Optional[List[str]] = None, batch_size: int = 32) -> List[List[float]]:
+    def embed_texts(self, texts: List[str], titles: Optional[List[str]] = None, batch_size: int = 64) -> List[List[float]]:
         if not texts:
             return []
         formatted = []

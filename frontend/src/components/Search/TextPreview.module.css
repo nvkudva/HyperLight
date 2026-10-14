@@ -6,12 +6,15 @@
   align-self: stretch;
   padding: 0.75rem;
   border-radius: var(--r-sm);
+  border: 0.5px solid var(--separator);
   background: var(--fill);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--label);
   text-align: left;
-  max-height: 22rem;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 

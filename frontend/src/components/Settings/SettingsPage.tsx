@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
+  ApiError,
   browseFolder,
   clearDatabase,
   fetchAppSettings,
-  fetchNetworkVolumes,
+  indexAppleMail,
   indexApps,
+  indexDriveLocations,
   indexICloudLocations,
   indexSettings,
+  openSettingsPane,
   removeSource,
   rescanSource,
   startIndex,
@@ -62,7 +65,6 @@ interface SettingsPageProps {
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   totalItems,
   sources,
-  googleStatus,
   indexStatus,
   onRefreshSources,
   onStartProgress,
@@ -166,10 +168,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
+  const normPath = (p: string) => p.replace(/\/$/, '')
+  const isDuplicate = (p: string) => {
+    const t = normPath(p)
+    return sources.some((s) => {
+      const e = normPath(s.path)
+      return e === t || t.startsWith(e + '/') || e.startsWith(t + '/')
+    })
+  }
+
   const handleAddManual = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!manualPath.trim()) {
       showToast('Please enter a valid folder path.', 'amber')
+      return
+    }
+    if (isDuplicate(manualPath.trim())) {
+      showToast(`'${manualPath.trim()}' is already indexed (or overlaps an added source).`, 'amber')
       return
     }
     showToast(`Adding '${manualPath.trim()}'...`, 'blue')
@@ -189,6 +204,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     try {
       const res = await browseFolder('Select a folder to index in Hyperlight')
       if (res.path && !res.canceled) {
+        if (isDuplicate(res.path)) {
+          showToast(`'${res.name}' is already indexed.`, 'amber')
+          return
+        }
         showToast(`Selected '${res.name}'. Indexing...`, 'emerald')
         await startIndex(res.path, 'local', res.name)
         onStartProgress()
@@ -198,25 +217,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
     } catch (err: any) {
       showToast(`Finder error: ${err.message}`, 'red')
-    }
-  }
-
-  const handleConnectVolumes = async () => {
-    showToast('Scanning mounted network volumes...', 'blue')
-    try {
-      const res = await fetchNetworkVolumes()
-      if (res.volumes && res.volumes.length > 0) {
-        const v = res.volumes[0]
-        showToast(`Connecting network volume '${v.name}'...`, 'emerald')
-        await startIndex(v.path, 'network_volume', v.name)
-        onStartProgress()
-        onRefreshSources()
-      } else {
-        showToast('No mounted volumes in /Volumes. Select your share in Finder...', 'blue')
-        await handleBrowseFinder()
-      }
-    } catch (err: any) {
-      showToast(`Volume scan error: ${err.message}`, 'red')
     }
   }
 
@@ -264,8 +264,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
-  const handleIndexICloud = async (locations: DriveLocation[]) => {
-    showToast('Indexing iCloud Drive...', 'blue')
+  const handleIndexICloud = async (locations: DriveLocation[]) => {    showToast('Indexing iCloud Drive...', 'blue')
     try {
       await indexICloudLocations(locations)
       showToast('Indexing iCloud Drive…', 'emerald')
@@ -276,7 +275,40 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
+  const handleIndexDrive = async (locations: DriveLocation[]) => {
+    showToast('Indexing Google Drive...', 'blue')
+    try {
+      await indexDriveLocations(locations)
+      showToast('Indexing Google Drive…', 'emerald')
+      onStartProgress()
+      onRefreshSources()
+    } catch (err: any) {
+      showToast(`Error indexing Drive: ${err.message}`, 'red')
+    }
+  }
+
+  const handleIndexAppleMail = async () => {
+    showToast('Indexing Apple Mail...', 'blue')
+    try {
+      await indexAppleMail()
+      showToast('Indexing Apple Mail…', 'emerald')
+      onStartProgress()
+      onRefreshSources()
+    } catch (err: any) {
+      if (err instanceof ApiError && err.code === 'full_disk_access') {
+        showToast(err.message, 'amber')
+        openSettingsPane('full-disk-access')
+      } else {
+        showToast(`Error indexing Apple Mail: ${err.message}`, 'red')
+      }
+    }
+  }
+
   const handleIndexPreset = (p: string) => {
+    if (isDuplicate(p)) {
+      showToast(`'${p}' is already indexed.`, 'amber')
+      return
+    }
     showToast(`Indexing ${p}...`, 'blue')
     startIndex(p, 'local')
       .then(() => {
@@ -357,23 +389,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             totalItems={totalItems}
             indexStatus={indexStatus}
             jobs={jobs}
-            googleConnected={googleStatus.connected}
             manualPath={manualPath}
             onManualPathChange={setManualPath}
             jobForSource={jobForSource}
             onBrowseFinder={handleBrowseFinder}
-            onConnectVolumes={handleConnectVolumes}
             onAddManual={handleAddManual}
             onIndexPreset={handleIndexPreset}
             onIndexApps={handleIndexApps}
             onIndexSettings={handleIndexSettings}
             onIndexICloud={handleIndexICloud}
+            onIndexDrive={handleIndexDrive}
+            onIndexAppleMail={handleIndexAppleMail}
             onToggleAlwaysOn={handleToggleAlwaysOn}
             onToggleSourceWatch={handleToggleSourceWatch}
             onReveal={handleReveal}
             onRescan={handleRescan}
             onRemoveSource={handleRemoveSource}
-            onOpenCloudTab={() => setActiveTab('cloud')}
           />
         )}
 

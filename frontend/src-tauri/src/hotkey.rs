@@ -120,10 +120,29 @@ struct TapContext {
 static TAP: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
 pub fn show_window(app: &tauri::AppHandle) {
-  if let Some(win) = app.get_webview_window("main") {
-    let _ = win.unminimize();
-    let _ = win.show();
-    let _ = win.set_focus();
+  // The hotkey fires on the event-tap thread, where AppKit activation is a
+  // no-op, so everything runs on the main thread instead.
+  let handle = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    if let Some(win) = handle.get_webview_window("main") {
+      let _ = win.unminimize();
+      let _ = win.show();
+      // Accessory-policy apps never steal key focus on show alone, so the
+      // window lands behind the active app without an explicit activation.
+      #[cfg(target_os = "macos")]
+      activate();
+      let _ = win.set_focus();
+    }
+  });
+}
+
+#[cfg(target_os = "macos")]
+fn activate() {
+  use objc2::MainThreadMarker;
+  use objc2_app_kit::NSApplication;
+  if let Some(mtm) = MainThreadMarker::new() {
+    #[allow(deprecated)]
+    NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
   }
 }
 

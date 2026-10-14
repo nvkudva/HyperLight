@@ -58,7 +58,7 @@ def index_applications(emb: embedder.Embedder, store: storage.Storage) -> int:
         return 0
     texts = [a["content"] for a in apps]
     titles = [a["filename"] for a in apps]
-    vectors = emb.embed_texts(texts, titles=titles, batch_size=8)
+    vectors = emb.embed_texts(texts, titles=titles, batch_size=32)
     for app_item, vec in zip(apps, vectors):
         app_item["vector"] = vec
         app_item["source"] = "macos_system"
@@ -124,7 +124,7 @@ def index_system_settings(emb: embedder.Embedder, store: storage.Storage) -> int
     settings = get_system_settings()
     texts = [s["content"] for s in settings]
     titles = [s["filename"] for s in settings]
-    vectors = emb.embed_texts(texts, titles=titles, batch_size=8)
+    vectors = emb.embed_texts(texts, titles=titles, batch_size=32)
     for setting_item, vec in zip(settings, vectors):
         setting_item["vector"] = vec
         setting_item["source"] = "macos_system"

@@ -57,7 +57,8 @@ def api_text(path: str) -> Response:
 @router.get("/api/preview")
 def api_preview(path: str, size: int = 800) -> Response:
     file_path = Path(path).resolve()
-    if not file_path.is_file():
+    is_app_bundle = file_path.suffix.lower() == ".app" and file_path.is_dir()
+    if not file_path.is_file() and not is_app_bundle:
         return Response(status_code=404)
     stat = file_path.stat()
     key = hashlib.sha1(f"{file_path}:{stat.st_mtime_ns}:{size}".encode()).hexdigest()

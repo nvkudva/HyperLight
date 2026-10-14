@@ -2,7 +2,7 @@ import React from "react";
 import { ApiError, indexAppleMail, indexDriveLocations, launchTarget, openSettingsPane, toggleSourceWatch } from "../../api";
 import { DRIVE_DOWNLOAD_URL, useDriveLocations } from "../../hooks/useDriveLocations";
 import type { ConfiguredSource } from "../../types";
-import { CloudIcon, GoogleLogo, MailIcon } from "../common/Icons";
+import { CloudIcon, MailIcon } from "../common/Icons";
 import ui from "../Settings/SettingsPage.module.css";
 import shared from "../Settings/SettingsShared.module.css";
 import styles from "./GoogleAccountCard.module.css";
@@ -130,24 +130,6 @@ export const GoogleAccountCard: React.FC<GoogleAccountCardProps> = ({ sources, o
               <input type="checkbox" role="switch" checked={isOn(mailSources)} onChange={handleToggleMail} aria-label="Apple Mail indexing" />
               <span className={shared.slider} />
             </label>
-          </div>
-        </li>
-
-        <li className={`${styles.serviceRow} ${styles.disabledRow}`} aria-disabled="true">
-          <span className={styles.logoBadge}>
-            <GoogleLogo className="w-3.5 h-3.5" />
-          </span>
-          <div className={styles.serviceText}>
-            <span className={styles.serviceTitle}>
-              Sign in with Google
-              <span className={`${ui.badge} ${ui.badgeNeutral}`}>Coming soon</span>
-            </span>
-            <span className={styles.serviceSubtitle}>Photos, Drive and Gmail through your Google account.</span>
-          </div>
-          <div className={styles.serviceControls}>
-            <button className={`${ui.button} ${ui.primary}`} disabled>
-              Sign in
-            </button>
           </div>
         </li>
       </ul>

@@ -5,6 +5,7 @@ import {
   fetchStatus,
   launchTarget,
   revealTarget,
+  warmup,
 } from './api'
 import { ContextMenu } from './components/ContextMenu/ContextMenu'
 import { SearchScreen, type FeedApi } from './components/Search/SearchScreen'
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     reloadData()
+    warmup().catch(() => {})
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('google_connected')) {
       setScreen('settings')

@@ -45,6 +45,8 @@ export interface ResultCardProps {
 const PHOTOS_COLLAPSED = 12
 
 const kindOf = (item: SearchResult) => item.type ?? item.file_type ?? 'document'
+const displayName = (item: SearchResult) => (item.filename ?? '').replace(/\.app$/i, '')
+const isSystemEntry = (item: SearchResult) => ['app', 'setting'].includes(kindOf(item))
 
 function highlight(text: string, terms: string[]): React.ReactNode {
   const clean = terms.map((t) => t.trim()).filter((t) => t.length > 1)
@@ -99,9 +101,11 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     const [photosExpanded, setPhotosExpanded] = useState(false)
     const buckets = useMemo(
       () =>
-        photosExpanded
-          ? allBuckets
-          : allBuckets.map((b) => (b.kind === 'photo' ? { ...b, items: b.items.slice(0, PHOTOS_COLLAPSED) } : b)),
+        allBuckets.map((b) => {
+          if (b.kind === 'photo' && !photosExpanded) return { ...b, items: b.items.slice(0, PHOTOS_COLLAPSED) }
+          if (b.kind === 'app' || b.kind === 'setting') return { ...b, items: b.items.slice(0, 2) }
+          return b
+        }),
       [allBuckets, photosExpanded]
     )
     const hiddenPhotos = (allBuckets.find((b) => b.kind === 'photo')?.items.length ?? 0) - PHOTOS_COLLAPSED
@@ -117,6 +121,11 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
 
     const current = flatItems[selected]
     const [failedPreviews, setFailedPreviews] = useState<Set<string>>(() => new Set())
+    const showTextPreview =
+      !!current &&
+      !!current.content &&
+      !['photo', 'video', 'audio'].includes(kindOf(current)) &&
+      (!VISUAL_PREVIEW.test(current.path) || failedPreviews.has(current.path))
 
     const itemId = (index: number) => `search-item-${cardId}-${index}`
 
@@ -142,6 +151,27 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
       return () => registerKeyHandler(() => {})
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected, flatItems, current])
+
+    // Arrows work with focus anywhere outside inputs and buttons; the search
+    // box path above already covers focus inside it.
+    useEffect(() => {
+      if (!registerKeyHandler) return
+      const onWindowKey = (e: KeyboardEvent) => {
+        const t = e.target as HTMLElement | null
+        if (
+          t &&
+          (t.tagName === 'INPUT' ||
+            t.tagName === 'TEXTAREA' ||
+            t.tagName === 'SELECT' ||
+            t.tagName === 'BUTTON' ||
+            t.isContentEditable)
+        )
+          return
+        handleKeyDown(e as unknown as React.KeyboardEvent)
+      }
+      window.addEventListener('keydown', onWindowKey)
+      return () => window.removeEventListener('keydown', onWindowKey)
+    })
 
     useEffect(() => {
       if (!eager) return
@@ -181,7 +211,33 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                 return (
                   <div key={bucket.kind} role="group" aria-label={bucket.label}>
                     <div className={styles.categoryTitle}>{bucket.label}</div>
-                    {bucket.items.map((item, idx) => {
+                    {bucket.kind === 'photo' ? (
+                      <div className={styles.photoGrid}>
+                        {bucket.items.map((item, idx) => {
+                          const index = offset + idx
+                          const isSelected = index === selected
+                          if (failedPreviews.has(item.path)) return null
+                          return (
+                            <img
+                              key={item.path || idx}
+                              id={itemId(index)}
+                              role="option"
+                              aria-selected={isSelected}
+                              className={`${styles.photoCell} ${isSelected ? styles.photoCellSelected : ''}`}
+                              src={`/api/thumbnail?path=${encodeURIComponent(item.path)}`}
+                              alt=""
+                              loading="lazy"
+                              onMouseEnter={() => setSelected(index)}
+                              onClick={() => setSelected(index)}
+                              onDoubleClick={() => onOpen(item)}
+                              onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
+                              onError={() => setFailedPreviews((prev) => new Set(prev).add(item.path))}
+                            />
+                          )
+                        })}
+                      </div>
+                    ) : (
+                    bucket.items.map((item, idx) => {
                       const index = offset + idx
                       const isSelected = index === selected
                       const terms = item.matched_terms?.length
@@ -202,12 +258,15 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                         >
                           <ResultThumbnail path={item.path} fallback={renderIcon(kindOf(item))} />
                           <div className={styles.itemText}>
-                            <div className={styles.itemTitle}>{highlight(item.filename, terms)}</div>
-                            <div className={styles.itemDesc}>{highlight(desc, terms)}</div>
+                            <div className={styles.itemTitle}>{highlight(displayName(item), terms)}</div>
+                            {!isSystemEntry(item) && (
+                              <div className={styles.itemDesc}>{highlight(desc, terms)}</div>
+                            )}
                           </div>
                         </div>
                       )
-                    })}
+                    })
+                    )}
                     {bucket.kind === 'photo' && !photosExpanded && hiddenPhotos > 0 && (
                       <button className={styles.showMore} onClick={() => setPhotosExpanded(true)}>
                         Show {hiddenPhotos} more photos
@@ -248,6 +307,15 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                     loading="lazy"
                     onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}
                   />
+                ) : kindOf(current) === 'app' && !failedPreviews.has(current.path) ? (
+                  <img
+                    key={current.path}
+                    className={styles.previewImage}
+                    src={`/api/preview?path=${encodeURIComponent(current.path)}`}
+                    alt={`Icon of ${displayName(current)}`}
+                    loading="lazy"
+                    onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}
+                  />
                 ) : VISUAL_PREVIEW.test(current.path) && !failedPreviews.has(current.path) ? (
                   <img
                     key={current.path}
@@ -257,13 +325,13 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                     loading="lazy"
                     onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}
                   />
-                ) : (
+                ) : showTextPreview ? null : (
                   <div className={styles.previewIconWrap}>{renderIcon(kindOf(current), styles.previewIcon)}</div>
                 )}
-                <h2 className={styles.previewTitle}>{current.filename}</h2>
-                <p className={styles.previewPath}>{current.path}</p>
-                {current.content && !['photo', 'video', 'audio'].includes(kindOf(current)) && (!VISUAL_PREVIEW.test(current.path) || failedPreviews.has(current.path)) && (
-                  <TextPreview path={current.path} snippet={current.content} />
+                <h2 className={styles.previewTitle}>{displayName(current)}</h2>
+                {!showTextPreview && !isSystemEntry(current) && <p className={styles.previewPath}>{current.path}</p>}
+                {showTextPreview && (
+                  <TextPreview path={current.path} snippet={current.content ?? ''} />
                 )}
                 <div className={styles.previewActions}>
                   <button className={`${styles.actionButton} ${styles.primary}`} onClick={() => onOpen(current)}>
