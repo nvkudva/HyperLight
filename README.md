@@ -1,111 +1,127 @@
+<p align="center">
+  <img src="assets/hyperlight_banner.png" alt="Hyperlight" width="720">
+</p>
+
 # Hyperlight
 
-Hyperlight is a private, local-first multimodal personal search engine and AI assistant for macOS (Apple Silicon). It acts as a next-generation Spotlight and Siri replacement, allowing you to search and ask questions across your personal life—documents, code, photos, notes, calendar events, contacts, bookmarks, and installed applications—without compromising privacy.
+Private, on-device search for your Mac. Find photos, documents, code, mail and apps by describing them. Nothing leaves your machine.
+
+Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu bar, opens with a double-tap of Control, and understands both text and images in one search.
 
 ---
 
-## 🎯 Intent & Goals
+## Highlights
 
-- **100% Local & Private**: All file parsing, embeddings, vector searches, and LLM question answering occur strictly on-device. No personal data or document content is sent to third-party cloud AI providers.
-- **Unified Multimodal Understanding**: A single shared semantic vector space enables cross-modal search—find photos using natural language concepts (e.g., *"receipt from dinner"* or *"sunset at the beach"*) and retrieve documents using conversational queries.
-- **Local RAG & Synthesized Answers**: Generate accurate answers and summaries with source citations from your personal files using a local LLM (Gemma 2 via Ollama).
-- **Zero-Wait & High-Throughput Indexing**: Instant live indexing (<15ms) via macOS kernel FSEvents, multi-core parallel file parsing, PyArrow zero-copy batch inserts, and Apple Silicon MPS hardware acceleration.
-- **Native macOS Experience**: Fluid Apple Glass UI, Spotlight floating HUD with `⌘K` global shortcuts, and a native desktop container built on Tauri v2 with macOS window vibrancy.
+### Search that understands meaning
+- **One search for everything.** Documents, code, photos, contacts, calendar events, bookmarks, mail and apps share a single semantic index. Type *"receipt from dinner"* or *"sunset at the beach"* and get the right photos and files.
+- **More photo matches.** Photos are ranked in their own pool, so text hits never crowd them out. Up to 30 photo results show per search, 12 at first, with a "Show more" button.
+- **Best match first.** Results are ranked by semantic match plus filename and keyword hits, grouped by type.
+- **Ask questions.** A local LLM (Gemma 2 through Ollama) answers questions about your files and cites its sources.
 
----
+### Speak your search
+- **Voice search.** Press the hotkey, talk, and results update while you speak. A local Whisper model transcribes your voice.
+- **Noise-proof.** If the mic hears no voice, nothing is searched and nothing shows.
+- **Esc to restart.** Esc clears the current search and keeps the mic recording, so your next sentence starts a new search. Press Esc twice to stop the mic and drop the voice search.
 
-## 🚀 What We Have Built Till Now (Summary)
+### Rich previews
+- **Quick Look previews** for PDF, Word, PowerPoint, Excel, Keynote, Pages, Numbers, RTF and images.
+- **Formatted text previews.** Markdown renders with headings and lists. JSON is pretty-printed. CSV shows as a table. Code and logs show in monospace.
 
-### 1. Multimodal Embedding & Hybrid Search
-- **Unified Vector Space**: Integrated OpenCLIP (`ViT-B-32`) with Apple Silicon MPS (Metal Performance Shaders) acceleration to embed text and images into the same 512-dimensional vector space.
-- **Embedded Vector Database**: Configured serverless, embedded LanceDB for persistent vector storage.
-- **Hybrid Retrieval**: Combined dense semantic vector similarity with lexical keyword matching (BM25/FTS) to ensure exact matches (names, extensions, IDs) and conceptual matches are ranked fairly.
+### Native Mac experience
+- **Menu bar app.** No Dock icon. Open, Voice Search, History, Settings, Open at Login, Restart and Quit are one click away.
+- **Global hotkey.** Double-tap Control, or record your own shortcut. Hyperlight checks the Input Monitoring permission and helps you grant it: a small window sits under System Settings, and you drag the app into the list.
+- **Frameless glass window** with hide-on-close and macOS vibrancy. Built on Tauri 2 and React 19.
 
-### 2. Accelerated File Ingestion & Kernel Watcher
-- **Multi-Format Parsers**: Extracted text, metadata, and visual features from PDFs, Word docs (`.docx`), plain text, markdown, source code files, photos (JPEG, PNG, HEIC, WebP), contacts (`.vcf`), calendars (`.ics`), and web bookmarks (`.webloc`).
-- **Performance Optimizations**:
-  - Iterative APFS directory crawling with cached direntries (avoiding extraneous `stat` system calls).
-  - Multi-threaded file extraction across all CPU cores (`ThreadPoolExecutor`).
-  - PyArrow zero-copy record batch writes directly into LanceDB.
-  - Incremental `mtime` caching and directory pruning (`.git`, `node_modules`, `.venv`).
-- **Live Background Watcher**: Integrated macOS kernel `FSEvents` using `watchdog` to index newly modified/created files in real time (<15ms) with 0.5s debouncing, and dynamically prune deleted records from the database.
+### Sources
+- **Local folders** and network volumes, indexed in parallel with incremental rescans.
+- **Live scanning.** macOS FSEvents index new and changed files within moments and remove deleted ones. One master switch turns it on or off, and each source has its own switch.
+- **Google Drive** through Drive for desktop, with an on/off switch.
+- **Apple Mail**, with an on/off switch. Hyperlight asks for Full Disk Access when it needs it.
+- **Sign in with Google** for Photos, Drive and Gmail is coming soon.
 
-### 3. Local LLM Q&A Engine (RAG)
-- **Gemma 2 Integration**: Connected to local Ollama (`gemma2:2b`) for private question answering.
-- **Context & Source Citations**: Formats retrieved document chunks and rich file metadata (file size, extension, modified timestamps) into structured context, returning answers with clickable source paths and visual evidence.
-
-### 4. System & Cloud Connectors
-- **Native macOS Connectors**: Ingests installed applications (`/Applications`, `/System/Applications`), Safari bookmarks, Apple Notes, Contacts, and Calendar events.
-- **Mounted Volumes**: Auto-discovers external drives, SMB/NFS network shares, and local Google Drive CloudStorage mounts.
-- **Google Drive & Google Photos Cloud Sync**: Full Google OAuth 2.0 integration with token refresh and REST API synchronization for users who store assets in Google Drive and Google Photos.
-
-### 5. Multi-Surface User Interfaces
-- **Command Line Interface (`cli.py`)**: Terminal commands for indexing directories, querying files, asking questions, and monitoring status.
-- **Modern React 19 Frontend**: Componentized UI built with React 19, TypeScript, Vite, CSS Modules, and Tailwind CSS. Features an Apple Glass design aesthetic, chat workspace, photo lightbox, source manager, and toast alerts.
-- **Spotlight Floating HUD**: Quick-access modal overlay (`⌘K`) with instant keystroke filtering across categories (Apps, Documents, Photos, Contacts, Calendar).
-- **Native macOS Desktop App**: Packaged into a native macOS desktop application using Tauri v2 with `titleBarStyle: "Overlay"` and seamless window dragging.
-- **Asynchronous Logging**: Non-blocking queue logger streaming system and search events to `~/.hyperlight/app.log`.
+### Private by design
+- Embeddings, vector search, speech recognition and question answering all run on your Mac.
+- No file content goes to a cloud AI service.
 
 ---
 
-## 🛠️ Technologies Used
+## Under the hood
 
-| Category | Technologies |
+| Layer | Technology |
 | :--- | :--- |
-| **AI & Multimodal Embeddings** | [OpenCLIP](https://github.com/mlfoundations/open_clip) (`ViT-B-32`, LAION-2B), PyTorch (Apple Silicon MPS / Metal acceleration) |
-| **Local LLM & Reasoning** | [Ollama](https://ollama.com/) running **Gemma 2** (`gemma2:2b`) |
-| **Vector Storage** | [LanceDB](https://lancedb.github.io/lancedb/) (embedded serverless vector DB), [Apache Arrow / PyArrow](https://arrow.apache.org/) (zero-copy record batches) |
-| **Backend & APIs** | Python 3.12, [FastAPI](https://fastapi.tiangolo.com/), Uvicorn, Pydantic |
-| **File Extraction & System** | `pypdf`, `python-docx`, `Pillow`, `watchdog` (macOS `FSEvents`), `plistlib`, AppleScript |
-| **Frontend UI** | [React 19](https://react.dev/), TypeScript, [Vite](https://vite.dev/), Tailwind CSS, CSS Modules |
-| **Desktop Wrapper** | [Tauri v2](https://v2.tauri.app/) (Rust-backed macOS window shell with native glass vibrancy) |
-| **Package Managers** | [Bun](https://bun.sh/) (frontend toolchain), Python `venv` |
-| **Cloud Integrations** | Google OAuth 2.0, Google Drive REST API v3, Google Photos Library REST API v1 |
+| Embeddings | EmbeddingGemma through `sentence-transformers`, with PyTorch on Apple Silicon (MPS) |
+| Vector store | [LanceDB](https://lancedb.github.io/lancedb/) with Apache Arrow batch writes |
+| Speech | [OpenAI Whisper](https://github.com/openai/whisper) (`base`), run locally |
+| Question answering | [Ollama](https://ollama.com/) running `gemma2:2b` |
+| Backend | Python 3.12, FastAPI, Uvicorn, `watchdog` (FSEvents) |
+| Desktop shell | [Tauri 2](https://v2.tauri.app/) (Rust) with tray, global hotkey and autostart |
+| Frontend | React 19, TypeScript, Vite, CSS Modules, Tailwind CSS |
 
 ---
 
-## ⚡ Quick Start
+## Get started
 
-### 1. Prerequisites
-- macOS on Apple Silicon (M1/M2/M3/M4 recommended)
-- Python 3.12+
-- [Ollama](https://ollama.com/) with Gemma 2 installed:
-  ```bash
-  ollama pull gemma2:2b
-  ```
-- [Bun](https://bun.sh/) (for frontend dependencies)
+### Prerequisites
+- macOS on Apple Silicon
+- Python 3.12 or later
+- [Bun](https://bun.sh/) and [Rust](https://rustup.rs/)
+- [Ollama](https://ollama.com/), then `ollama pull gemma2:2b`
 
-### 2. Setup
+### Set up
 ```bash
-# Clone and enter directory
-cd "Hyperlight"
-
-# Setup Python virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r <(pip freeze) # or ensure packages from pyproject/requirements are installed
+uv pip install fastapi uvicorn lancedb pyarrow sentence-transformers torch openai-whisper watchdog pillow pypdf python-docx
 
-# Setup and build frontend
 cd frontend
 bun install
 bun run build
 cd ..
 ```
 
-### 3. Usage
-- **CLI Search & Ask**:
-  ```bash
-  python3 cli.py index ~/Documents
-  python3 cli.py search "tax return 2024"
-  python3 cli.py ask "What was my deductible on last year's insurance?"
-  ```
-- **Web App**:
-  ```bash
-  python3 web_app.py
-  # Access UI at http://127.0.0.1:8585
-  ```
-- **Desktop Application (Tauri)**:
-  ```bash
-  cd frontend
-  bun run tauri dev
-  ```
+### Run the desktop app
+```bash
+./dev-app.sh
+```
+This starts the backend on port 8585, builds the Tauri shell, signs it and opens one window. Do not run `tauri dev` at the same time.
+
+### Run the web app
+```bash
+python3 web_app.py
+# open http://127.0.0.1:8585
+```
+
+### Use the command line
+```bash
+python3 cli.py index ~/Documents
+python3 cli.py search "tax return 2024"
+python3 cli.py ask "What was my deductible on last year's insurance?"
+python3 cli.py status
+```
+
+---
+
+## Keyboard
+
+| Key | Action |
+| :--- | :--- |
+| Double-tap Control | Show Hyperlight |
+| Double-tap Control, then speak | Voice search |
+| ↑ / ↓ | Move through results |
+| Return | Open the selected result |
+| ⌘R | Reveal in Finder |
+| ⌘K | Focus search |
+| ⌘, | Open or close Settings |
+| Esc | Clear the search. The mic keeps recording. |
+| Esc Esc | Stop the mic and cancel the voice search |
+
+---
+
+## Releases
+
+Pushing a tag such as `v0.1.0-beta.2` builds the Tauri app on GitHub Actions and publishes a prerelease. Beta builds are unsigned and still need the repository and `.venv` for the backend. Bundling the backend is on the [TODO](TODO.md) list.
+
+## Project notes
+
+- [PLAN.md](PLAN.md) holds the architecture and decisions.
+- [TODO.md](TODO.md) holds open work.
