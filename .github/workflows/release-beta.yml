@@ -22,6 +22,15 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: bun install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build bundled backend sidecar
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python3 -m pip install -r requirements.txt pyinstaller
+          ./packaging/build_sidecar.sh
+          test -x frontend/src-tauri/resources/hyperlight-backend/hyperlight-backend
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -29,6 +38,19 @@ jobs:
           projectPath: frontend
           tagName: ${{ github.ref_name }}
           releaseName: Hyperlight ${{ github.ref_name }}
-          releaseBody: Beta build. Unsigned. The app needs the repo checkout and .venv for the backend.
+          releaseBody: |
+            Beta build for Apple Silicon. Standalone: the Python backend is bundled inside the app, no repo checkout or .venv needed.
+
+            This build is ad-hoc signed, not notarized (no Developer ID yet), so macOS Gatekeeper will block the first launch. After dragging Hyperlight to Applications, run once in Terminal:
+
+            xattr -cr /Applications/Hyperlight.app
+
+            Then open Hyperlight normally. Chat answers need Ollama running locally; search and indexing work without it. Models download on first use.
           releaseDraft: false
           prerelease: true
+      - name: Verify published bundle seal
+        run: |
+          APP=$(find frontend/src-tauri/target -name 'Hyperlight.app' -maxdepth 6 | head -1)
+          test -n "$APP"
+          codesign --verify --deep --strict "$APP"
+          test -x "$APP/Contents/Resources/backend/hyperlight-backend"

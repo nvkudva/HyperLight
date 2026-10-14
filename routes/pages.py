@@ -1,4 +1,6 @@
 """Static page routes (React shell + favicon)."""
+import os
+import sys
 from pathlib import Path
 
 import fastapi
@@ -6,8 +8,25 @@ from fastapi.responses import HTMLResponse, Response
 
 router = fastapi.APIRouter()
 
-FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
-TEMPLATE_PATH = Path(__file__).parent.parent / "templates" / "index.html"
+
+def resource_root() -> Path:
+    """Where bundled resources (frontend/dist, templates) live.
+
+    Frozen PyInstaller sidecar: resources extract to ``sys._MEIPASS``.
+    ``HYPERLIGHT_RESOURCE_DIR`` overrides for tests and custom layouts.
+    Otherwise the repo root (this file's grandparent).
+    """
+    frozen_root = getattr(sys, "_MEIPASS", None)
+    if frozen_root:
+        return Path(frozen_root)
+    override = os.environ.get("HYPERLIGHT_RESOURCE_DIR")
+    if override:
+        return Path(override)
+    return Path(__file__).parent.parent
+
+
+FRONTEND_DIST = resource_root() / "frontend" / "dist"
+TEMPLATE_PATH = resource_root() / "templates" / "index.html"
 
 
 @router.get("/", response_class=HTMLResponse)

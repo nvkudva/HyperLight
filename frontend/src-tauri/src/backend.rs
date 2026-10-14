@@ -33,13 +33,41 @@ fn project_dir() -> PathBuf {
     .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."))
 }
 
+/// Bundled sidecar for a given app executable path
+/// (`.../Hyperlight.app/Contents/MacOS/hyperlight`), if the frozen Python
+/// backend was bundled into `Contents/Resources/backend/`.
+fn sidecar_path(exe: &std::path::Path) -> Option<PathBuf> {
+  let contents_dir = exe.parent()?.parent()?;
+  let candidate = contents_dir.join("Resources/backend/hyperlight-backend");
+  candidate.is_file().then_some(candidate)
+}
+
+fn bundled_sidecar() -> Option<PathBuf> {
+  std::env::current_exe().ok().and_then(|exe| sidecar_path(&exe))
+}
+
 fn spawn_process() -> std::io::Result<()> {
-  let dir = project_dir();
-  let script = dir.join("web_app.py");
   let log_dir = PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| "/tmp".into())).join(".hyperlight");
   std::fs::create_dir_all(&log_dir)?;
   let log = std::fs::OpenOptions::new().create(true).append(true).open(log_dir.join("backend.log"))?;
 
+  // Release builds run the bundled frozen backend; dev builds fall back to
+  // the repo checkout's .venv below.
+  if let Some(sidecar) = bundled_sidecar() {
+    if TcpStream::connect_timeout(&SocketAddr::from(ADDR), Duration::from_millis(300)).is_ok() {
+      // Port open but HTTP dead: a hung backend holds the port, so replace it.
+      let _ = Command::new("/usr/bin/pkill").arg("-9").arg("-f").arg(&sidecar).status();
+      std::thread::sleep(POLL);
+    }
+    return Command::new(&sidecar)
+      .stdout(Stdio::from(log.try_clone()?))
+      .stderr(Stdio::from(log))
+      .spawn()
+      .map(|_| ());
+  }
+
+  let dir = project_dir();
+  let script = dir.join("web_app.py");
   if TcpStream::connect_timeout(&SocketAddr::from(ADDR), Duration::from_millis(300)).is_ok() {
     // Port open but HTTP dead: a hung backend holds the port, so replace it.
     let _ = Command::new("/usr/bin/pkill").arg("-9").arg("-f").arg(&script).status();
@@ -52,6 +80,32 @@ fn spawn_process() -> std::io::Result<()> {
     .stderr(Stdio::from(log))
     .spawn()
     .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::sidecar_path;
+
+  #[test]
+  fn finds_bundled_sidecar_next_to_app_executable() {
+    let root = std::env::temp_dir().join(format!("hyperlight-sidecar-test-{}", std::process::id()));
+    let macos_dir = root.join("Hyperlight.app/Contents/MacOS");
+    let backend_dir = root.join("Hyperlight.app/Contents/Resources/backend");
+    std::fs::create_dir_all(&macos_dir).expect("create MacOS dir");
+    std::fs::create_dir_all(&backend_dir).expect("create backend dir");
+    std::fs::write(backend_dir.join("hyperlight-backend"), b"fake").expect("write sidecar");
+
+    let exe = macos_dir.join("hyperlight");
+    let found = sidecar_path(&exe);
+    std::fs::remove_dir_all(&root).ok();
+    assert_eq!(found, Some(backend_dir.join("hyperlight-backend")));
+  }
+
+  #[test]
+  fn no_sidecar_when_not_bundled() {
+    let exe = std::path::Path::new("/tmp/Hyperlight.app/Contents/MacOS/hyperlight");
+    assert_eq!(sidecar_path(exe), None);
+  }
 }
 
 /// Blocks until the backend answers, starting it if needed. Call off the main thread.

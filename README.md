@@ -119,7 +119,15 @@ python3 cli.py status
 
 ## Releases
 
-Pushing a tag such as `v0.1.0-beta.2` builds the Tauri app on GitHub Actions and publishes a prerelease. Beta builds are unsigned and still need the repository and `.venv` for the backend. Bundling the backend is on the [TODO](TODO.md) list.
+Pushing a tag such as `v0.1.0-beta.2` builds the Tauri app on GitHub Actions and publishes a prerelease. Beta builds bundle the Python backend inside the app, so the DMG runs standalone on Apple Silicon with no repository or `.venv`.
+
+The build is ad-hoc signed, not notarized, so Gatekeeper blocks the first launch. After dragging Hyperlight to Applications, run once in Terminal, then open it normally:
+
+```
+xattr -cr /Applications/Hyperlight.app
+```
+
+Chat answers need Ollama running locally; search and indexing work without it. Models download on first use.
 
 ## Project notes
 

@@ -41,7 +41,11 @@
       "app",
       "dmg"
     ],
+    "resources": {
+      "resources/hyperlight-backend": "backend"
+    },
     "macOS": {
+      "signingIdentity": "-",
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "13.0",
       "files": {

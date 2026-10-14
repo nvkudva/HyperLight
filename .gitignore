@@ -1,4 +1,6 @@
 .venv/
+packaging/build/
+frontend/src-tauri/resources/hyperlight-backend/
 __pycache__/
 *.pyc
 .smart_personal_search/
