@@ -130,20 +130,31 @@ pub fn show_window(app: &tauri::AppHandle) {
       // Accessory-policy apps never steal key focus on show alone, so the
       // window lands behind the active app without an explicit activation.
       #[cfg(target_os = "macos")]
-      activate();
+      bring_to_front(&win);
       let _ = win.set_focus();
     }
   });
 }
 
 #[cfg(target_os = "macos")]
-fn activate() {
-  use objc2::MainThreadMarker;
-  use objc2_app_kit::NSApplication;
-  if let Some(mtm) = MainThreadMarker::new() {
+fn bring_to_front(win: &tauri::WebviewWindow) {
+  use objc2::{MainThreadMarker, sel};
+  use objc2_app_kit::{NSApplication, NSWindow, NSWindowCollectionBehavior};
+  use objc2::runtime::NSObjectProtocol;
+  let Some(mtm) = MainThreadMarker::new() else { return };
+  let app = NSApplication::sharedApplication(mtm);
+  // macOS 14+ ignores activateIgnoringOtherApps; `activate` is its replacement.
+  if app.respondsToSelector(sel!(activate)) {
+    app.activate();
+  } else {
     #[allow(deprecated)]
-    NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+    app.activateIgnoringOtherApps(true);
   }
+  let Ok(ptr) = win.ns_window() else { return };
+  let ns_window = unsafe { &*(ptr as *const NSWindow) };
+  // Follow the user to the current Space, including over full-screen apps.
+  ns_window.setCollectionBehavior(NSWindowCollectionBehavior::MoveToActiveSpace | NSWindowCollectionBehavior::FullScreenAuxiliary);
+  ns_window.orderFrontRegardless();
 }
 
 /// Brings the window forward and tells the UI to focus search, or start recording when `voice`.
