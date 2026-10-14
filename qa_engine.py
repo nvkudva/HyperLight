@@ -89,7 +89,7 @@ class QAEngine:
                     "prompt": prompt,
                     "stream": False,
                     "keep_alive": "30m",
-                    "options": {"num_ctx": 2048},
+                    "options": {"num_ctx": 4096},
                 },
                 timeout=(3, 60),
             )

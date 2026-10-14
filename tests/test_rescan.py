@@ -112,6 +112,9 @@ class _FakeJobs:
     def stop_indexing(self):
         self.stopped = True
 
+    def wait_until_idle(self):
+        pass
+
 
 class _FakeClearStore:
     def __init__(self):

@@ -25,6 +25,9 @@ class _FakeJobs:
     def stop_indexing(self):
         pass
 
+    def wait_until_idle(self):
+        pass
+
 
 class ClearRouteTest(unittest.TestCase):
     def test_clear_route_clears_storage(self):

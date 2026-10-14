@@ -96,7 +96,9 @@ def api_remove_source(req: RemoveSourceRequest) -> Dict[str, str]:
 
 @router.post("/api/clear")
 def api_clear() -> Dict[str, str]:
-    app_state.get_jobs().stop_indexing()
+    jobs = app_state.get_jobs()
+    jobs.stop_indexing()
+    jobs.wait_until_idle()
     app_state.get_storage().clear()
     sources.reset_counts()
     return {"status": "cleared"}

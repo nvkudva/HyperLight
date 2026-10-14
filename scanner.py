@@ -645,52 +645,65 @@ class Scanner:
         # One pool per scan, not per chunk: creating and tearing down a pool
         # for every 64 files churns threads for no reason.
         pool = ThreadPoolExecutor(max_workers=workers)
+        cancelled = False
         try:
-            for chunk_start in range(0, total_files, CHUNK_SIZE):
-                if cancel_check and cancel_check():
-                    break
+            try:
+                for chunk_start in range(0, total_files, CHUNK_SIZE):
+                    if cancel_check and cancel_check():
+                        cancelled = True
+                        break
 
-                chunk_files = files_to_process[chunk_start : chunk_start + CHUNK_SIZE]
-                files_to_parse = []
-                for file_path, st_mtime, st_size in chunk_files:
-                    try:
-                        resolved_str = str(file_path.resolve())
-                        if resolved_str in indexed_mtimes and abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
-                            continue
-                    except Exception:
-                        pass
-                    files_to_parse.append(file_path)
+                    chunk_files = files_to_process[chunk_start : chunk_start + CHUNK_SIZE]
+                    files_to_parse = []
+                    for file_path, st_mtime, st_size in chunk_files:
+                        try:
+                            resolved_str = str(file_path.resolve())
+                            if resolved_str in indexed_mtimes and abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
+                                continue
+                        except Exception:
+                            pass
+                        files_to_parse.append(file_path)
 
-                # Already-indexed files count as processed without parsing.
-                processed_files += len(chunk_files) - len(files_to_parse)
-                if not files_to_parse:
-                    reporter.report(chunk_files[-1][0].name, processed_files)
+                    # Already-indexed files count as processed without parsing.
+                    processed_files += len(chunk_files) - len(files_to_parse)
+                    if not files_to_parse:
+                        reporter.report(chunk_files[-1][0].name, processed_files)
+                        continue
+
+                    # map streams results in order so progress and embedding
+                    # advance file-by-file instead of waiting for the whole chunk.
+                    for kind, fp, chunks in pool.map(self._parse_file, files_to_parse):
+                        if kind == "image":
+                            image_buffer.append(fp)
+                            if len(image_buffer) >= IMG_BATCH_SIZE:
+                                flush_images()
+                        elif kind == "doc" and chunks:
+                            doc_buffer.extend(chunks)
+                            if len(doc_buffer) >= BATCH_SIZE:
+                                flush_docs()
+                        processed_files += 1
+                        reporter.report(fp.name, processed_files)
+            finally:
+                pool.shutdown(wait=True)
+
+            if not cancelled:
+                flush_docs()
+                flush_images()
+            total_batches = len(pending)
+            for i, future in enumerate(pending):
+                if not cancelled and cancel_check and cancel_check():
+                    cancelled = True
+                if cancelled:
+                    # Queued batches must not write once the scan is stopped
+                    # (a Reset would otherwise be repopulated behind its back).
+                    embed_pool.shutdown(wait=True, cancel_futures=True)
+                if future.cancelled():
                     continue
-
-                # map streams results in order so progress and embedding
-                # advance file-by-file instead of waiting for the whole chunk.
-                for kind, fp, chunks in pool.map(self._parse_file, files_to_parse):
-                    if kind == "image":
-                        image_buffer.append(fp)
-                        if len(image_buffer) >= IMG_BATCH_SIZE:
-                            flush_images()
-                    elif kind == "doc" and chunks:
-                        doc_buffer.extend(chunks)
-                        if len(doc_buffer) >= BATCH_SIZE:
-                            flush_docs()
-                    processed_files += 1
-                    reporter.report(fp.name, processed_files)
+                if total_batches > 1:
+                    reporter.report(f"Embedding batch {i + 1}/{total_batches}...", processed_files)
+                indexed_items += future.result()
         finally:
-            pool.shutdown(wait=True)
-
-        flush_docs()
-        flush_images()
-        total_batches = len(pending)
-        for i, future in enumerate(pending):
-            if total_batches > 1:
-                reporter.report(f"Embedding batch {i + 1}/{total_batches}...", processed_files)
-            indexed_items += future.result()
-        embed_pool.shutdown(wait=True)
+            embed_pool.shutdown(wait=True, cancel_futures=True)
 
         return indexed_items
 

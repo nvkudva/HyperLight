@@ -159,6 +159,11 @@ class IndexJobManager:
                 self.cancel_requested = True
                 self.status = "Stopping scan..."
 
+    def wait_until_idle(self, timeout: float = 30.0) -> None:
+        thread = self.thread
+        if thread is not None:
+            thread.join(timeout)
+
     def _worker(self, job: Job) -> None:
         store = app_state.get_storage()
         sc = app_state.get_scanner()
