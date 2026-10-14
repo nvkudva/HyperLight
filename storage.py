@@ -274,7 +274,8 @@ class Storage:
         clauses = []
         for p in {target_path.rstrip("/") or "/", str(Path(target_path).expanduser().resolve())}:
             q = p.replace("'", "''")
-            clauses.append(f"path = '{q}' OR starts_with(path, '{q.rstrip('/')}/')")
+            prefix = q if q.endswith((":", "/")) else q.rstrip("/") + "/"
+            clauses.append(f"path = '{q}' OR starts_with(path, '{prefix}')")
         return " OR ".join(f"({c})" for c in clauses)
 
     def count_items_by_path(self, target_path: str) -> int:

@@ -91,6 +91,10 @@ export async function stopIndex(): Promise<{ status: string }> {
   return post('/api/stop-index')
 }
 
+export async function rescanSource(path: string): Promise<{ status?: JobStart; path?: string; name?: string }> {
+  return post('/api/sources/rescan', { path })
+}
+
 export async function removeSource(path: string): Promise<{ status: string }> {
   return post('/api/remove-source', { path })
 }
@@ -149,6 +153,10 @@ export function indexDriveLocations(locations: DriveLocation[]) {
 
 export async function indexApps(): Promise<{ status: JobStart }> {
   return post('/api/index-apps')
+}
+
+export async function indexSettings(): Promise<{ status: JobStart }> {
+  return post('/api/index-settings')
 }
 
 export async function openSettingsPane(pane: 'full-disk-access' | 'internet-accounts'): Promise<{ success: boolean }> {

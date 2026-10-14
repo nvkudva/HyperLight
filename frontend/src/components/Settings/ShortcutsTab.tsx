@@ -33,6 +33,7 @@ function displayKey(code: string): string {
 
 export function hotkeyLabel(hotkey: HotkeyConfig): string {
   if (hotkey === 'double_ctrl') return 'Double-press Right Ctrl'
+  if (hotkey === 'double_option') return 'Double-press Right Option'
   return hotkey.label
 }
 
@@ -94,6 +95,9 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
 
   const handleReset = () => onSaveHotkey({ hotkey: 'double_ctrl' }, 'Shortcut reset to double-press Right Ctrl.')
 
+  const handleDoubleOption = () =>
+    onSaveHotkey({ hotkey: 'double_option' }, 'Shortcut set to double-press Right Option (right side only).')
+
   const handleKeyboardAccess = async () => {
     const granted = await native.requestKeyboardAccess()
     if (granted !== null) setKeyboardGranted(granted)
@@ -139,6 +143,9 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
             <>
               <button className={shared.button} onClick={() => setRecording(true)}>
                 Change
+              </button>
+              <button className={shared.button} onClick={handleDoubleOption}>
+                Double Right Option
               </button>
               <button className={shared.button} onClick={handleReset}>
                 Reset

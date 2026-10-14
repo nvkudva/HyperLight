@@ -41,7 +41,7 @@ class SettingsUpdateRequest(pydantic.BaseModel):
     always_on_scanning: Optional[bool] = None
     custom_instructions: Optional[str] = None
     hotkey_enabled: Optional[bool] = None
-    hotkey: Optional[Union[Literal["double_ctrl"], HotkeyCombo]] = None
+    hotkey: Optional[Union[Literal["double_ctrl", "double_option"], HotkeyCombo]] = None
     hotkey_voice: Optional[bool] = None
 
 

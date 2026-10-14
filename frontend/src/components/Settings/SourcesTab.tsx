@@ -18,6 +18,7 @@ interface SourcesTabProps {
   sources: ConfiguredSource[]
   availablePresets: string[]
   hasAppsSource: boolean
+  hasSettingsSource: boolean
   isGlobalAlwaysOn: boolean
   watchedCount: number
   totalItems: number
@@ -32,6 +33,7 @@ interface SourcesTabProps {
   onAddManual: (e?: React.FormEvent) => void
   onIndexPreset: (p: string) => void
   onIndexApps: () => void
+  onIndexSettings: () => void
   onToggleAlwaysOn: () => void
   onToggleSourceWatch: (s: ConfiguredSource) => void
   onReveal: (path: string) => void
@@ -56,6 +58,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   sources,
   availablePresets,
   hasAppsSource,
+  hasSettingsSource,
   isGlobalAlwaysOn,
   watchedCount,
   totalItems,
@@ -70,6 +73,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   onAddManual,
   onIndexPreset,
   onIndexApps,
+  onIndexSettings,
   onToggleAlwaysOn,
   onToggleSourceWatch,
   onReveal,
@@ -325,6 +329,9 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                   <button className={shared.button} onClick={closeAnd(onConnectVolumes)}>Network Share…</button>
                   {!hasAppsSource && (
                     <button className={shared.button} onClick={closeAnd(onIndexApps)}>Index Applications</button>
+                  )}
+                  {!hasSettingsSource && (
+                    <button className={shared.button} onClick={closeAnd(onIndexSettings)}>Index Settings</button>
                   )}
                 </div>
               </>

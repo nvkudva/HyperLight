@@ -42,6 +42,10 @@ def _index_apps(progress, cancel, opts: Dict[str, Any]) -> None:
     connectors.index_applications(app_state.get_embedder(), app_state.get_storage())
 
 
+def _index_settings(progress, cancel, opts: Dict[str, Any]) -> None:
+    connectors.index_system_settings(app_state.get_embedder(), app_state.get_storage())
+
+
 CLOUD_SOURCES: Dict[str, CloudSource] = {
     "google_drive_cloud": CloudSource("Google Drive", "https://drive.google.com", "google_drive", _sync_drive),
     "google_photos_cloud": CloudSource("Google Photos", str(google_auth.PHOTOS_CACHE_DIR), "google_photos", _sync_photos),
@@ -51,6 +55,7 @@ CLOUD_SOURCES: Dict[str, CloudSource] = {
 # Indexed by a custom runner like the cloud sources, but local (not shown as a cloud job).
 SYSTEM_SOURCES: Dict[str, CloudSource] = {
     "macos_apps": CloudSource("macOS Applications", "/Applications", sources.SYSTEM_SOURCE_TYPE, _index_apps),
+    "macos_settings": CloudSource("macOS Settings", "x-apple.systempreferences:", sources.SYSTEM_SOURCE_TYPE, _index_settings),
 }
 
 
@@ -113,11 +118,11 @@ class IndexJobManager:
                 "jobs": jobs,
             }
 
-    def start_indexing(self, path: Path, source: str, name: str, options: Optional[Dict[str, Any]] = None) -> str:
-        job = Job(path, source, name, options or {})
+    def start_indexing(self, path: Path, source: str, name: str, options: Optional[Dict[str, Any]] = None, rescan: bool = False) -> str:
+        job = Job(path, source, name, {**(options or {}), "rescan": rescan})
         with self.lock:
             if self.is_running:
-                if not any(j.path == path and j.source == source for j in self.pending):
+                if not any(j.path == path and j.source == source and bool(j.options.get("rescan")) == rescan for j in self.pending):
                     self.pending.append(job)
                 return "queued"
             self.is_running = True
@@ -176,6 +181,8 @@ class IndexJobManager:
         else:
             name, track_path, kind = job.name, str(job.path), job.source
         try:
+            if job.options.get("rescan"):
+                store.remove_items_by_path(track_path)
             sources.record_scan(name, track_path, kind, store.count_items_by_path(track_path))
             if runner:
                 runner.run(on_progress, cancel_check, job.options)

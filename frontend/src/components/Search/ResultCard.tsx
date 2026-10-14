@@ -9,6 +9,7 @@ import {
   ContactIcon,
   DocumentIcon,
   PhotoIcon,
+  SettingsIcon,
   VideoIcon,
 } from '../common/Icons'
 import { ResultThumbnail, VISUAL_PREVIEW } from './ResultThumbnail'
@@ -17,6 +18,7 @@ import styles from './SearchScreen.module.css'
 
 const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
   app: [AppIcon, styles.indigo],
+  setting: [SettingsIcon, styles.indigo],
   contact: [ContactIcon, styles.green],
   calendar: [CalendarIcon, styles.red],
   photo: [PhotoIcon, styles.orange],

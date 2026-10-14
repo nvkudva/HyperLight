@@ -1,0 +1,164 @@
+"""Rescan deletes a folder's indexed data before re-indexing; DB reset zeroes source counts.
+
+Run: .venv/bin/python -m unittest tests.test_rescan -v
+"""
+import tempfile
+import unittest
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+import app_config
+import app_state
+import jobs
+import sources
+import web_app
+
+
+class _FakeWatcher:
+    def sync_sources(self):
+        pass
+
+
+class _FakeStore:
+    def __init__(self, events):
+        self.events = events
+        self.count = 0
+
+    def remove_items_by_path(self, path):
+        self.events.append(f"remove:{path}")
+        self.count = 0
+
+    def count_items_by_path(self, path):
+        return self.count
+
+
+class _FakeScanner:
+    def __init__(self, events, store):
+        self.events = events
+        self.store = store
+
+    def scan_path(self, path, source="local", on_progress=None, cancel_check=None):
+        self.events.append(f"scan:{path}")
+        self.store.count = 2
+        return 2
+
+
+class RescanWorkerTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name) / "docs"
+        self.folder.mkdir()
+        self._config_path = app_config.CONFIG_PATH
+        app_config.CONFIG_PATH = Path(self.tmp.name) / "config.json"
+        self.events = []
+        self.store = _FakeStore(self.events)
+        self.scanner = _FakeScanner(self.events, self.store)
+        self._getters = (app_state.get_storage, app_state.get_scanner, app_state.get_watcher)
+        app_state.get_storage = lambda: self.store
+        app_state.get_scanner = lambda: self.scanner
+        app_state.get_watcher = lambda: _FakeWatcher()
+
+    def tearDown(self):
+        app_config.CONFIG_PATH = self._config_path
+        app_state.get_storage, app_state.get_scanner, app_state.get_watcher = self._getters
+        self.tmp.cleanup()
+
+    def test_rescan_removes_before_scanning(self):
+        self.store.count = 5
+        manager = jobs.IndexJobManager()
+        manager._worker(jobs.Job(self.folder, "local", "Docs", {"rescan": True}))
+        self.assertEqual(self.events, [f"remove:{self.folder}", f"scan:{self.folder}"])
+        listed = sources.list_all()
+        self.assertEqual(listed[0]["items_count"], 2)
+
+    def test_normal_index_does_not_remove(self):
+        manager = jobs.IndexJobManager()
+        manager._worker(jobs.Job(self.folder, "local", "Docs", {}))
+        self.assertEqual(self.events, [f"scan:{self.folder}"])
+
+
+class ResetCountsTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name) / "docs"
+        self.folder.mkdir()
+        self._config_path = app_config.CONFIG_PATH
+        app_config.CONFIG_PATH = Path(self.tmp.name) / "config.json"
+
+    def tearDown(self):
+        app_config.CONFIG_PATH = self._config_path
+        self.tmp.cleanup()
+
+    def test_reset_counts_zeroes_items_and_last_scanned(self):
+        app_config.save_configured_source("Docs", str(self.folder), "local", 42)
+        sources.reset_counts()
+        listed = app_config.get_configured_sources()
+        self.assertEqual(listed[0]["items_count"], 0)
+        self.assertEqual(listed[0]["last_scanned"], 0)
+        self.assertEqual(listed[0]["path"], str(self.folder.resolve()))
+        self.assertTrue(listed[0]["watch_enabled"])
+
+
+class _FakeJobs:
+    def __init__(self):
+        self.calls = []
+        self.stopped = False
+
+    def start_indexing(self, path, source, name, options=None, rescan=False):
+        self.calls.append((str(path), source, name, rescan))
+        return "started"
+
+    def stop_indexing(self):
+        self.stopped = True
+
+
+class _FakeClearStore:
+    def __init__(self):
+        self.cleared = False
+
+    def clear(self):
+        self.cleared = True
+
+
+class RescanAndClearRouteTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name) / "docs"
+        self.folder.mkdir()
+        (self.folder / "a.txt").write_text("hello")
+        self._config_path = app_config.CONFIG_PATH
+        app_config.CONFIG_PATH = Path(self.tmp.name) / "config.json"
+        app_config.save_configured_source("Docs", str(self.folder), "local", 7)
+        self.fake_jobs = _FakeJobs()
+        self.fake_store = _FakeClearStore()
+        self._getters = (app_state.get_jobs, app_state.get_storage)
+        app_state.get_jobs = lambda: self.fake_jobs
+        app_state.get_storage = lambda: self.fake_store
+        self.client = TestClient(web_app.app, base_url="http://127.0.0.1:8585")
+
+    def tearDown(self):
+        app_config.CONFIG_PATH = self._config_path
+        app_state.get_jobs, app_state.get_storage = self._getters
+        self.tmp.cleanup()
+
+    def test_rescan_route_starts_rescan_job_for_configured_source(self):
+        res = self.client.post("/api/sources/rescan", json={"path": str(self.folder.resolve())})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.fake_jobs.calls, [(str(self.folder.resolve()), "local", "Docs", True)])
+
+    def test_rescan_route_unknown_source_404(self):
+        res = self.client.post("/api/sources/rescan", json={"path": "/no/such/source"})
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(self.fake_jobs.calls, [])
+
+    def test_clear_route_zeroes_source_counts(self):
+        res = self.client.post("/api/clear", json={"force": True})
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(self.fake_store.cleared)
+        self.assertTrue(self.fake_jobs.stopped)
+        self.assertEqual(app_config.get_configured_sources()[0]["items_count"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

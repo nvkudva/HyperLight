@@ -9,19 +9,21 @@ import {
   DocumentIcon,
   MailIcon,
   PhotoIcon,
+  SettingsIcon,
   VideoIcon,
 } from '../common/Icons'
 import styles from './ChatWorkspace.module.css'
 
-export type ResultKind = 'photo' | 'video' | 'audio' | 'app' | 'contact' | 'calendar' | 'bookmark' | 'email' | 'document' | 'text'
+export type ResultKind = 'photo' | 'video' | 'audio' | 'app' | 'setting' | 'contact' | 'calendar' | 'bookmark' | 'email' | 'document' | 'text'
 
-export const KIND_ORDER: ResultKind[] = ['app', 'video', 'photo', 'document', 'audio', 'text', 'contact', 'calendar', 'bookmark', 'email']
+export const KIND_ORDER: ResultKind[] = ['app', 'setting', 'video', 'photo', 'document', 'audio', 'text', 'contact', 'calendar', 'bookmark', 'email']
 
 export const KIND_LABELS: Record<ResultKind, string> = {
   photo: 'Photos',
   video: 'Videos',
   audio: 'Audio',
   app: 'Apps',
+  setting: 'Settings',
   contact: 'Contacts',
   calendar: 'Calendar',
   bookmark: 'Bookmarks',
@@ -40,7 +42,7 @@ const TEXT_EXTS = new Set([
 
 export function kindOf(item: SearchResult): ResultKind {
   const t = (item.type ?? item.file_type ?? '').toLowerCase()
-  if (t === 'photo' || t === 'video' || t === 'audio' || t === 'app' || t === 'contact' || t === 'calendar' || t === 'bookmark' || t === 'email') {
+  if (t === 'photo' || t === 'video' || t === 'audio' || t === 'app' || t === 'setting' || t === 'contact' || t === 'calendar' || t === 'bookmark' || t === 'email') {
     return t
   }
   const name = `${item.filename ?? ''} ${item.path ?? ''}`.toLowerCase()
@@ -62,6 +64,7 @@ const KIND_ICON: Record<ResultKind, React.FC<{ className?: string }>> = {
   video: VideoIcon,
   audio: AudioIcon,
   app: AppIcon,
+  setting: SettingsIcon,
   contact: ContactIcon,
   calendar: CalendarIcon,
   bookmark: BookmarkIcon,
@@ -75,6 +78,7 @@ export const KIND_TINT: Record<ResultKind, string> = {
   video: 'tRed',
   audio: 'tIndigo',
   app: 'tIndigo',
+  setting: 'tIndigo',
   contact: 'tGreen',
   calendar: 'tRed',
   bookmark: 'tAccent',

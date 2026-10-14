@@ -50,7 +50,42 @@ const MASK_ALT: u64 = 0x0008_0000;
 const MASK_CMD: u64 = 0x0010_0000;
 const MASK_MODS: u64 = MASK_SHIFT | MASK_CTRL | MASK_ALT | MASK_CMD;
 const KEYCODE_RIGHT_CTRL: i64 = 62;
+const KEYCODE_RIGHT_OPTION: i64 = 61;
 const DOUBLE_PRESS: Duration = Duration::from_millis(400);
+
+/// A modifier key that triggers when pressed twice in quick succession.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DoubleTap {
+  keycode: i64,
+  mask: u64,
+}
+
+const DOUBLE_RIGHT_CTRL: DoubleTap = DoubleTap { keycode: KEYCODE_RIGHT_CTRL, mask: MASK_CTRL };
+const DOUBLE_RIGHT_OPTION: DoubleTap = DoubleTap { keycode: KEYCODE_RIGHT_OPTION, mask: MASK_ALT };
+
+/// Named double-tap presets. Only the right-hand key ever matches: the
+/// keycode check is exact, so the left twin cannot trigger it.
+fn double_tap_for(name: &str) -> DoubleTap {
+  if name == "double_option" {
+    DOUBLE_RIGHT_OPTION
+  } else {
+    DOUBLE_RIGHT_CTRL
+  }
+}
+
+fn tap_matches(tap: DoubleTap, keycode: i64, flags: u64) -> bool {
+  keycode == tap.keycode && flags & tap.mask != 0
+}
+
+/// Records one press; returns true when it completes a double-press pair.
+fn register_press(last: &mut Option<Instant>, now: Instant) -> bool {
+  if last.is_some_and(|prev| now.duration_since(prev) <= DOUBLE_PRESS) {
+    *last = None;
+    return true;
+  }
+  *last = Some(now);
+  false
+}
 
 pub const EVENT: &str = "hyperlight-hotkey";
 
@@ -58,21 +93,21 @@ pub const EVENT: &str = "hyperlight-hotkey";
 struct Config {
   enabled: bool,
   voice: bool,
-  double_ctrl: bool,
+  double_tap: Option<DoubleTap>,
   combo_key: Option<u32>,
   combo_mods: u64,
 }
 
 pub struct State {
   config: Mutex<Config>,
-  last_ctrl_press: Mutex<Option<Instant>>,
+  last_tap_press: Mutex<Option<Instant>>,
 }
 
 impl Default for State {
   fn default() -> Self {
     Self {
-      config: Mutex::new(Config { enabled: true, voice: true, double_ctrl: true, combo_key: None, combo_mods: 0 }),
-      last_ctrl_press: Mutex::new(None),
+      config: Mutex::new(Config { enabled: true, voice: true, double_tap: Some(DOUBLE_RIGHT_CTRL), combo_key: None, combo_mods: 0 }),
+      last_tap_press: Mutex::new(None),
     }
   }
 }
@@ -98,20 +133,14 @@ pub fn reveal(app: &tauri::AppHandle, voice: bool) {
   let _ = app.emit(EVENT, serde_json::json!({ "voice": voice }));
 }
 
-fn is_double_ctrl(state: &State, event: *mut c_void) -> bool {
+fn is_double_tap(state: &State, tap: DoubleTap, event: *mut c_void) -> bool {
   let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
   let flags = unsafe { CGEventGetFlags(event) };
-  if keycode != KEYCODE_RIGHT_CTRL || flags & MASK_CTRL == 0 {
+  if !tap_matches(tap, keycode, flags) {
     return false;
   }
-  let now = Instant::now();
-  let Ok(mut last) = state.last_ctrl_press.lock() else { return false };
-  if last.is_some_and(|prev| now.duration_since(prev) <= DOUBLE_PRESS) {
-    *last = None;
-    return true;
-  }
-  *last = Some(now);
-  false
+  let Ok(mut last) = state.last_tap_press.lock() else { return false };
+  register_press(&mut last, Instant::now())
 }
 
 fn is_combo(cfg: &Config, event: *mut c_void) -> bool {
@@ -139,7 +168,7 @@ extern "C" fn tap_callback(_proxy: *mut c_void, etype: u32, event: *mut c_void, 
     return event;
   }
   let hit = match etype {
-    EV_FLAGS_CHANGED => cfg.double_ctrl && is_double_ctrl(ctx.state, event),
+    EV_FLAGS_CHANGED => cfg.double_tap.is_some_and(|tap| is_double_tap(ctx.state, tap, event)),
     EV_KEY_DOWN => is_combo(&cfg, event),
     _ => false,
   };
@@ -204,12 +233,12 @@ pub enum Hotkey {
 
 #[tauri::command]
 pub fn set_hotkey(state: tauri::State<'_, &'static State>, enabled: bool, voice: bool, hotkey: Hotkey) {
-  let (double_ctrl, combo_key, combo_mods) = match hotkey {
-    Hotkey::Combo { key_code, modifiers } => (false, Some(key_code), modifier_bits(&modifiers)),
-    Hotkey::DoubleCtrl(_) => (true, None, 0),
+  let (double_tap, combo_key, combo_mods) = match hotkey {
+    Hotkey::Combo { key_code, modifiers } => (None, Some(key_code), modifier_bits(&modifiers)),
+    Hotkey::DoubleCtrl(name) => (Some(double_tap_for(&name)), None, 0),
   };
   if let Ok(mut cfg) = state.config.lock() {
-    *cfg = Config { enabled, voice, double_ctrl, combo_key, combo_mods };
+    *cfg = Config { enabled, voice, double_tap, combo_key, combo_mods };
   }
 }
 
@@ -222,6 +251,37 @@ pub fn keyboard_access_granted() -> bool {
 pub fn prompt_if_missing() {
   if !unsafe { CGPreflightListenEventAccess() } {
     unsafe { CGRequestListenEventAccess() };
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{DoubleTap, MASK_ALT, MASK_CTRL, double_tap_for, register_press, tap_matches};
+  use std::time::{Duration, Instant};
+
+  #[test]
+  fn double_option_means_right_option_only() {
+    let tap = double_tap_for("double_option");
+    assert_eq!(tap, DoubleTap { keycode: 61, mask: MASK_ALT });
+    assert!(tap_matches(tap, 61, MASK_ALT));
+    assert!(!tap_matches(tap, 58, MASK_ALT), "left Option must not trigger");
+    assert!(!tap_matches(tap, 61, MASK_CTRL), "wrong modifier must not trigger");
+  }
+
+  #[test]
+  fn double_ctrl_stays_default_for_other_names() {
+    assert_eq!(double_tap_for("double_ctrl"), DoubleTap { keycode: 62, mask: MASK_CTRL });
+    assert_eq!(double_tap_for("anything-else"), DoubleTap { keycode: 62, mask: MASK_CTRL });
+  }
+
+  #[test]
+  fn second_press_within_window_triggers_once() {
+    let start = Instant::now();
+    let mut last = None;
+    assert!(!register_press(&mut last, start));
+    assert!(register_press(&mut last, start + Duration::from_millis(200)));
+    assert!(!register_press(&mut last, start + Duration::from_millis(300)), "trigger resets the pair");
+    assert!(!register_press(&mut last, start + Duration::from_secs(2)), "stale press expires");
   }
 }
 

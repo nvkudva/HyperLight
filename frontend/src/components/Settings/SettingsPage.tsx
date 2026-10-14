@@ -5,7 +5,9 @@ import {
   fetchAppSettings,
   fetchNetworkVolumes,
   indexApps,
+  indexSettings,
   removeSource,
+  rescanSource,
   startIndex,
   toggleSourceWatch,
   updateAppSettings,
@@ -229,7 +231,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   }
 
   const handleClearDb = async () => {
-    if (!confirm('Are you sure you want to clear all indexed items? This will reset your database.')) return
     showToast('Clearing vector database...', 'blue')
     try {
       await clearDatabase()
@@ -251,6 +252,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
+  const handleIndexSettings = async () => {
+    showToast('Indexing macOS settings...', 'blue')
+    try {
+      const data = await indexSettings()
+      showToast(data.status === 'queued' ? 'macOS settings queued for indexing.' : 'Indexing macOS settings…', 'emerald')
+      onStartProgress()
+    } catch (err: any) {
+      showToast(`Error indexing settings: ${err.message}`, 'red')
+    }
+  }
+
   const handleIndexPreset = (p: string) => {
     showToast(`Indexing ${p}...`, 'blue')
     startIndex(p, 'local')
@@ -264,15 +276,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const handleRescan = (s: ConfiguredSource) => {
     showToast(`Rescanning ${s.name}...`, 'blue')
-    startIndex(s.path, s.source_type, s.name)
-      .then(() => onStartProgress())
+    rescanSource(s.path)
+      .then((res) => {
+        showToast(res.status === 'queued' ? `Queued rescan for '${s.name}'.` : `Rescanning '${s.name}'...`, 'emerald')
+        onStartProgress()
+        onRefreshSources()
+      })
       .catch((err) => showToast(err.message, 'red'))
   }
 
   const localSources = sources.filter((s) => s.source_type !== 'macos_system')
   const isGlobalAlwaysOn = appSettings.always_on_scanning
   const presets = availablePresets(sources)
-  const hasAppsSource = sources.some((s) => s.source_type === 'macos_system')
+  const hasAppsSource = sources.some((s) => s.source_type === 'macos_system' && !s.path.startsWith('x-apple.systempreferences:'))
+  const hasSettingsSource = sources.some((s) => s.path.startsWith('x-apple.systempreferences:'))
   const jobs = activeJobs(indexStatus)
   const jobForSource = (s: ConfiguredSource) =>
     jobs.find((j) => (j.path ? j.path === s.path : j.name === s.name))
@@ -321,6 +338,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             sources={sources}
             availablePresets={presets}
             hasAppsSource={hasAppsSource}
+            hasSettingsSource={hasSettingsSource}
             isGlobalAlwaysOn={isGlobalAlwaysOn}
             watchedCount={appSettings.watched_paths_count ?? localSources.length}
             totalItems={totalItems}
@@ -335,6 +353,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             onAddManual={handleAddManual}
             onIndexPreset={handleIndexPreset}
             onIndexApps={handleIndexApps}
+            onIndexSettings={handleIndexSettings}
             onToggleAlwaysOn={handleToggleAlwaysOn}
             onToggleSourceWatch={handleToggleSourceWatch}
             onReveal={handleReveal}

@@ -64,6 +64,72 @@ def index_applications(emb: embedder.Embedder, store: storage.Storage) -> int:
         app_item["source"] = "macos_system"
     return store.add_items(apps)
 
+# (display name, pane id in x-apple.systempreferences: URL, search keywords)
+SETTINGS_CATALOG = [
+    ("General", "com.apple.preference.general", "appearance dark mode light mode accent color scroll bars"),
+    ("Accessibility", "com.apple.preference.universalaccess", "voiceover zoom display captions assistivetouch pointer vision hearing"),
+    ("Apple ID", "com.apple.systempreferences.AppleIDSettings", "icloud account sign in family sharing payment subscriptions"),
+    ("Apple Intelligence & Siri", "com.apple.Siri-Settings.extension", "siri voice assistant hey siri apple intelligence dictation"),
+    ("Battery", "com.apple.preference.battery", "power energy saver charge low power mode optimized charging"),
+    ("Bluetooth", "com.apple.preference.bluetooth", "pair wireless airpods headphones keyboard mouse devices"),
+    ("Control Center", "com.apple.ControlCenter-Settings.extension", "menu bar toggles wifi bluetooth airdrop shortcuts"),
+    ("Date & Time", "com.apple.preference.datetime", "clock time zone automatic date 24 hour"),
+    ("Desktop & Dock", "com.apple.preference.dock", "dock magnification mission control wallpaper stage manager hot corners"),
+    ("Displays", "com.apple.preference.displays", "monitor brightness resolution night shift arrangement retina"),
+    ("Focus", "com.apple.Focus-Settings.extension", "do not disturb notifications silence sleep work focus modes"),
+    ("Internet Accounts", "com.apple.Internet-Accounts-Settings.extension", "mail contacts calendar accounts google icloud exchange sign in"),
+    ("Keyboard", "com.apple.preference.keyboard", "shortcuts dictation function keys repeat input sources text replacement"),
+    ("Lock Screen", "com.apple.Lock-Screen-Settings.extension", "screen saver password lock timeout turn display off"),
+    ("Mouse", "com.apple.preference.mouse", "tracking speed scroll direction right click pointer"),
+    ("Network", "com.apple.preference.network", "wifi ethernet vpn dns proxy firewall connection internet"),
+    ("Notifications", "com.apple.preference.notifications", "alerts badges banners app notifications sounds preview"),
+    ("Passwords", "com.apple.Passwords-Settings.extension", "keychain saved passwords passkeys autofill verification codes"),
+    ("Printers & Scanners", "com.apple.preference.printandscan", "print scan printer scanner fax default printer"),
+    ("Privacy & Security", "com.apple.preference.security", "permissions full disk access camera microphone location tracking gatekeeper filevault privacy"),
+    ("Screen Time", "com.apple.ScreenTime-Settings.extension", "limits downtime app limits parental controls usage report"),
+    ("Sharing", "com.apple.preference.sharing", "file sharing screen sharing airdrop remote login media sharing"),
+    ("Software Update", "com.apple.preferences.softwareupdate", "macos update upgrade download install automatic updates"),
+    ("Sound", "com.apple.preference.sound", "volume output input speakers headphones alert sound microphone"),
+    ("Spotlight", "com.apple.preference.spotlight", "search indexing privacy categories results"),
+    ("Startup Disk", "com.apple.preference.startupdisk", "boot disk restart startup volume operating system"),
+    ("Time Machine", "com.apple.preference.timemachine", "backup restore external disk automatic backups"),
+    ("Touch ID & Password", "com.apple.TouchID-Password-Settings.extension", "fingerprint touch id password unlock apple watch unlock"),
+    ("Trackpad", "com.apple.preference.trackpad", "gestures scroll tap click force touch pointer"),
+    ("Users & Groups", "com.apple.preferences.users", "login password admin user account guest login items"),
+    ("Wallet & Apple Pay", "com.apple.preference.wallet", "apple pay cards wallet payment touch id purchases"),
+    ("Wi-Fi", "com.apple.wifi-settings-extension", "wifi wireless network hotspot connect internet connection"),
+]
+
+def get_system_settings() -> List[Dict[str, Any]]:
+    settings = []
+    for name, pane_id, keywords in SETTINGS_CATALOG:
+        url = f"x-apple.systempreferences:{pane_id}"
+        settings.append({
+            "id": hashlib.sha256(f"setting:{url}".encode()).hexdigest()[:16],
+            "type": "setting",
+            "path": url,
+            "filename": name,
+            "content": f"Setting: {name} | {keywords}",
+            "modified_at": 0.0,
+            "metadata": {
+                "name": name,
+                "pane_id": pane_id,
+                "file_type": "setting",
+                "size_human": "System Setting",
+            },
+        })
+    return settings
+
+def index_system_settings(emb: embedder.Embedder, store: storage.Storage) -> int:
+    settings = get_system_settings()
+    texts = [s["content"] for s in settings]
+    titles = [s["filename"] for s in settings]
+    vectors = emb.embed_texts(texts, titles=titles, batch_size=8)
+    for setting_item, vec in zip(settings, vectors):
+        setting_item["vector"] = vec
+        setting_item["source"] = "macos_system"
+    return store.add_items(settings)
+
 def launch_target(target_path: str) -> bool:
     if target_path.startswith("-"):  # would be parsed as an `open` flag
         return False

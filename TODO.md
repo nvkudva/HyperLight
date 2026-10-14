@@ -74,3 +74,5 @@
 - [ ] Previews: show .ipynb as notebook cells
 - [ ] Previews: show .zip as a file listing
 - [ ] Previews: send .epub and .odt through the QuickLook preview
+- [x] Index macOS System Settings panes (curated catalog, EmbeddingGemma vectors, Spotlight Settings bucket, click opens pane)
+- [ ] Add optional per-setting actions so results can flip the switch, not just open the pane: no public generic toggle API exists (Siri uses private system intents), so cover scriptable settings via AppleScript dictionaries (dark mode verified: System Events appearance preferences), Shortcuts actions, or defaults write; confirm with user before executing; skip Accessibility UI clicking (fragile)

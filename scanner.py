@@ -262,6 +262,28 @@ def _email_body_text(msg: email.message.EmailMessage) -> str:
         text = html.unescape(text)
     return " ".join(text.split())
 
+class ProgressReporter:
+    """Throttles progress callbacks to whole-percent steps plus the last file.
+
+    The UI percent ticks 1, 2, 3... as files stream by, but the callback
+    (a lock + status string in the job manager) runs at most ~101 times
+    per scan instead of once per file.
+    """
+
+    def __init__(self, callback: Optional[Callable[[str, int, int], None]], total: int) -> None:
+        self.callback = callback
+        self.total = total
+        self.last_percent = -1
+
+    def report(self, filename: str, processed: int) -> None:
+        if self.callback is None or self.total <= 0:
+            return
+        percent = int(processed * 100 / self.total)
+        if percent != self.last_percent or processed >= self.total:
+            self.last_percent = percent
+            self.callback(filename, processed, self.total)
+
+
 class Scanner:
     def __init__(self, emb: embedder.Embedder, store: storage.Storage):
         self.embedder = emb
@@ -618,6 +640,8 @@ class Scanner:
 
         workers = min(8, os.cpu_count() or 4)
         CHUNK_SIZE = 64
+        reporter = ProgressReporter(on_progress, total_files)
+        processed_files = 0
 
         # One pool per scan, not per chunk: creating and tearing down a pool
         # for every 64 files churns threads for no reason.
@@ -638,15 +662,15 @@ class Scanner:
                         pass
                     files_to_parse.append(file_path)
 
+                # Already-indexed files count as processed without parsing.
+                processed_files += len(chunk_files) - len(files_to_parse)
                 if not files_to_parse:
-                    if on_progress:
-                        last_file = chunk_files[-1][0]
-                        processed_so_far = min(chunk_start + CHUNK_SIZE, total_files)
-                        on_progress(last_file.name, processed_so_far, total_files)
+                    reporter.report(chunk_files[-1][0].name, processed_files)
                     continue
-                parsed_results = list(pool.map(self._parse_file, files_to_parse))
 
-                for kind, fp, chunks in parsed_results:
+                # imap streams results so progress and embedding advance
+                # file-by-file instead of waiting for the whole chunk.
+                for kind, fp, chunks in pool.imap(self._parse_file, files_to_parse):
                     if kind == "image":
                         image_buffer.append(fp)
                         if len(image_buffer) >= IMG_BATCH_SIZE:
@@ -655,11 +679,8 @@ class Scanner:
                         doc_buffer.extend(chunks)
                         if len(doc_buffer) >= BATCH_SIZE:
                             flush_docs()
-
-                if on_progress:
-                    last_file = chunk_files[-1][0]
-                    processed_so_far = min(chunk_start + CHUNK_SIZE, total_files)
-                    on_progress(last_file.name, processed_so_far, total_files)
+                    processed_files += 1
+                    reporter.report(fp.name, processed_files)
         finally:
             pool.shutdown(wait=True)
 

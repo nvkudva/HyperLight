@@ -42,6 +42,10 @@ def record_scan(name: str, path: str, source_type: str, items_count: int) -> Non
     refresh()
 
 
+def reset_counts() -> None:
+    app_config.reset_source_counts()
+
+
 def set_watch(path: str, enabled: bool) -> None:
     app_config.set_source_watch(path, enabled)
     refresh()

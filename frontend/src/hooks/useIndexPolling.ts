@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { fetchIndexStatus } from '../api'
 import type { IndexJobStatus } from '../types'
 
-/** Polls /api/indexing-status (1s while running, 3s idle, paused while the window is hidden). */
+/** Polls /api/indexing-status (250ms while running so the percent ticks smoothly, 3s idle, paused while hidden). */
 export function useIndexPolling(onSettledChange: () => void): {
   status: IndexJobStatus | null
   refresh: () => Promise<void>
@@ -49,7 +49,7 @@ export function useIndexPolling(onSettledChange: () => void): {
       }
       inFlight = false
       if (cancelled || (document.hidden && !wasRunning)) return
-      timer = window.setTimeout(poll, wasRunning ? 1000 : 3000)
+      timer = window.setTimeout(poll, wasRunning ? 250 : 3000)
     }
     const onVisibility = () => {
       if (!document.hidden && timer === undefined) void poll()

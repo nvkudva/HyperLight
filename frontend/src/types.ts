@@ -30,6 +30,7 @@ export interface ConfiguredSource {
 
 export type HotkeyConfig =
   | 'double_ctrl'
+  | 'double_option'
   | { key_code: number; modifiers: string[]; label: string }
 
 export interface AppSettings {

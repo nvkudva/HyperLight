@@ -62,6 +62,9 @@ def _editing() -> Iterator[Dict[str, Any]]:
 
 
 def _resolve(path: str) -> str:
+    head, sep, _ = path.partition(":")
+    if sep and "/" not in head and head[:1].isalpha():
+        return path  # URL-like source (https:, x-apple.systempreferences:), not a file path
     return str(Path(path).expanduser().resolve())
 
 
@@ -125,6 +128,13 @@ def save_configured_source(
                 "watch_enabled": True if watch_enabled is None else watch_enabled,
             })
         data["sources"] = sources
+
+
+def reset_source_counts() -> None:
+    with _editing() as data:
+        for s in data["sources"]:
+            s["items_count"] = 0
+            s["last_scanned"] = 0
 
 
 def set_source_watch(path: str, enabled: bool) -> None:

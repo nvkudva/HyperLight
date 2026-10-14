@@ -14,6 +14,7 @@ PER_BUCKET_OVERRIDES = {"photo": 30}
 
 BUCKET_LABELS = {
     "app": "Applications",
+    "setting": "Settings",
     "video": "Videos",
     "photo": "Photos",
     "document": "Documents",
@@ -24,7 +25,7 @@ BUCKET_LABELS = {
     "email": "Mail",
     "bookmark": "Bookmarks",
 }
-BUCKET_ORDER = ["app", "video", "photo", "document", "audio", "text"]
+BUCKET_ORDER = ["app", "setting", "video", "photo", "document", "audio", "text"]
 
 OFFICE_DOC_EXTENSIONS = {
     ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",

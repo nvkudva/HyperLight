@@ -53,6 +53,11 @@ def api_index_apps() -> Dict[str, Any]:
     return {"status": app_state.get_jobs().start_indexing(Path("/Applications"), "macos_apps", "macOS Applications")}
 
 
+@router.post("/api/index-settings")
+def api_index_settings() -> Dict[str, Any]:
+    return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_settings", "macOS Settings")}
+
+
 @router.post("/api/sources/apple-mail")
 def api_index_apple_mail() -> Any:
     mail_dir = Path.home() / "Library" / "Mail"
@@ -86,8 +91,48 @@ def api_remove_source(req: RemoveSourceRequest) -> Dict[str, str]:
 
 @router.post("/api/clear")
 def api_clear() -> Dict[str, str]:
+    app_state.get_jobs().stop_indexing()
     app_state.get_storage().clear()
+    sources.reset_counts()
     return {"status": "cleared"}
+
+
+CLOUD_RESCAN_SOURCES = {
+    "google_drive": "google_drive_cloud",
+    "gmail": "gmail_cloud",
+}
+
+
+@router.post("/api/sources/rescan")
+def api_rescan_source(req: RemoveSourceRequest) -> Any:
+    source = next((s for s in sources.list_all() if s.get("path") == req.path), None)
+    if source is None:
+        try:
+            resolved = str(Path(req.path).expanduser().resolve())
+        except Exception:
+            resolved = req.path
+        source = next((s for s in sources.list_all() if s.get("path") == resolved), None)
+    if source is None:
+        return fastapi.responses.JSONResponse(status_code=404, content={"error": "source_not_found", "message": "Source is not configured."})
+    name = source.get("name") or req.path
+    path = source.get("path", req.path)
+    source_type = source.get("source_type", "local")
+    if source_type == sources.SYSTEM_SOURCE_TYPE:
+        if path.startswith("x-apple.systempreferences:"):
+            status = app_state.get_jobs().start_indexing(Path.home(), "macos_settings", name, rescan=True)
+        else:
+            status = app_state.get_jobs().start_indexing(Path("/Applications"), "macos_apps", name, rescan=True)
+    elif path.startswith("http"):
+        cloud_source = CLOUD_RESCAN_SOURCES.get(source_type)
+        if cloud_source is None:
+            return fastapi.responses.JSONResponse(status_code=400, content={"error": "rescan_unsupported", "message": f"Rescan is not available for '{name}'. Reconnect it to index it again."})
+        status = app_state.get_jobs().start_indexing(Path.home(), cloud_source, name, rescan=True)
+    else:
+        target = Path(path).expanduser().resolve()
+        if not target.exists():
+            return fastapi.responses.JSONResponse(status_code=400, content={"error": f"Path '{path}' does not exist on disk."})
+        status = app_state.get_jobs().start_indexing(target, source_type, name, rescan=True)
+    return {"status": status, "path": path, "name": name}
 
 
 @router.get("/api/status")

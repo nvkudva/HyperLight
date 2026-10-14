@@ -14,7 +14,9 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   sources,
   localSources,
   onClearDb,
-}) => (
+}) => {
+  const [confirming, setConfirming] = React.useState(false)
+  return (
   <div className={shared.panel}>
     <div className={shared.card}>
       <div className={shared.cardHeader}>
@@ -53,10 +55,33 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
             can be re-indexed.
           </p>
         </div>
-        <button className={`${shared.button} ${shared.destructive}`} onClick={onClearDb}>
-          Reset Database…
-        </button>
+        {!confirming && (
+          <button className={`${shared.button} ${shared.destructive}`} onClick={() => setConfirming(true)}>
+            Reset Database…
+          </button>
+        )}
       </div>
+      {confirming && (
+        <div className={shared.cardHeader}>
+          <p className={shared.cardSubtitle}>
+            This is not dangerous. Your files are never touched — only the search index is wiped, and you can
+            always index everything again.
+          </p>
+          <button
+            className={`${shared.button} ${shared.destructive}`}
+            onClick={() => {
+              setConfirming(false)
+              onClearDb()
+            }}
+          >
+            Yes, Reset Database
+          </button>
+          <button className={shared.button} onClick={() => setConfirming(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   </div>
-)
+  )
+}
