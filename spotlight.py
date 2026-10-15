@@ -15,6 +15,7 @@ PHOTO_CANDIDATES = 40
 PER_BUCKET = 5
 PER_BUCKET_OVERRIDES = {"photo": 30}
 
+MIN_IMAGE_PX = 32
 SMALL_IMAGE_PX = 200
 TINY_IMAGE_PX = 64
 MAIL_PATH_MARKER = "/Library/Mail/"
@@ -59,6 +60,13 @@ def _image_size(path: str) -> Optional[Tuple[int, int]]:
         return None
 
 
+def is_below_minimum_size(record: Dict[str, Any]) -> bool:
+    if record["type"] != "photo":
+        return False
+    size = _image_size(record["path"])
+    return size is not None and min(size) < MIN_IMAGE_PX
+
+
 def demotion(record: Dict[str, Any]) -> int:
     """0 = normal, 1 = thumbnail/icon-sized image, 2 = tiny image or small mail attachment."""
     if record["type"] != "photo":
@@ -73,11 +81,14 @@ def demotion(record: Dict[str, Any]) -> int:
 def group(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Ranked records -> buckets in BUCKET_ORDER, then first-seen order; first hit per path.
 
-    Small images (icons, thumbnails, mail attachments) sink below normal ones.
+    Images under MIN_IMAGE_PX are dropped; other small images (icons, thumbnails,
+    mail attachments) sink below normal ones.
     """
     items_by_kind: Dict[str, List[Dict[str, Any]]] = {}
     seen_paths = set()
     for r in sorted(results, key=demotion):
+        if is_below_minimum_size(r):
+            continue
         kind = bucket_of(r)
         items = items_by_kind.setdefault(kind, [])
         if len(items) < PER_BUCKET_OVERRIDES.get(kind, PER_BUCKET) and r.get("path") not in seen_paths:

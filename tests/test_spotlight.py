@@ -53,6 +53,16 @@ class GroupTest(unittest.TestCase):
             spotlight._image_size = original
         self.assertEqual([i["path"] for i in buckets[0]["items"]], ["/p/big.jpg", "/p/thumb.png", "/p/icon.png", "/Library/Mail/a/logo.png"])
 
+    def test_images_under_32px_are_excluded(self):
+        sizes = {"/p/dot.png": (16, 400), "/p/edge.png": (32, 32), "/p/big.jpg": (3000, 2000)}
+        original = spotlight._image_size
+        spotlight._image_size = sizes.get
+        try:
+            buckets = spotlight.group([rec("photo", p) for p in sizes])
+        finally:
+            spotlight._image_size = original
+        self.assertEqual([i["path"] for i in buckets[0]["items"]], ["/p/big.jpg", "/p/edge.png"])
+
     def test_respond_counts_matches(self):
         res = spotlight.respond("q", spotlight.group([rec("photo", "/p/1.jpg"), rec("app", "/A.app")]))
         self.assertEqual(res["total_matches"], 2)
