@@ -163,6 +163,14 @@ export async function indexSettings(): Promise<{ status: JobStart }> {
   return post('/api/index-settings')
 }
 
+export async function fetchPermissions(): Promise<{ full_disk_access: boolean }> {
+  return get('/api/permissions')
+}
+
+export async function resetApp(): Promise<{ status: string }> {
+  return post('/api/reset-all')
+}
+
 export async function fetchICloudLocations(): Promise<{ locations: DriveLocation[] }> {
   return get('/api/icloud-locations')
 }

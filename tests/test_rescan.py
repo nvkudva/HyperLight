@@ -162,6 +162,34 @@ class RescanAndClearRouteTest(unittest.TestCase):
         self.assertTrue(self.fake_jobs.stopped)
         self.assertEqual(app_config.get_configured_sources()[0]["items_count"], 0)
 
+    def test_reset_all_wipes_config_tokens_and_caches(self):
+        import google_auth
+        import routes.sources
+
+        class _FakeWatcher:
+            def sync_sources(self):
+                pass
+
+        tokens = Path(self.tmp.name) / "google_tokens.json"
+        tokens.write_text("{}")
+        previews = Path(self.tmp.name) / "previews"
+        previews.mkdir()
+        photos = Path(self.tmp.name) / "photos"
+        photos.mkdir()
+        saved = (google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.sources.PREVIEW_CACHE_DIR, app_state.get_watcher)
+        google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.sources.PREVIEW_CACHE_DIR = tokens, photos, previews
+        app_state.get_watcher = lambda: _FakeWatcher()
+        try:
+            res = self.client.post("/api/reset-all")
+        finally:
+            google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.sources.PREVIEW_CACHE_DIR, app_state.get_watcher = saved
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(self.fake_store.cleared)
+        self.assertEqual(app_config.get_configured_sources(), [])
+        self.assertFalse(tokens.exists())
+        self.assertFalse(previews.exists())
+        self.assertFalse(photos.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import hashlib
+import os
 from pathlib import Path
 import plistlib
 import subprocess
@@ -167,6 +168,20 @@ def get_mounted_network_volumes() -> List[Dict[str, str]]:
         except Exception:
             pass
     return volumes
+
+# Folders macOS only opens for apps with Full Disk Access; the first one present decides.
+FULL_DISK_ACCESS_PROBES = ("Library/Mail", "Library/Safari")
+
+def full_disk_access_granted(home: Optional[Path] = None) -> bool:
+    for relative in FULL_DISK_ACCESS_PROBES:
+        try:
+            os.listdir((home or Path.home()) / relative)
+            return True
+        except PermissionError:
+            return False
+        except FileNotFoundError:
+            continue
+    return True
 
 def get_icloud_drive_locations(home: Optional[Path] = None) -> List[Dict[str, str]]:
     cloud_docs = (home or Path.home()) / "Library" / "Mobile Documents" / "com~apple~CloudDocs"

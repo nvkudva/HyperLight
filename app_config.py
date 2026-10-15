@@ -130,6 +130,11 @@ def save_configured_source(
         data["sources"] = sources
 
 
+def reset_all() -> None:
+    with _lock:
+        CONFIG_PATH.unlink(missing_ok=True)
+
+
 def reset_source_counts() -> None:
     with _editing() as data:
         for s in data["sources"]:

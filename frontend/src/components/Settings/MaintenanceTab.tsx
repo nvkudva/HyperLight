@@ -7,6 +7,7 @@ interface MaintenanceTabProps {
   sources: ConfiguredSource[]
   localSources: ConfiguredSource[]
   onClearDb: () => void
+  onResetApp: () => void
 }
 
 export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
@@ -14,8 +15,10 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   sources,
   localSources,
   onClearDb,
+  onResetApp,
 }) => {
   const [confirming, setConfirming] = React.useState(false)
+  const [confirmingReset, setConfirmingReset] = React.useState(false)
   return (
   <div className={shared.panel}>
     <div className={shared.card}>
@@ -77,6 +80,44 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
             Yes, Reset Database
           </button>
           <button className={shared.button} onClick={() => setConfirming(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+    <div className={shared.card}>
+      <div className={shared.cardHeader}>
+        <div className={shared.cardHeaderCol}>
+          <h2 className={shared.cardTitle} style={{ color: 'var(--red)' }}>
+            Reset Everything
+          </h2>
+          <p className={shared.cardSubtitle}>
+            Erase the index, all sources, settings, Google sign-in and caches. Hyperlight restarts like a fresh
+            install and shows the setup wizard again.
+          </p>
+        </div>
+        {!confirmingReset && (
+          <button className={`${shared.button} ${shared.destructive}`} onClick={() => setConfirmingReset(true)}>
+            Reset Everything…
+          </button>
+        )}
+      </div>
+      {confirmingReset && (
+        <div className={shared.cardHeader}>
+          <p className={shared.cardSubtitle}>
+            Your files are never touched. macOS permissions stay as granted; revoke them in System Settings if
+            you want those reset too.
+          </p>
+          <button
+            className={`${shared.button} ${shared.destructive}`}
+            onClick={() => {
+              setConfirmingReset(false)
+              onResetApp()
+            }}
+          >
+            Yes, Reset Everything
+          </button>
+          <button className={shared.button} onClick={() => setConfirmingReset(false)}>
             Cancel
           </button>
         </div>

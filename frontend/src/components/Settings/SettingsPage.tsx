@@ -11,6 +11,7 @@ import {
   indexSettings,
   openSettingsPane,
   removeSource,
+  resetApp,
   rescanSource,
   startIndex,
   toggleSourceWatch,
@@ -23,10 +24,12 @@ import {
   DatabaseIcon,
   FolderIcon,
   KeyboardIcon,
+  ZapIcon,
 } from '../common/Icons'
 import { GoogleAccountCard } from '../Google/GoogleAccountCard'
 import { AssistantTab } from './AssistantTab'
 import { MaintenanceTab } from './MaintenanceTab'
+import { PermissionList } from '../Permission/PermissionList'
 import { ShortcutsTab, saveHotkeyPatch } from './ShortcutsTab'
 import { SourcesTab } from './SourcesTab'
 import { activeJobs, availablePresets } from './settingsUtils'
@@ -41,13 +44,14 @@ const STATUS_CLASS: Record<string, string> = {
   slate: styles.statusNeutral,
 }
 
-type SettingsTab = 'sources' | 'cloud' | 'assistant' | 'shortcuts' | 'maintenance'
+type SettingsTab = 'sources' | 'cloud' | 'assistant' | 'shortcuts' | 'permissions' | 'maintenance'
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
   { id: 'sources', label: 'Sources', icon: FolderIcon, tint: shared.iconAccent },
   { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: shared.iconGreen },
   { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: shared.iconAccent },
   { id: 'shortcuts', label: 'Shortcuts', icon: KeyboardIcon, tint: shared.iconIndigo },
+  { id: 'permissions', label: 'Permissions', icon: ZapIcon, tint: shared.iconGreen },
   { id: 'maintenance', label: 'Maintenance', icon: DatabaseIcon, tint: shared.iconIndigo },
 ]
 
@@ -237,6 +241,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       await clearDatabase()
       showToast('Database reset.', 'slate')
       onRefreshSources()
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`, 'red')
+    }
+  }
+
+  const handleResetApp = async () => {
+    showToast('Resetting Hyperlight...', 'blue')
+    try {
+      await resetApp()
+      localStorage.clear()
+      window.location.reload()
     } catch (err: any) {
       showToast(`Error: ${err.message}`, 'red')
     }
@@ -438,12 +453,29 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           />
         )}
 
+        {activeTab === 'permissions' && (
+          <div className={shared.panel}>
+            <div className={shared.card}>
+              <div className={shared.cardHeader}>
+                <div className={shared.cardHeaderCol}>
+                  <h2 className={shared.cardTitle}>App Permissions</h2>
+                  <p className={shared.cardSubtitle}>
+                    macOS controls these. Allow each in System Settings, then come back — status updates automatically.
+                  </p>
+                </div>
+              </div>
+              <PermissionList />
+            </div>
+          </div>
+        )}
+
         {activeTab === 'maintenance' && (
           <MaintenanceTab
             totalItems={totalItems}
             sources={sources}
             localSources={localSources}
             onClearDb={handleClearDb}
+            onResetApp={handleResetApp}
           />
         )}
         </div>

@@ -27,5 +27,26 @@ class ICloudLocationsTest(unittest.TestCase):
             self.assertEqual(connectors.get_icloud_drive_locations(Path(tmp)), [])
 
 
+class FullDiskAccessTest(unittest.TestCase):
+    def test_granted_when_probe_folder_readable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Library" / "Mail").mkdir(parents=True)
+            self.assertTrue(connectors.full_disk_access_granted(Path(tmp)))
+
+    def test_not_granted_when_probe_folder_unreadable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mail = Path(tmp) / "Library" / "Mail"
+            mail.mkdir(parents=True)
+            mail.chmod(0o000)
+            try:
+                self.assertFalse(connectors.full_disk_access_granted(Path(tmp)))
+            finally:
+                mail.chmod(0o755)
+
+    def test_granted_when_no_probe_folder_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertTrue(connectors.full_disk_access_granted(Path(tmp)))
+
+
 if __name__ == "__main__":
     unittest.main()

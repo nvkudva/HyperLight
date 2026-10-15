@@ -83,19 +83,6 @@
   cursor: pointer;
 }
 
-.permission {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  border: 0.5px solid var(--separator);
-  font-size: 0.8125rem;
-  color: var(--label);
-}
-
 .notice {
   font-size: 0.75rem;
   color: var(--orange);

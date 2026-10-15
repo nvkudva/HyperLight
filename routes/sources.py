@@ -1,15 +1,19 @@
 """Index sources, scan jobs, and local-target routes."""
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import fastapi
 
+import app_config
 import app_state
 import connectors
+import google_auth
 import logging_config
 import sources
 import storage
+from routes.media import PREVIEW_CACHE_DIR
 from routes.schemas import BrowseFolderRequest, IndexRequest, LaunchRequest, RemoveSourceRequest, SourceWatchRequest
 
 logger = logging_config.get_logger("routes.sources")
@@ -83,6 +87,11 @@ def api_open_settings(pane: str) -> Any:
     return {"success": connectors.launch_target(SETTINGS_PANES[pane])}
 
 
+@router.get("/api/permissions")
+def api_permissions() -> Dict[str, bool]:
+    return {"full_disk_access": connectors.full_disk_access_granted()}
+
+
 @router.get("/api/sources")
 def api_get_sources() -> Dict[str, Any]:
     return {"sources": sources.list_all()}
@@ -102,6 +111,21 @@ def api_clear() -> Dict[str, str]:
     app_state.get_storage().clear()
     sources.reset_counts()
     return {"status": "cleared"}
+
+
+@router.post("/api/reset-all")
+def api_reset_all() -> Dict[str, str]:
+    """Back to a fresh install: index, sources, settings, Google sign-in and caches."""
+    jobs = app_state.get_jobs()
+    jobs.stop_indexing()
+    jobs.wait_until_idle()
+    app_state.get_storage().clear()
+    app_config.reset_all()
+    sources.refresh()
+    google_auth.disconnect()
+    shutil.rmtree(PREVIEW_CACHE_DIR, ignore_errors=True)
+    shutil.rmtree(google_auth.PHOTOS_CACHE_DIR, ignore_errors=True)
+    return {"status": "reset"}
 
 
 CLOUD_RESCAN_SOURCES = {

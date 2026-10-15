@@ -1,4 +1,5 @@
 """Background indexing job queue (one active scan, rest wait in line)."""
+import os
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
@@ -195,6 +196,8 @@ class IndexJobManager:
             if runner:
                 runner.run(on_progress, cancel_check, job.options)
             else:
+                if job.path.is_dir():
+                    os.listdir(job.path)  # PermissionError (no Full Disk Access) must not look like an empty folder
                 sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check)
             total_items = store.count_items_by_path(track_path)
             sources.record_scan(name, track_path, kind, total_items)
@@ -210,8 +213,12 @@ class IndexJobManager:
         except Exception as e:
             with self.lock:
                 self.state = "error"
-                self.error_code = "reauth_required" if isinstance(e, google_auth.GoogleScopeError) else ""
-                self.status = f"Error during indexing: {e}"
+                if isinstance(e, PermissionError):
+                    self.error_code = "full_disk_access"
+                    self.status = f"Hyperlight can't read '{name}'. Allow it under Settings > Permissions, then rescan."
+                else:
+                    self.error_code = "reauth_required" if isinstance(e, google_auth.GoogleScopeError) else ""
+                    self.status = f"Error during indexing: {e}"
         finally:
             with self.lock:
                 self.cancel_requested = False
