@@ -8,6 +8,7 @@ export interface VoiceResult {
 }
 
 const RECORD_DEBOUNCE_MS = 1000
+const VOICE_HISTORY_TITLE = 'Voice Search'
 
 // The one live search: typed text or a voice result, never both. Typing
 // clears the voice result, a voice search clears the text, and both are
@@ -34,7 +35,7 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
       const label = transcript.trim() || topItem?.filename || 'Voice search'
       setQueryState('')
       setVoiceResult({ transcript: label, buckets })
-      recordSearch(label)
+      recordSearch(VOICE_HISTORY_TITLE)
     },
   })
 
