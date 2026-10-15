@@ -61,6 +61,22 @@ class ScanPathTest(unittest.TestCase):
             scanner.Scanner(SlowEmbedder(), store).scan_path(folder, cancel_check=cancel_after_parsing)
             self.assertLess(len(store.items), 130)
 
+    def test_progress_reaches_total_only_when_embedding_nearly_done(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            file_count = 600
+            for n in range(file_count):
+                (folder / f"note{n:03}.txt").write_text(f"note number {n}", encoding="utf-8")
+            store = FakeStorage()
+            stored_when_parsing_done = []
+
+            def on_progress(filename, current, total):
+                if current >= total and not stored_when_parsing_done:
+                    stored_when_parsing_done.append(len(store.items))
+
+            scanner.Scanner(SlowEmbedder(), store).scan_path(folder, on_progress=on_progress)
+            self.assertGreater(stored_when_parsing_done[0], file_count * 0.4)
+
 
 if __name__ == "__main__":
     unittest.main()

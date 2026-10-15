@@ -1,4 +1,4 @@
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 import datetime
 import email
 import email.policy
@@ -618,24 +618,34 @@ class Scanner:
         image_buffer: List[Path] = []
         BATCH_SIZE = 64
         IMG_BATCH_SIZE = 16
+        MAX_QUEUED_BATCHES = 4
 
         embed_pool = ThreadPoolExecutor(max_workers=1)
         pending: List[Future] = []
+
+        def submit_embedding(fn, *args):
+            # Parsing outruns embedding by a wide margin; without a bound the
+            # progress bar hits 100% and every parsed batch piles up in memory.
+            while True:
+                unfinished = [f for f in pending if not f.done()]
+                if len(unfinished) < MAX_QUEUED_BATCHES:
+                    break
+                wait(unfinished, return_when=FIRST_COMPLETED)
+            pending.append(embed_pool.submit(fn, *args))
 
         def flush_docs():
             nonlocal doc_buffer
             if not doc_buffer:
                 return
             batch, doc_buffer = doc_buffer, []
-            pending.append(embed_pool.submit(
-                embed_and_store, self.embedder, self.storage, batch, source, BATCH_SIZE))
+            submit_embedding(embed_and_store, self.embedder, self.storage, batch, source, BATCH_SIZE)
 
         def flush_images():
             nonlocal image_buffer
             if not image_buffer:
                 return
             batch, image_buffer = image_buffer, []
-            pending.append(embed_pool.submit(self._embed_image_batch, batch, source, IMG_BATCH_SIZE))
+            submit_embedding(self._embed_image_batch, batch, source, IMG_BATCH_SIZE)
 
         workers = min(8, os.cpu_count() or 4)
         CHUNK_SIZE = 64
