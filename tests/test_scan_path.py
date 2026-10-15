@@ -46,6 +46,27 @@ class ScanPathTest(unittest.TestCase):
             self.assertEqual(store.items[0]["filename"], "notes.txt")
             self.assertEqual(store.items[0]["source"], "icloud_drive")
 
+    def test_edited_file_replaces_its_old_chunks(self):
+        class EditedFileStorage(FakeStorage):
+            def __init__(self, indexed_path):
+                super().__init__()
+                self.indexed_path = indexed_path
+                self.removed = []
+
+            def get_indexed_file_mtimes(self, under=None):
+                return {self.indexed_path: 1.0}
+
+            def remove_items_by_path(self, path):
+                self.removed.append(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            note = Path(tmp) / "notes.txt"
+            note.write_text("new text after the edit", encoding="utf-8")
+            store = EditedFileStorage(str(note.resolve()))
+            scanner.Scanner(FakeEmbedder(), store).scan_path(Path(tmp))
+            self.assertEqual(store.removed, [str(note.resolve())])
+            self.assertEqual(len(store.items), 1)
+
     def test_cancel_drops_queued_embedding_batches(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -76,6 +97,17 @@ class ScanPathTest(unittest.TestCase):
 
             scanner.Scanner(SlowEmbedder(), store).scan_path(folder, on_progress=on_progress)
             self.assertGreater(stored_when_parsing_done[0], file_count * 0.4)
+
+    def test_parsed_count_reaches_file_total(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for n in range(200):
+                (folder / f"note{n:03}.txt").write_text(f"note number {n}", encoding="utf-8")
+            parsed_counts = []
+
+            scanner.Scanner(FakeEmbedder(), FakeStorage()).scan_path(folder, on_parsed=parsed_counts.append)
+            self.assertEqual(len(parsed_counts), 200)
+            self.assertEqual(max(parsed_counts), 200)
 
 
 if __name__ == "__main__":

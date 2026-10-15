@@ -1,13 +1,3 @@
-.quickActionIcon {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--r-xs);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
 /* Chips */
 .chipRow {
   display: flex;
@@ -105,23 +95,46 @@
   background: var(--surface);
 }
 
-/* Sources toolbar: title left, live status + toggle right */
-.sourcesToolbar {
+/* Sources header: title + add button on the left, status stack on the right */
+.sourcesHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  background: var(--surface);
-  border: 0.5px solid var(--separator);
-  border-radius: var(--r-lg);
-  padding: 0.85rem 1.25rem;
+  gap: 1rem;
 }
 
-.toolbarRight {
+.sourcesHeading {
   display: flex;
   align-items: center;
+  gap: 1rem;
+  min-height: 2.25rem;
+}
+
+.headerStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-height: 2.25rem;
+}
+
+.statusLine {
+  font-size: 0.75rem;
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.parsedCount {
+  font-size: 0.625rem;
+  color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.liveToggle {
+  display: inline-flex;
+  align-items: center;
   gap: 0.625rem;
-  flex-shrink: 0;
 }
 
 .liveStatusPill {
@@ -157,52 +170,6 @@
 
 .liveDotActive {
   background: var(--green);
-}
-
-/* Add-source cards */
-.addSourceRow {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-}
-
-.addSourceCard {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  background: var(--surface);
-  border: 0.5px solid var(--separator);
-  border-radius: var(--r-lg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.addSourceCard:hover {
-  border-color: var(--accent);
-}
-
-.addSourceText {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.addSourceTitle {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--label);
-}
-
-.addSourceSubtitle {
-  font-size: 0.75rem;
-  color: var(--label-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Sources table */

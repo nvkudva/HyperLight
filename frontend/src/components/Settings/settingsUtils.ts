@@ -18,6 +18,7 @@ export function activeJobs(status?: IndexJobStatus | null): IndexJobInfo[] {
       state: 'running',
       percent: status.percent,
       current_index: status.current_index,
+      parsed_files: status.parsed_files,
       total_files: status.total_files,
     })
   }

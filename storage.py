@@ -287,8 +287,13 @@ class Storage:
         if len(self.table) == 0:
             return
         with self._lock:
-            self.table.delete(self._path_filter(target_path))
-            self._known_ids = None
+            path_filter = self._path_filter(target_path)
+            if self._known_ids is not None:
+                # Dropping just these ids keeps the cache valid; resetting it would
+                # force the next write to re-read every id in the index.
+                removed = self.table.search().select(["id"]).where(path_filter).limit(None).to_arrow()
+                self._known_ids.difference_update(removed["id"].to_pylist())
+            self.table.delete(path_filter)
 
     def clear(self) -> None:
         with self._lock:

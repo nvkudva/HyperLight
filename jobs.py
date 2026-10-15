@@ -73,6 +73,7 @@ class IndexJobManager:
         self.total_files = 0
         self.percent = 0.0
         self.indexed_items = 0
+        self.parsed_files = 0
         self.status = "Idle"
         self.state = "idle"
         self.error_code = ""
@@ -89,6 +90,7 @@ class IndexJobManager:
                     "state": "running",
                     "percent": round(self.percent, 1),
                     "current_index": self.current_index,
+                    "parsed_files": self.parsed_files,
                     "total_files": self.total_files,
                 })
             for job in self.pending:
@@ -108,6 +110,7 @@ class IndexJobManager:
                 "current_source": self.current_source,
                 "current_file": self.current_file,
                 "current_index": self.current_index,
+                "parsed_files": self.parsed_files,
                 "total_files": self.total_files,
                 "percent": round(self.percent, 1),
                 "indexed_items": self.indexed_items,
@@ -144,6 +147,7 @@ class IndexJobManager:
             self.total_files = 0
             self.percent = 0.0
             self.indexed_items = 0
+            self.parsed_files = 0
             self.status = f"Preparing to scan '{name}'..."
 
         self.thread = threading.Thread(
@@ -177,6 +181,10 @@ class IndexJobManager:
                 self.percent = (current / total * 100.0) if total > 0 else 0.0
                 self.status = f"Scanning file {current} of {total}..."
 
+        def on_parsed(parsed_files: int) -> None:
+            with self.lock:
+                self.parsed_files = parsed_files
+
         def cancel_check() -> bool:
             with self.lock:
                 return self.cancel_requested
@@ -198,7 +206,7 @@ class IndexJobManager:
             else:
                 if job.path.is_dir():
                     os.listdir(job.path)  # PermissionError (no Full Disk Access) must not look like an empty folder
-                sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check)
+                sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check, on_parsed=on_parsed)
             total_items = store.count_items_by_path(track_path)
             sources.record_scan(name, track_path, kind, total_items)
             with self.lock:

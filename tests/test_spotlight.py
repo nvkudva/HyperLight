@@ -24,6 +24,10 @@ class GroupTest(unittest.TestCase):
         ])
         self.assertEqual([b["kind"] for b in buckets], ["app", "photo", "document", "text", "contact"])
 
+    def test_mail_comes_before_photos(self):
+        buckets = spotlight.group([rec("photo", "/p/1.jpg"), rec("email", "/m/1.emlx"), rec("document", "/d/a.pdf")])
+        self.assertEqual([b["kind"] for b in buckets], ["email", "photo", "document"])
+
     def test_labels_cover_scanner_types(self):
         buckets = spotlight.group([rec("bookmark", "/b/x.webloc"), rec("email", "/m/1.emlx")])
         self.assertEqual({b["kind"]: b["label"] for b in buckets}, {"bookmark": "Bookmarks", "email": "Mail"})
@@ -38,6 +42,16 @@ class GroupTest(unittest.TestCase):
     def test_caps_each_bucket(self):
         buckets = spotlight.group([rec("photo", f"/p/{i}.jpg") for i in range(9)])
         self.assertEqual(len(buckets[0]["items"]), spotlight.PER_BUCKET)
+
+    def test_small_images_rank_below_normal_ones(self):
+        sizes = {"/p/icon.png": (48, 48), "/Library/Mail/a/logo.png": (150, 150), "/p/thumb.png": (180, 120), "/p/big.jpg": (3000, 2000)}
+        original = spotlight._image_size
+        spotlight._image_size = sizes.get
+        try:
+            buckets = spotlight.group([rec("photo", p) for p in ["/p/icon.png", "/Library/Mail/a/logo.png", "/p/thumb.png", "/p/big.jpg"]])
+        finally:
+            spotlight._image_size = original
+        self.assertEqual([i["path"] for i in buckets[0]["items"]], ["/p/big.jpg", "/p/thumb.png", "/p/icon.png", "/Library/Mail/a/logo.png"])
 
     def test_respond_counts_matches(self):
         res = spotlight.respond("q", spotlight.group([rec("photo", "/p/1.jpg"), rec("app", "/A.app")]))

@@ -67,16 +67,20 @@ def api_index_settings() -> Dict[str, Any]:
     return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_settings", "macOS Settings")}
 
 
+def _full_disk_access_denied() -> Any:
+    return fastapi.responses.JSONResponse(status_code=403, content={
+        "error": "full_disk_access",
+        "message": "Grant Full Disk Access to Hyperlight in System Settings > Privacy & Security, then retry.",
+    })
+
+
 @router.post("/api/sources/apple-mail")
 def api_index_apple_mail() -> Any:
     mail_dir = Path.home() / "Library" / "Mail"
     try:
         next(mail_dir.iterdir(), None)
     except PermissionError:
-        return fastapi.responses.JSONResponse(status_code=403, content={
-            "error": "full_disk_access",
-            "message": "Grant Full Disk Access to Hyperlight in System Settings > Privacy & Security, then retry.",
-        })
+        return _full_disk_access_denied()
     return {"status": app_state.get_jobs().start_indexing(mail_dir, "apple_mail", "Apple Mail"), "name": "Apple Mail"}
 
 
@@ -162,6 +166,12 @@ def api_rescan_source(req: RemoveSourceRequest) -> Any:
         target = Path(path).expanduser().resolve()
         if not target.exists():
             return fastapi.responses.JSONResponse(status_code=400, content={"error": f"Path '{path}' does not exist on disk."})
+        try:
+            next(target.iterdir(), None)
+        except PermissionError:
+            return _full_disk_access_denied()
+        except NotADirectoryError:
+            pass
         status = app_state.get_jobs().start_indexing(target, source_type, name, rescan=True)
     return {"status": status, "path": path, "name": name}
 

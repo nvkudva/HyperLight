@@ -16,7 +16,7 @@ import styles from './ChatWorkspace.module.css'
 
 export type ResultKind = 'photo' | 'video' | 'audio' | 'app' | 'setting' | 'contact' | 'calendar' | 'bookmark' | 'email' | 'document' | 'text'
 
-export const KIND_ORDER: ResultKind[] = ['app', 'setting', 'video', 'photo', 'document', 'audio', 'text', 'contact', 'calendar', 'bookmark', 'email']
+export const KIND_ORDER: ResultKind[] = ['app', 'setting', 'video', 'email', 'photo', 'document', 'audio', 'text', 'contact', 'calendar', 'bookmark']
 
 export const KIND_LABELS: Record<ResultKind, string> = {
   photo: 'Photos',

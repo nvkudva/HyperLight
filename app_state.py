@@ -94,8 +94,9 @@ def get_jobs():
 
 
 def warmup() -> Dict[str, Any]:
-    """Load the heavy models now; called by POST /api/warmup."""
+    """Load the heavy models and start live scanning now; called by POST /api/warmup."""
     emb = get_embedder()
     emb.embed_query("warmup")
     get_storage()
+    get_watcher()
     return {"ready": True}

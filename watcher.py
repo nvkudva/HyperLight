@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import threading
 import time
-from typing import Callable, Dict, Optional, Set
+from typing import Any, Callable, Dict, Iterable, Optional, Set
 import watchdog.events
 import watchdog.observers
 import embedder
@@ -10,18 +10,27 @@ import scanner
 import storage
 
 class DebouncedHandler(watchdog.events.FileSystemEventHandler):
-    def __init__(self, callback: Callable[[str, str], None]):
+    def __init__(self, callback: Callable[[str, str], None], watched_roots: Callable[[], Iterable[str]] = lambda: ()):
         super().__init__()
         self.callback = callback
+        self.watched_roots = watched_roots
         self.pending_events: Dict[str, float] = {}
         self.lock = threading.Lock()
         self.running = True
         self.worker = threading.Thread(target=self._process_queue, daemon=True)
         self.worker.start()
 
+    def _parts_below_watched_root(self, path: Path) -> tuple:
+        """Path parts under the watched folder that contains it; the folders above it
+        (e.g. ~/Library for Apple Mail) are the user's choice, not noise to skip."""
+        containing_roots = [Path(root) for root in list(self.watched_roots()) if path.is_relative_to(root)]
+        if not containing_roots:
+            return path.parts
+        return path.relative_to(max(containing_roots, key=lambda root: len(root.parts))).parts
+
     def _should_handle(self, path: str) -> bool:
         p = Path(path)
-        if p.name.startswith(".") or any(part in scanner.IGNORED_DIRS for part in p.parts):
+        if p.name.startswith(".") or any(part in scanner.IGNORED_DIRS for part in self._parts_below_watched_root(p)):
             return False
         return p.suffix.lower() in scanner.ALL_EXTENSIONS
 
@@ -82,8 +91,8 @@ class LiveWatcher:
         self.scanner = sc
         self.on_indexed = on_indexed
         self.observer = watchdog.observers.Observer()
-        self.handler = DebouncedHandler(self._handle_file_event)
         self.watches: Dict[str, Any] = {}
+        self.handler = DebouncedHandler(self._handle_file_event, lambda: self.watches.keys())
         self.watched_paths: Set[str] = set()
         self.lock = threading.Lock()
 

@@ -10,6 +10,7 @@ import {
   RevealIcon,
   TrashIcon,
 } from '../common/Icons'
+import settingsStyles from './SettingsPage.module.css'
 import styles from './SourcesTab.module.css'
 import shared from './SettingsShared.module.css'
 
@@ -41,6 +42,7 @@ interface SourcesTabProps {
   onReveal: (path: string) => void
   onRescan: (s: ConfiguredSource) => void
   onRemoveSource: (path: string) => void
+  titleRef: React.Ref<HTMLHeadingElement>
 }
 
 const COMING_SOON_CLOUDS = ['Dropbox', 'OneDrive']
@@ -71,6 +73,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   onReveal,
   onRescan,
   onRemoveSource,
+  titleRef,
 }) => {
   const [modal, setModal] = useState<ModalKind>(null)
   const [icloudLocations, setIcloudLocations] = useState<DriveLocation[]>([])
@@ -97,6 +100,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   const runningJobs = jobs.filter((j) => j.state === 'running')
   const queuedJobs = jobs.filter((j) => j.state === 'queued')
   const filesRead = runningJobs.reduce((sum, j) => sum + (j.current_index || 0), 0)
+  const filesParsed = runningJobs.reduce((sum, j) => sum + (j.parsed_files || 0), 0)
   const isIndexing = indexStatus?.is_running || runningJobs.length > 0
 
   const addedPaths = new Set(sources.map((s) => s.path))
@@ -110,18 +114,23 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
 
   const statusSummary = isIndexing
     ? `${runningJobs.length} indexing · ${filesRead.toLocaleString()} files read`
-    : `${totalItems.toLocaleString()} items indexed`
+    : 'Idle · up to date'
 
   return (
     <div className={shared.panel}>
-      <div className={styles.sourcesToolbar}>
-        <div className={shared.cardHeaderCol}>
-          <h2 className={shared.cardTitle}>Sources</h2>
-          <p className={shared.cardSubtitle}>
-            {sources.length} {sources.length === 1 ? 'source' : 'sources'} · {totalItems.toLocaleString()} items
-          </p>
+      <header className={styles.sourcesHeader}>
+        <div className={styles.sourcesHeading}>
+          <h1 ref={titleRef} tabIndex={-1} className={settingsStyles.title}>
+            Sources
+          </h1>
+          <button className={`${shared.button} ${shared.primary}`} onClick={() => setModal('add')}>
+            + Add Source
+          </button>
         </div>
-        <div className={styles.toolbarRight}>
+        <div className={styles.headerStatus}>
+          <span className={styles.statusLine}>
+            {sources.length} {sources.length === 1 ? 'source' : 'sources'} · {totalItems.toLocaleString()} items scanned
+          </span>
           <button
             className={styles.liveStatusPill}
             onClick={() => setModal('progress')}
@@ -129,26 +138,21 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
           >
             <span className={`${styles.liveDot} ${isIndexing ? styles.liveDotActive : ''}`} />
             <span>{statusSummary}</span>
+            {isIndexing && filesParsed > filesRead && (
+              <span className={styles.parsedCount} title="Files parsed so far; embedding catches up">
+                {filesParsed.toLocaleString()} parsed
+              </span>
+            )}
           </button>
-          <span className={styles.liveLabel}>Live scanning</span>
-          <label className={shared.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
-            <input type="checkbox" role="switch" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
-            <span className={shared.slider} />
-          </label>
+          <span className={styles.liveToggle}>
+            <span className={styles.liveLabel}>Live scanning</span>
+            <label className={shared.switch} title={isGlobalAlwaysOn ? 'Disable real-time indexing' : 'Enable real-time indexing'}>
+              <input type="checkbox" role="switch" checked={isGlobalAlwaysOn} onChange={onToggleAlwaysOn} aria-label="Real-time indexing" />
+              <span className={shared.slider} />
+            </label>
+          </span>
         </div>
-      </div>
-
-      <div className={styles.addSourceRow}>
-        <button className={styles.addSourceCard} onClick={() => setModal('add')}>
-          <span className={`${styles.quickActionIcon} ${shared.iconAccent}`}>
-            <FolderIcon className="w-4 h-4" />
-          </span>
-          <span className={styles.addSourceText}>
-            <span className={styles.addSourceTitle}>Add Source</span>
-            <span className={styles.addSourceSubtitle}>Folders, services & cloud drives</span>
-          </span>
-        </button>
-      </div>
+      </header>
 
       <div className={shared.card}>
         <div className={shared.cardHeader}>
@@ -433,7 +437,9 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                           <span className={shared.sourceName}>{j.name}</span>
                           <span className={shared.sourcePath} title={j.path || j.name}>
                             {j.total_files > 0
-                              ? `${j.current_index.toLocaleString()} / ${j.total_files.toLocaleString()} files · ${Math.round(j.percent)}%`
+                              ? `${j.current_index.toLocaleString()} / ${j.total_files.toLocaleString()} files · ${Math.round(j.percent)}%${
+                                  (j.parsed_files ?? 0) > j.current_index ? ` · ${j.parsed_files?.toLocaleString()} parsed` : ''
+                                }`
                               : 'Discovering files…'}
                           </span>
                           {j.total_files > 0 && (

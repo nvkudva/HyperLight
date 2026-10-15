@@ -30,6 +30,49 @@
   tab-size: 2;
 }
 
+/* highlight.js emits global class names; :global keeps CSS modules from hashing them. */
+.code :global(.hljs-comment),
+.code :global(.hljs-quote) {
+  color: var(--label-3);
+  font-style: italic;
+}
+
+.code :global(.hljs-keyword),
+.code :global(.hljs-selector-tag),
+.code :global(.hljs-built_in),
+.code :global(.hljs-literal) {
+  color: var(--indigo);
+}
+
+.code :global(.hljs-string),
+.code :global(.hljs-regexp),
+.code :global(.hljs-attr),
+.code :global(.hljs-selector-class),
+.code :global(.hljs-selector-id) {
+  color: var(--green);
+}
+
+.code :global(.hljs-number),
+.code :global(.hljs-symbol),
+.code :global(.hljs-bullet),
+.code :global(.hljs-meta) {
+  color: var(--orange);
+}
+
+.code :global(.hljs-title),
+.code :global(.hljs-section),
+.code :global(.hljs-name),
+.code :global(.hljs-type),
+.code :global(.hljs-class) {
+  color: var(--accent);
+}
+
+.code :global(.hljs-variable),
+.code :global(.hljs-template-variable),
+.code :global(.hljs-deletion) {
+  color: var(--red);
+}
+
 .markdown h1,
 .markdown h2,
 .markdown h3 {

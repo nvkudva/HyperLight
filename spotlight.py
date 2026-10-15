@@ -3,7 +3,10 @@
 Owns bucket kinds, their labels and order, per-bucket caps and path dedupe,
 so text search, voice search and the frontend all agree on one answer.
 """
-from typing import Any, Dict, List, Optional, Sequence
+import functools
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import PIL.Image
 
 import app_state
 
@@ -11,6 +14,10 @@ CANDIDATE_LIMIT = 60
 PHOTO_CANDIDATES = 40
 PER_BUCKET = 5
 PER_BUCKET_OVERRIDES = {"photo": 30}
+
+SMALL_IMAGE_PX = 200
+TINY_IMAGE_PX = 64
+MAIL_PATH_MARKER = "/Library/Mail/"
 
 BUCKET_LABELS = {
     "app": "Applications",
@@ -25,7 +32,7 @@ BUCKET_LABELS = {
     "email": "Mail",
     "bookmark": "Bookmarks",
 }
-BUCKET_ORDER = ["app", "setting", "video", "photo", "document", "audio", "text"]
+BUCKET_ORDER = ["app", "setting", "video", "email", "photo", "document", "audio", "text"]
 
 OFFICE_DOC_EXTENSIONS = {
     ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",
@@ -43,11 +50,34 @@ def bucket_of(record: Dict[str, Any]) -> str:
     return "document" if ext in OFFICE_DOC_EXTENSIONS else "text"
 
 
+@functools.lru_cache(maxsize=4096)
+def _image_size(path: str) -> Optional[Tuple[int, int]]:
+    try:
+        with PIL.Image.open(path) as image:
+            return image.size
+    except Exception:
+        return None
+
+
+def demotion(record: Dict[str, Any]) -> int:
+    """0 = normal, 1 = thumbnail/icon-sized image, 2 = tiny image or small mail attachment."""
+    if record["type"] != "photo":
+        return 0
+    size = _image_size(record["path"])
+    if size is None or min(size) >= SMALL_IMAGE_PX:
+        return 0
+    is_mail_attachment = MAIL_PATH_MARKER in record["path"]
+    return 2 if min(size) < TINY_IMAGE_PX or is_mail_attachment else 1
+
+
 def group(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Ranked records -> buckets in BUCKET_ORDER, then first-seen order; first hit per path."""
+    """Ranked records -> buckets in BUCKET_ORDER, then first-seen order; first hit per path.
+
+    Small images (icons, thumbnails, mail attachments) sink below normal ones.
+    """
     items_by_kind: Dict[str, List[Dict[str, Any]]] = {}
     seen_paths = set()
-    for r in results:
+    for r in sorted(results, key=demotion):
         kind = bucket_of(r)
         items = items_by_kind.setdefault(kind, [])
         if len(items) < PER_BUCKET_OVERRIDES.get(kind, PER_BUCKET) and r.get("path") not in seen_paths:

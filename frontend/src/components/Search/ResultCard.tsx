@@ -8,6 +8,7 @@ import {
   CalendarIcon,
   ContactIcon,
   DocumentIcon,
+  MailIcon,
   PhotoIcon,
   SettingsIcon,
   VideoIcon,
@@ -26,6 +27,7 @@ const ICONS: Record<string, [React.FC<{ className?: string }>, string]> = {
   audio: [AudioIcon, styles.indigo],
   text: [DocumentIcon, styles.accent],
   bookmark: [BookmarkIcon, styles.accent],
+  email: [MailIcon, styles.accent],
 }
 
 export interface ResultCardProps {
@@ -42,11 +44,30 @@ export interface ResultCardProps {
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
 }
 
-const PHOTOS_COLLAPSED = 12
+const COLLAPSED_LIMITS: Record<string, number> = { photo: 12, email: 3 }
+const COLLAPSED_NOUNS: Record<string, string> = { photo: 'photos', email: 'emails' }
 
 const kindOf = (item: SearchResult) => item.type ?? item.file_type ?? 'document'
-const displayName = (item: SearchResult) => (item.filename ?? '').replace(/\.app$/i, '')
 const isSystemEntry = (item: SearchResult) => ['app', 'setting'].includes(kindOf(item))
+// Mail and calendar results live in opaque .emlx/.ics files; their path says nothing useful.
+const hasMeaninglessPath = (item: SearchResult) => ['email', 'calendar'].includes(kindOf(item))
+
+const displayName = (item: SearchResult) =>
+  (kindOf(item) === 'calendar' && item.metadata?.summary ? item.metadata.summary : item.filename ?? '').replace(/\.app$/i, '')
+
+function formatIcsDate(raw: string): string {
+  const match = /(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?/.exec(raw)
+  if (!match) return raw
+  const [, year, month, day, hour, minute] = match
+  return hour ? `${year}-${month}-${day} ${hour}:${minute}` : `${year}-${month}-${day}`
+}
+
+function describe(item: SearchResult): string {
+  const meta = item.metadata ?? {}
+  if (kindOf(item) === 'email') return [meta.from, meta.date].filter(Boolean).join(' · ')
+  if (kindOf(item) === 'calendar') return [meta.start && formatIcsDate(meta.start), meta.location].filter(Boolean).join(' · ')
+  return item.excerpt || item.path
+}
 
 function highlight(text: string, terms: string[]): React.ReactNode {
   const clean = terms.map((t) => t.trim()).filter((t) => t.length > 1)
@@ -98,17 +119,21 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     const allBuckets = snapshot ?? live.buckets
     const isSearching = snapshot ? snapshotSearching : live.isSearching
 
-    const [photosExpanded, setPhotosExpanded] = useState(false)
+    const [expandedKinds, setExpandedKinds] = useState<Set<string>>(new Set())
     const buckets = useMemo(
       () =>
         allBuckets.map((b) => {
-          if (b.kind === 'photo' && !photosExpanded) return { ...b, items: b.items.slice(0, PHOTOS_COLLAPSED) }
+          const collapsedLimit = COLLAPSED_LIMITS[b.kind]
+          if (collapsedLimit && !expandedKinds.has(b.kind)) return { ...b, items: b.items.slice(0, collapsedLimit) }
           if (b.kind === 'app' || b.kind === 'setting') return { ...b, items: b.items.slice(0, 2) }
           return b
         }),
-      [allBuckets, photosExpanded]
+      [allBuckets, expandedKinds]
     )
-    const hiddenPhotos = (allBuckets.find((b) => b.kind === 'photo')?.items.length ?? 0) - PHOTOS_COLLAPSED
+    const hiddenCount = (kind: string) => {
+      const total = allBuckets.find((b) => b.kind === kind)?.items.length ?? 0
+      return expandedKinds.has(kind) ? 0 : Math.max(0, total - (COLLAPSED_LIMITS[kind] ?? total))
+    }
 
     const [selected, setSelected] = useState(0)
     const flatItems = useMemo(() => flattenBuckets(buckets), [buckets])
@@ -243,7 +268,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                       const terms = item.matched_terms?.length
                         ? item.matched_terms
                         : query.split(/\s+/)
-                      const desc = item.excerpt || item.path
+                      const desc = describe(item)
                       return (
                         <div
                           key={item.path || idx}
@@ -259,7 +284,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                           <ResultThumbnail path={item.path} fallback={renderIcon(kindOf(item))} />
                           <div className={styles.itemText}>
                             <div className={styles.itemTitle}>{highlight(displayName(item), terms)}</div>
-                            {!isSystemEntry(item) && (
+                            {!isSystemEntry(item) && desc && (
                               <div className={styles.itemDesc}>{highlight(desc, terms)}</div>
                             )}
                           </div>
@@ -267,9 +292,12 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                       )
                     })
                     )}
-                    {bucket.kind === 'photo' && !photosExpanded && hiddenPhotos > 0 && (
-                      <button className={styles.showMore} onClick={() => setPhotosExpanded(true)}>
-                        Show {hiddenPhotos} more photos
+                    {hiddenCount(bucket.kind) > 0 && (
+                      <button
+                        className={styles.showMore}
+                        onClick={() => setExpandedKinds((prev) => new Set(prev).add(bucket.kind))}
+                      >
+                        Show {hiddenCount(bucket.kind)} more {COLLAPSED_NOUNS[bucket.kind]}
                       </button>
                     )}
                   </div>
@@ -329,7 +357,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                   <div className={styles.previewIconWrap}>{renderIcon(kindOf(current), styles.previewIcon)}</div>
                 )}
                 <h2 className={styles.previewTitle}>{displayName(current)}</h2>
-                {!showTextPreview && !isSystemEntry(current) && <p className={styles.previewPath}>{current.path}</p>}
+                {!showTextPreview && !isSystemEntry(current) && !hasMeaninglessPath(current) && <p className={styles.previewPath}>{current.path}</p>}
                 {showTextPreview && (
                   <TextPreview path={current.path} snippet={current.content ?? ''} />
                 )}

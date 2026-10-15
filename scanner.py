@@ -6,6 +6,8 @@ import functools
 import hashlib
 import html
 import os
+import threading
+import time
 import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
@@ -263,24 +265,33 @@ def _email_body_text(msg: email.message.EmailMessage) -> str:
     return " ".join(text.split())
 
 class ProgressReporter:
-    """Throttles progress callbacks to whole-percent steps plus the last file.
+    """Throttles progress callbacks to one per MIN_INTERVAL_SECONDS, plus the last file.
 
-    The UI percent ticks 1, 2, 3... as files stream by, but the callback
-    (a lock + status string in the job manager) runs at most ~101 times
-    per scan instead of once per file.
+    The UI polls every 100ms, so reporting faster only burns the job
+    manager's lock; reporting slower makes the file count jump in chunks.
     """
 
-    def __init__(self, callback: Optional[Callable[[str, int, int], None]], total: int) -> None:
+    MIN_INTERVAL_SECONDS = 0.1
+
+    def __init__(
+        self,
+        callback: Optional[Callable[[str, int, int], None]],
+        total: int,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.callback = callback
         self.total = total
-        self.last_percent = -1
+        self.clock = clock
+        self.last_reported_at: Optional[float] = None
 
     def report(self, filename: str, processed: int) -> None:
         if self.callback is None or self.total <= 0:
             return
-        percent = int(processed * 100 / self.total)
-        if percent != self.last_percent or processed >= self.total:
-            self.last_percent = percent
+        now = self.clock()
+        is_last = processed >= self.total
+        is_due = self.last_reported_at is None or now - self.last_reported_at >= self.MIN_INTERVAL_SECONDS
+        if is_last or is_due:
+            self.last_reported_at = now
             self.callback(filename, processed, self.total)
 
 
@@ -602,6 +613,7 @@ class Scanner:
         source: str = "local",
         on_progress: Optional[Callable[[str, int, int], None]] = None,
         cancel_check: Optional[Callable[[], bool]] = None,
+        on_parsed: Optional[Callable[[int], None]] = None,
     ) -> int:
         if not target_path.exists():
             return 0
@@ -647,6 +659,24 @@ class Scanner:
             batch, image_buffer = image_buffer, []
             submit_embedding(self._embed_image_batch, batch, source, IMG_BATCH_SIZE)
 
+        # on_progress only advances as embedding drains the queue; this counter
+        # runs ahead of it so the UI can show parsing speed separately.
+        parsed_files = 0
+        parsed_lock = threading.Lock()
+
+        def count_parsed(newly_parsed: int) -> None:
+            nonlocal parsed_files
+            with parsed_lock:
+                parsed_files += newly_parsed
+                total_parsed = parsed_files
+            if on_parsed:
+                on_parsed(total_parsed)
+
+        def parse_and_count(file_path: Path) -> Tuple[str, Path, List[Dict[str, Any]]]:
+            parsed = self._parse_file(file_path)
+            count_parsed(1)
+            return parsed
+
         workers = min(8, os.cpu_count() or 4)
         CHUNK_SIZE = 64
         reporter = ProgressReporter(on_progress, total_files)
@@ -668,21 +698,28 @@ class Scanner:
                     for file_path, st_mtime, st_size in chunk_files:
                         try:
                             resolved_str = str(file_path.resolve())
-                            if resolved_str in indexed_mtimes and abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
-                                continue
+                            if resolved_str in indexed_mtimes:
+                                if abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
+                                    continue
+                                # Chunk ids derive from path + index and add_items skips known ids,
+                                # so an edited file would keep its old text unless it is cleared first.
+                                self.storage.remove_items_by_path(resolved_str)
                         except Exception:
                             pass
                         files_to_parse.append(file_path)
 
                     # Already-indexed files count as processed without parsing.
-                    processed_files += len(chunk_files) - len(files_to_parse)
+                    skipped_files = len(chunk_files) - len(files_to_parse)
+                    processed_files += skipped_files
+                    if skipped_files:
+                        count_parsed(skipped_files)
                     if not files_to_parse:
                         reporter.report(chunk_files[-1][0].name, processed_files)
                         continue
 
                     # map streams results in order so progress and embedding
                     # advance file-by-file instead of waiting for the whole chunk.
-                    for kind, fp, chunks in pool.map(self._parse_file, files_to_parse):
+                    for kind, fp, chunks in pool.map(parse_and_count, files_to_parse):
                         if kind == "image":
                             image_buffer.append(fp)
                             if len(image_buffer) >= IMG_BATCH_SIZE:

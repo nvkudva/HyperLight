@@ -64,6 +64,7 @@ export interface IndexJobInfo {
   state: 'running' | 'queued'
   percent: number
   current_index: number
+  parsed_files?: number
   total_files: number
 }
 
@@ -75,6 +76,7 @@ export interface IndexJobStatus {
   current_source: string
   current_file: string
   current_index: number
+  parsed_files?: number
   total_files: number
   percent: number
   indexed_items: number

@@ -342,7 +342,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         onStartProgress()
         onRefreshSources()
       })
-      .catch((err) => showToast(err.message, 'red'))
+      .catch((err) => {
+        if (err instanceof ApiError && err.code === 'full_disk_access') {
+          showToast(err.message, 'amber')
+          openSettingsPane('full-disk-access')
+        } else {
+          showToast(err.message, 'red')
+        }
+      })
   }
 
   const localSources = sources.filter((s) => s.source_type !== 'macos_system')
@@ -380,11 +387,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
       <div className={`${styles.detail} custom-scroll`}>
         <div className={styles.content}>
-          <header className={styles.pageHeader}>
-            <h1 ref={titleRef} tabIndex={-1} className={styles.title}>
-              {activeLabel}
-            </h1>
-          </header>
+          {activeTab !== 'sources' && (
+            <header className={styles.pageHeader}>
+              <h1 ref={titleRef} tabIndex={-1} className={styles.title}>
+                {activeLabel}
+              </h1>
+            </header>
+          )}
 
           {toast && (
           <div role="status" className={`${styles.status} ${STATUS_CLASS[toast.color] ?? styles.statusInfo}`}>
@@ -420,6 +429,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             onReveal={handleReveal}
             onRescan={handleRescan}
             onRemoveSource={handleRemoveSource}
+            titleRef={titleRef}
           />
         )}
 

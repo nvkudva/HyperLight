@@ -27,6 +27,15 @@ class PathPrefixTest(unittest.TestCase):
         self.store.remove_items_by_path("/x/Docs")
         self.assertEqual(sorted(self.store.get_indexed_file_mtimes()), ["/x/D_cs/c.txt", "/x/Docs2/b.txt"])
 
+    def test_remove_keeps_known_id_cache_so_readding_works(self):
+        self.store.add_items([_item("e", "/x/Docs/e.txt")])
+        cached_before = self.store._known_ids
+        self.store.remove_items_by_path("/x/Docs/e.txt")
+        self.assertIs(self.store._known_ids, cached_before)
+        self.assertNotIn("e", self.store._known_ids)
+        self.assertIn("b", self.store._known_ids)
+        self.assertEqual(self.store.add_items([_item("e", "/x/Docs/e.txt")]), 1)
+
     def test_mtimes_scoped_to_folder(self):
         self.assertEqual(sorted(self.store.get_indexed_file_mtimes(under="/x/Docs2")), ["/x/Docs2/b.txt"])
 

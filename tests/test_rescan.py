@@ -38,7 +38,7 @@ class _FakeScanner:
         self.events = events
         self.store = store
 
-    def scan_path(self, path, source="local", on_progress=None, cancel_check=None):
+    def scan_path(self, path, source="local", on_progress=None, cancel_check=None, on_parsed=None):
         self.events.append(f"scan:{path}")
         self.store.count = 2
         return 2
@@ -149,6 +149,16 @@ class RescanAndClearRouteTest(unittest.TestCase):
         res = self.client.post("/api/sources/rescan", json={"path": str(self.folder.resolve())})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(self.fake_jobs.calls, [(str(self.folder.resolve()), "local", "Docs", True)])
+
+    def test_rescan_route_unreadable_folder_reports_full_disk_access(self):
+        self.folder.chmod(0)
+        try:
+            res = self.client.post("/api/sources/rescan", json={"path": str(self.folder.resolve())})
+        finally:
+            self.folder.chmod(0o755)
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.json()["error"], "full_disk_access")
+        self.assertEqual(self.fake_jobs.calls, [])
 
     def test_rescan_route_unknown_source_404(self):
         res = self.client.post("/api/sources/rescan", json={"path": "/no/such/source"})
