@@ -306,43 +306,50 @@ class Scanner:
             file_meta = get_file_metadata(path)
             reader = pypdf.PdfReader(str(path))
             pdf = None
-            for page_num, page in enumerate(reader.pages):
-                text = (page.extract_text() or "").strip()
-                if len(text) < 100:
-                    try:
-                        if pdf is None:
-                            pdf = pdfium.PdfDocument(str(path))
-                        vec = self.embedder.embed_image(pdf[page_num].render(scale=1.0).to_pil())
-                    except Exception:
-                        vec = None
-                    if vec:
+            try:
+                for page_num, page in enumerate(reader.pages):
+                    text = (page.extract_text() or "").strip()
+                    if len(text) < 100:
+                        try:
+                            if pdf is None:
+                                pdf = pdfium.PdfDocument(str(path))
+                            vec = self.embedder.embed_image(pdf[page_num].render(scale=1.0).to_pil())
+                        except Exception:
+                            vec = None
+                        if vec:
+                            chunks.append({
+                                "id": hashlib.sha256(f"{path}:pimg:{page_num}".encode()).hexdigest()[:16],
+                                "vector": vec,
+                                "type": "document",
+                                "path": str(path.resolve()),
+                                "filename": path.name,
+                                "content": f"Document Page Image: {path.name} (Page {page_num + 1})",
+                                "modified_at": file_meta["modified_at"],
+                                "metadata": {**file_meta, "page": page_num + 1, "is_scanned_image": True},
+                            })
+                            continue
+                    if not text:
+                        continue
+                    page_chunks = self.chunk_text(text, chunk_size=800, overlap=100)
+                    for chunk_idx, chunk in enumerate(page_chunks):
+                        chunk_id = hashlib.sha256(f"{path}:{page_num}:{chunk_idx}".encode()).hexdigest()[:16]
+                        chunk_meta = dict(file_meta)
+                        chunk_meta.update({"page": page_num + 1, "chunk_index": chunk_idx})
                         chunks.append({
-                            "id": hashlib.sha256(f"{path}:pimg:{page_num}".encode()).hexdigest()[:16],
-                            "vector": vec,
+                            "id": chunk_id,
                             "type": "document",
                             "path": str(path.resolve()),
                             "filename": path.name,
-                            "content": f"Document Page Image: {path.name} (Page {page_num + 1})",
+                            "content": chunk,
                             "modified_at": file_meta["modified_at"],
-                            "metadata": {**file_meta, "page": page_num + 1, "is_scanned_image": True},
+                            "metadata": chunk_meta,
                         })
-                        continue
-                if not text:
-                    continue
-                page_chunks = self.chunk_text(text, chunk_size=800, overlap=100)
-                for chunk_idx, chunk in enumerate(page_chunks):
-                    chunk_id = hashlib.sha256(f"{path}:{page_num}:{chunk_idx}".encode()).hexdigest()[:16]
-                    chunk_meta = dict(file_meta)
-                    chunk_meta.update({"page": page_num + 1, "chunk_index": chunk_idx})
-                    chunks.append({
-                        "id": chunk_id,
-                        "type": "document",
-                        "path": str(path.resolve()),
-                        "filename": path.name,
-                        "content": chunk,
-                        "modified_at": file_meta["modified_at"],
-                        "metadata": chunk_meta,
-                    })
+            finally:
+                if pdf is not None:
+                    try:
+                        pdf.close()
+                    except Exception:
+                        pass
         except Exception:
             return []
         return chunks

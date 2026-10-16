@@ -60,7 +60,10 @@ def api_preview(path: str, size: int = 800) -> Response:
     is_app_bundle = file_path.suffix.lower() == ".app" and file_path.is_dir()
     if not file_path.is_file() and not is_app_bundle:
         return Response(status_code=404)
-    stat = file_path.stat()
+    try:
+        stat = file_path.stat()
+    except OSError:
+        return Response(status_code=404)
     key = hashlib.sha1(f"{file_path}:{stat.st_mtime_ns}:{size}".encode()).hexdigest()
     cached = PREVIEW_CACHE_DIR / f"{key}.png"
     if not cached.exists():

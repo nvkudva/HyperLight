@@ -40,8 +40,11 @@ class GroupTest(unittest.TestCase):
         self.assertEqual([b["kind"] for b in buckets], ["photo"])
 
     def test_caps_each_bucket(self):
-        buckets = spotlight.group([rec("photo", f"/p/{i}.jpg") for i in range(9)])
+        buckets = spotlight.group([rec("document", f"/d/{i}.pdf") for i in range(9)])
         self.assertEqual(len(buckets[0]["items"]), spotlight.PER_BUCKET)
+        photo_cap = spotlight.PER_BUCKET_OVERRIDES.get("photo", spotlight.PER_BUCKET)
+        buckets = spotlight.group([rec("photo", f"/p/{i}.jpg") for i in range(35)])
+        self.assertEqual(len(buckets[0]["items"]), photo_cap)
 
     def test_small_images_rank_below_normal_ones(self):
         sizes = {"/p/icon.png": (48, 48), "/Library/Mail/a/logo.png": (150, 150), "/p/thumb.png": (180, 120), "/p/big.jpg": (3000, 2000)}

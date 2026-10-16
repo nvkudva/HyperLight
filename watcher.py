@@ -114,6 +114,10 @@ class LiveWatcher:
                 source = src.get("source_type", "local")
                 break
 
+        try:
+            self.storage.remove_items_by_path(file_path)
+        except Exception:
+            pass
         count = self.scanner.scan_path(p, source=source)
         if self.on_indexed and count > 0:
             self.on_indexed(p.name, "indexed")

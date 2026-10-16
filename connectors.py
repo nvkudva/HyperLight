@@ -36,13 +36,17 @@ def get_installed_applications() -> List[Dict[str, Any]]:
             if bundle_id:
                 content += f" | Bundle ID: {bundle_id}"
 
+            try:
+                modified_at = app_path.stat().st_mtime
+            except OSError:
+                continue
             apps.append({
                 "id": app_id,
                 "type": "app",
                 "path": str(app_path.resolve()),
                 "filename": f"{name}.app",
                 "content": content,
-                "modified_at": app_path.stat().st_mtime,
+                "modified_at": modified_at,
                 "metadata": {
                     "name": name,
                     "bundle_id": bundle_id,

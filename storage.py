@@ -119,6 +119,18 @@ class Storage:
     ) -> List[Dict[str, Any]]:
         """Ranked records. With `photo_limit` and no type filter, photos get their own
         candidate pool and result budget so text hits cannot crowd them out."""
+        with self._lock:
+            return self._search_locked(query_vector, query_text, item_type, exclude_type, limit, photo_limit)
+
+    def _search_locked(
+        self,
+        query_vector: List[float],
+        query_text: Optional[str] = None,
+        item_type: Optional[str] = None,
+        exclude_type: Optional[str] = None,
+        limit: int = 10,
+        photo_limit: int = 0,
+    ) -> List[Dict[str, Any]]:
         if len(self.table) == 0:
             return []
 
@@ -232,26 +244,27 @@ class Storage:
         return sorted(photos + others, key=lambda x: x["score"])
 
     def get_stats(self) -> Dict[str, Any]:
-        count = len(self.table)
-        if count == 0:
-            return {"total": 0, "photos": 0, "documents": 0, "sources": {}}
+        with self._lock:
+            count = len(self.table)
+            if count == 0:
+                return {"total": 0, "photos": 0, "documents": 0, "sources": {}}
 
-        arrow_data = self.table.search().select(["type", "source"]).to_arrow()
-        types = arrow_data["type"].to_pylist()
-        sources = arrow_data["source"].to_pylist()
+            arrow_data = self.table.search().select(["type", "source"]).to_arrow()
+            types = arrow_data["type"].to_pylist()
+            sources = arrow_data["source"].to_pylist()
 
-        photos = sum(1 for t in types if t == "photo")
-        documents = sum(1 for t in types if t == "document")
-        source_counts: Dict[str, int] = {}
-        for s in sources:
-            source_counts[s] = source_counts.get(s, 0) + 1
+            photos = sum(1 for t in types if t == "photo")
+            documents = sum(1 for t in types if t == "document")
+            source_counts: Dict[str, int] = {}
+            for s in sources:
+                source_counts[s] = source_counts.get(s, 0) + 1
 
-        return {
-            "total": count,
-            "photos": photos,
-            "documents": documents,
-            "sources": source_counts,
-        }
+            return {
+                "total": count,
+                "photos": photos,
+                "documents": documents,
+                "sources": source_counts,
+            }
 
     def get_indexed_file_mtimes(self, under: Optional[str] = None) -> Dict[str, float]:
         """Path -> mtime of indexed items, optionally only those at or beneath `under`."""
