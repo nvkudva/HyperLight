@@ -17,11 +17,9 @@ router = fastapi.APIRouter()
 @router.get("/api/thumbnail")
 def api_thumbnail(path: str) -> Response:
     file_path = Path(path).resolve()
-    if not file_path.exists() or not file_path.is_file():
-        return Response(status_code=404)
     mime, _ = mimetypes.guess_type(str(file_path))
-    if not mime or not mime.startswith("image/"):
-        mime = "application/octet-stream"
+    if not file_path.is_file() or not mime or not mime.startswith("image/"):
+        return Response(status_code=404)
     return fastapi.responses.FileResponse(
         file_path, media_type=mime, headers={"Cache-Control": "private, max-age=3600"}
     )

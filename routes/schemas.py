@@ -26,11 +26,6 @@ class LaunchRequest(pydantic.BaseModel):
     path: str
 
 
-class GoogleTokenRequest(pydantic.BaseModel):
-    access_token: str
-    refresh_token: Optional[str] = ""
-
-
 class HotkeyCombo(pydantic.BaseModel):
     key_code: int = pydantic.Field(ge=0, le=127)
     modifiers: List[Literal["ctrl", "alt", "shift", "cmd"]]

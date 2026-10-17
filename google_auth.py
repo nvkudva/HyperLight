@@ -125,8 +125,7 @@ def exchange_code(code: str, redirect_uri: Optional[str] = None) -> Dict[str, An
         "expires_at": time.time() + expires_in,
         "user": userinfo,
     }
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    TOKENS_PATH.write_text(json.dumps(saved_payload, indent=2), encoding="utf-8")
+    _write_tokens(saved_payload)
     return saved_payload
 
 def fetch_userinfo(access_token: str) -> Dict[str, Any]:
@@ -135,6 +134,15 @@ def fetch_userinfo(access_token: str) -> Dict[str, Any]:
     if resp.status_code == 200:
         return resp.json()
     return {}
+
+def _write_tokens(payload: Dict[str, Any]) -> None:
+    """Tokens are credentials: owner-only file, replaced atomically."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_path = TOKENS_PATH.with_suffix(".json.tmp")
+    descriptor = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    os.replace(tmp_path, TOKENS_PATH)
 
 def _read_tokens() -> Optional[Dict[str, Any]]:
     try:
@@ -175,7 +183,7 @@ def get_valid_access_token(data: Optional[Dict[str, Any]] = None) -> Optional[st
                     expires_in = new_token_data.get("expires_in", 3600)
                     data["access_token"] = new_access
                     data["expires_at"] = time.time() + expires_in
-                    TOKENS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                    _write_tokens(data)
                     return new_access
         if access_token and time.time() >= (expires_at - 60):
             return None
@@ -183,26 +191,6 @@ def get_valid_access_token(data: Optional[Dict[str, Any]] = None) -> Optional[st
     except Exception as e:
         logger.error(f"Error checking access token: {e}")
         return None
-
-def save_direct_token(access_token: str, refresh_token: str = "") -> Dict[str, Any]:
-    userinfo = fetch_userinfo(access_token)
-    final_refresh = refresh_token.strip()
-    if not final_refresh and TOKENS_PATH.exists():
-        try:
-            prev = json.loads(TOKENS_PATH.read_text(encoding="utf-8"))
-            final_refresh = prev.get("refresh_token", "").strip()
-        except Exception:
-            pass
-
-    payload = {
-        "access_token": access_token.strip(),
-        "refresh_token": final_refresh,
-        "expires_at": time.time() + 3600,
-        "user": userinfo,
-    }
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    TOKENS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return payload
 
 def disconnect() -> None:
     if TOKENS_PATH.exists():
@@ -235,5 +223,4 @@ __all__ = [
     "get_status",
     "get_valid_access_token",
     "parse_client_json",
-    "save_direct_token",
 ]

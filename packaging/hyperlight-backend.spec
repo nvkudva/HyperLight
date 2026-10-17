@@ -36,7 +36,6 @@ for _pkg in (
     "transformers",
     "tokenizers",
     "whisper",
-    "kokoro_onnx",
     "soundfile",
     "pypdfium2",
     "watchdog",

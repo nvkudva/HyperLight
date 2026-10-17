@@ -1,5 +1,4 @@
 """Google OAuth and cloud-sync routes."""
-import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -12,7 +11,6 @@ import google_auth
 import google_sync
 import logging_config
 from routes.auth_pages import auth_cancelled_page, auth_error_page, auth_missing_code_page, auth_success_page
-from routes.schemas import GoogleTokenRequest
 
 logger = logging_config.get_logger("routes.auth_google")
 
@@ -22,16 +20,6 @@ router = fastapi.APIRouter()
 @router.get("/api/auth/google/status")
 def api_google_status() -> Dict[str, Any]:
     return google_auth.get_status()
-
-
-@router.get("/api/auth/google/login")
-def api_google_login(request: fastapi.Request) -> Any:
-    redirect_uri = str(request.url_for("api_google_callback"))
-    try:
-        url = google_auth.get_auth_url(redirect_uri)
-        return fastapi.responses.RedirectResponse(url=url)
-    except Exception as e:
-        return fastapi.responses.RedirectResponse(url=f"/?google_error={urllib.parse.quote(str(e))}")
 
 
 @router.get("/api/auth/google/auth-url")
@@ -59,15 +47,6 @@ def api_google_callback(request: fastapi.Request, code: Optional[str] = None, er
     except Exception as e:
         logger.error(f"Google OAuth exchange error: {e}")
         return HTMLResponse(content=auth_error_page(e), status_code=500)
-
-
-@router.post("/api/auth/google/token")
-def api_google_token(req: GoogleTokenRequest) -> Dict[str, Any]:
-    try:
-        res = google_auth.save_direct_token(req.access_token, req.refresh_token or "")
-        return {"status": "success", "user": res.get("user", {})}
-    except Exception as e:
-        return fastapi.responses.JSONResponse(status_code=400, content={"error": str(e)})
 
 
 @router.post("/api/auth/google/disconnect")
