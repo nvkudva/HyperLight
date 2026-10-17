@@ -2,6 +2,9 @@
 Run: .venv/bin/python -m unittest tests.test_watcher_filter -v
 """
 import sys
+import tempfile
+import threading
+import time
 import unittest
 
 sys.path.insert(0, ".")
@@ -32,6 +35,28 @@ class ShouldHandleTest(unittest.TestCase):
 
     def test_path_outside_every_root_falls_back_to_full_path_check(self):
         self.assertFalse(self.handler._should_handle("/Users/me/Library/other/a.txt"))
+
+
+class ProcessQueueTest(unittest.TestCase):
+    def test_failing_callback_does_not_stop_later_events(self):
+        processed = threading.Event()
+
+        def callback(path, kind):
+            if path.endswith("bad.txt"):
+                raise RuntimeError("index failed")
+            processed.set()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bad, good = f"{tmp}/bad.txt", f"{tmp}/good.txt"
+            for path in (bad, good):
+                open(path, "w").close()
+            handler = watcher.DebouncedHandler(callback)
+            try:
+                with self.assertLogs("hyperlight.watcher", level="ERROR"):
+                    handler.pending_events.update({bad: time.time() - 1, good: time.time() - 1})
+                    self.assertTrue(processed.wait(5))
+            finally:
+                handler.stop()
 
 
 if __name__ == "__main__":

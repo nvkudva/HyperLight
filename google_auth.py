@@ -2,8 +2,9 @@ import json
 import logging
 import os
 from pathlib import Path
+import secrets
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import urllib.parse
 import requests
 
@@ -60,7 +61,19 @@ def parse_client_json(text: str) -> Dict[str, str]:
 
 _last_redirect_uri: str = "http://localhost:8585/api/auth/google/callback"
 
-def get_auth_url(redirect_uri: str, state: str = "google_auth") -> str:
+MAX_PENDING_STATES = 5
+_pending_states: List[str] = []
+
+
+def consume_state(state: Optional[str]) -> bool:
+    """True once for each state handed out by get_auth_url; guards the callback against forged sign-ins."""
+    if state not in _pending_states:
+        return False
+    _pending_states.remove(state)
+    return True
+
+
+def get_auth_url(redirect_uri: str) -> str:
     global _last_redirect_uri
     _last_redirect_uri = redirect_uri
     cfg = get_client_config()
@@ -68,6 +81,8 @@ def get_auth_url(redirect_uri: str, state: str = "google_auth") -> str:
     if not client_id:
         raise ValueError("Google sign-in is not configured in this build (google_client.json is missing).")
 
+    state = secrets.token_urlsafe(24)
+    _pending_states[:] = _pending_states[-(MAX_PENDING_STATES - 1):] + [state]
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -215,6 +230,7 @@ def get_status() -> Dict[str, Any]:
 
 __all__ = [
     "PHOTOS_CACHE_DIR",
+    "consume_state",
     "disconnect",
     "exchange_code",
     "fetch_userinfo",

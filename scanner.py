@@ -113,7 +113,9 @@ class Scanner:
         on_progress: Optional[Callable[[str, int, int], None]] = None,
         cancel_check: Optional[Callable[[], bool]] = None,
         on_parsed: Optional[Callable[[int], None]] = None,
+        force: bool = False,
     ) -> int:
+        """Index everything under `target_path`. `force` re-parses files already indexed unchanged."""
         if not target_path.exists():
             return 0
 
@@ -203,7 +205,7 @@ class Scanner:
                     for file_path, st_mtime, st_size in chunk_files:
                         resolved_str = str(file_path.resolve())
                         if resolved_str in indexed_mtimes:
-                            if abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
+                            if not force and abs(indexed_mtimes[resolved_str] - st_mtime) < 0.01:
                                 continue
                             # Chunk ids derive from path + index and add_items skips known ids,
                             # so an edited file must replace its old rows, not add to them.

@@ -12,7 +12,7 @@ import connectors
 import google_auth
 import logging_config
 import sources
-from routes.media import PREVIEW_CACHE_DIR
+from routes import media
 from routes.schemas import BrowseFolderRequest, IndexRequest, LaunchRequest, RemoveSourceRequest, SourceWatchRequest
 
 logger = logging_config.get_logger("routes.sources")
@@ -26,14 +26,18 @@ SETTINGS_PANES = {
 
 
 @router.post("/api/launch")
-def api_launch(req: LaunchRequest) -> Dict[str, Any]:
+def api_launch(req: LaunchRequest) -> Any:
+    if not media.is_openable(req.path):
+        return media.not_indexed_response(success=False, path=req.path)
     success = connectors.launch_target(req.path)
     logger.info(f"Launch target: '{req.path}' -> success={success}")
     return {"success": success, "path": req.path}
 
 
 @router.post("/api/reveal")
-def api_reveal(req: LaunchRequest) -> Dict[str, Any]:
+def api_reveal(req: LaunchRequest) -> Any:
+    if not media.is_openable(req.path):
+        return media.not_indexed_response(success=False, path=req.path)
     success = connectors.reveal_in_finder(req.path)
     logger.info(f"Reveal in Finder: '{req.path}' -> success={success}")
     return {"success": success, "path": req.path}
@@ -126,7 +130,7 @@ def api_reset_all() -> Dict[str, str]:
     app_config.reset_all()
     sources.refresh()
     google_auth.disconnect()
-    shutil.rmtree(PREVIEW_CACHE_DIR, ignore_errors=True)
+    shutil.rmtree(media.PREVIEW_CACHE_DIR, ignore_errors=True)
     shutil.rmtree(google_auth.PHOTOS_CACHE_DIR, ignore_errors=True)
     return {"status": "reset"}
 

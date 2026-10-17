@@ -5,7 +5,7 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::hotkey;
+use crate::{backend, hotkey};
 
 const SHOW: &str = "show";
 const VOICE: &str = "voice";
@@ -28,6 +28,12 @@ fn toggle_open_at_login(app: &tauri::AppHandle, item: &CheckMenuItem<tauri::Wry>
     log::warn!("open at login toggle failed: {err}");
   }
   let _ = item.set_checked(launcher.is_enabled().unwrap_or(false));
+}
+
+/// A restart on the main thread skips RunEvent::Exit, so the backend we started is stopped here.
+fn restart(app: &tauri::AppHandle) -> ! {
+  backend::stop_spawned();
+  app.restart()
 }
 
 pub fn build(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -60,7 +66,7 @@ pub fn build(app: &tauri::AppHandle) -> tauri::Result<()> {
       HISTORY => open_view(app, "history"),
       SETTINGS => open_view(app, "settings"),
       LOGIN => toggle_open_at_login(app, &login_item),
-      RESTART => app.restart(),
+      RESTART => restart(app),
       QUIT => app.exit(0),
       _ => {}
     });

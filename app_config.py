@@ -25,25 +25,32 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 }
 
 
+def _default_config() -> Dict[str, Any]:
+    return {"sources": [], "settings": dict(DEFAULT_SETTINGS)}
+
+
 def _read_config() -> Dict[str, Any]:
     if not CONFIG_PATH.exists():
-        return {"sources": [], "settings": dict(DEFAULT_SETTINGS)}
+        return _default_config()
     try:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
-            return {"sources": [], "settings": dict(DEFAULT_SETTINGS)}
+            return _default_config()
         if "settings" not in data or not isinstance(data["settings"], dict):
             data["settings"] = dict(DEFAULT_SETTINGS)
         if "sources" not in data or not isinstance(data["sources"], list):
             data["sources"] = []
         return data
-    except (OSError, ValueError):
-        # Keep the unreadable file so the next write cannot silently erase sources.
+    except OSError as e:
+        logger.warning("Could not read %s this time: %s", CONFIG_PATH, e)
+        return _default_config()
+    except ValueError:
+        # Keep the corrupt file so the next write cannot silently erase sources.
         backup = CONFIG_PATH.with_name(f"config.corrupt-{int(time.time())}.json")
         with contextlib.suppress(OSError):
             CONFIG_PATH.replace(backup)
         logger.error("Unreadable %s moved to %s", CONFIG_PATH, backup)
-        return {"sources": [], "settings": dict(DEFAULT_SETTINGS)}
+        return _default_config()
 
 
 def _write_config(data: Dict[str, Any]) -> None:
@@ -71,6 +78,10 @@ def _resolve(path: str) -> str:
 
 def _matches(s_path: str, path: str, resolved_path: str) -> bool:
     return bool(s_path) and (s_path == path or _resolve(s_path) == resolved_path)
+
+
+def is_same_path(a: str, b: str) -> bool:
+    return _matches(a, b, _resolve(b))
 
 
 def get_app_settings() -> Dict[str, Any]:

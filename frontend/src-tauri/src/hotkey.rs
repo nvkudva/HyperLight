@@ -45,6 +45,7 @@ const EV_FLAGS_CHANGED: u32 = 12;
 const EV_TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFF_FFFE;
 const EV_TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
 const FIELD_KEYCODE: u32 = 9;
+const FIELD_AUTOREPEAT: u32 = 8;
 const MASK_SHIFT: u64 = 0x0002_0000;
 const MASK_CTRL: u64 = 0x0004_0000;
 const MASK_ALT: u64 = 0x0008_0000;
@@ -200,6 +201,11 @@ fn is_double_tap(state: &State, tap: DoubleTap, event: *mut c_void) -> bool {
   register_press(&mut last, Instant::now())
 }
 
+/// Holding a key sends repeated key-downs; only the first is a real press.
+fn is_autorepeat(event: *mut c_void) -> bool {
+  unsafe { CGEventGetIntegerValueField(event, FIELD_AUTOREPEAT) != 0 }
+}
+
 fn is_combo(cfg: &Config, event: *mut c_void) -> bool {
   let Some(key) = cfg.combo_key else { return false };
   let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
@@ -227,7 +233,7 @@ extern "C" fn tap_callback(_proxy: *mut c_void, etype: u32, event: *mut c_void, 
   let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
   let hit = match etype {
     EV_FLAGS_CHANGED => cfg.double_tap.is_some_and(|tap| is_double_tap(ctx.state, tap, event)),
-    EV_KEY_DOWN => is_combo(&cfg, event),
+    EV_KEY_DOWN => !is_autorepeat(event) && is_combo(&cfg, event),
     _ => false,
   };
   if hit {

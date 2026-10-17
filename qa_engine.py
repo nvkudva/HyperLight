@@ -2,6 +2,30 @@ import json
 from typing import Any, Dict, Generator, List, Optional
 import requests
 
+NUM_CTX = 4096
+CHARS_PER_TOKEN = 3
+RESERVED_TOKENS = 700  # instructions and the answer itself
+SOURCE_HEADER_CHARS = 300
+MIN_CHUNK_CHARS = 200
+UNREADABLE_REPLY = "The local Gemma model sent a reply Hyperlight could not read. Please try again."
+
+
+def chunk_char_limit(question: str, system_prompt: str, source_count: int) -> int:
+    """Characters of each retrieved chunk that fit in the model's context window."""
+    budget = (NUM_CTX - RESERVED_TOKENS) * CHARS_PER_TOKEN - len(question) - len(system_prompt)
+    return max(budget // source_count - SOURCE_HEADER_CHARS, MIN_CHUNK_CHARS)
+
+
+def read_answer(response: requests.Response) -> str:
+    try:
+        data = response.json()
+    except ValueError:
+        return UNREADABLE_REPLY
+    if not isinstance(data, dict):
+        return UNREADABLE_REPLY
+    return str(data.get("response", "")).strip()
+
+
 class QAEngine:
     def __init__(self, model: str = "gemma2:2b", ollama_host: str = "http://localhost:11434"):
         self.model = model
@@ -22,6 +46,7 @@ class QAEngine:
 
         context_blocks = []
         sources = []
+        chunk_limit = chunk_char_limit(question, system_prompt, len(retrieved_docs))
         for idx, doc in enumerate(retrieved_docs):
             filename = doc.get("filename", "Unknown")
             path = doc.get("path", "")
@@ -45,7 +70,7 @@ class QAEngine:
             if meta_details:
                 header += f"\nMetadata: {' | '.join(meta_details)}"
 
-            context_blocks.append(f"{header}\nPath: {path}\nContent:\n{content}\n")
+            context_blocks.append(f"{header}\nPath: {path}\nContent:\n{content[:chunk_limit]}\n")
             sources.append({
                 "source_num": idx + 1,
                 "filename": filename,
@@ -89,7 +114,7 @@ class QAEngine:
                     "prompt": prompt,
                     "stream": False,
                     "keep_alive": "30m",
-                    "options": {"num_ctx": 4096},
+                    "options": {"num_ctx": NUM_CTX},
                 },
                 timeout=(3, 60),
             )
@@ -105,9 +130,7 @@ class QAEngine:
                 "sources": sources,
             }
 
-        data = response.json()
-        answer = data.get("response", "").strip()
         return {
-            "answer": answer,
+            "answer": read_answer(response),
             "sources": sources,
         }

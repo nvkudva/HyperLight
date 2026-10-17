@@ -40,6 +40,12 @@ def get_transcriber():
     return _transcriber
 
 
+def _decode_audio(path: str) -> numpy.ndarray:
+    """Whisper's ffmpeg decode; raises RuntimeError with ffmpeg's output when the file is not audio."""
+    import whisper
+    return whisper.load_audio(path)
+
+
 def _transcribe_samples(samples: numpy.ndarray) -> dict:
     model = get_transcriber()
     with _transcribe_lock:
@@ -67,13 +73,18 @@ def api_transcribe(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(data)
             tmp_path = tmp.name
+        try:
+            samples = _decode_audio(tmp_path)
+        except RuntimeError as e:
+            logger.warning(f"Transcription input is not decodable audio: {e}")
+            return fastapi.responses.JSONResponse(status_code=400, content={"error": "Unreadable audio file."})
         model = get_transcriber()
         with _transcribe_lock:
-            result = model.transcribe(tmp_path, fp16=False)
+            result = model.transcribe(samples, fp16=False)
         return {"text": (result.get("text") or "").strip()}
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
-        return fastapi.responses.JSONResponse(status_code=500, content={"error": f"Transcription failed: {e}"})
+        return fastapi.responses.JSONResponse(status_code=500, content={"error": "Transcription failed."})
     finally:
         try:
             if tmp_path:
@@ -115,12 +126,12 @@ def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
             return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
         logger.info(f"Audio search -> {response['total_matches']} matches across {len(response['buckets'])} buckets")
         return response
-    except wave.Error:
+    except (wave.Error, EOFError):
         logger.error("Audio search failed, unreadable WAV.")
         return fastapi.responses.JSONResponse(status_code=400, content={"error": "Unreadable audio file."})
     except Exception as e:
         logger.error(f"Audio search failed: {e}")
-        return fastapi.responses.JSONResponse(status_code=500, content={"error": f"Audio search failed: {e}"})
+        return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio search failed."})
     finally:
         try:
             if tmp_path:

@@ -1,4 +1,4 @@
-"""Rescan deletes a folder's indexed data before re-indexing; DB reset marks sources unscanned.
+"""Rescan re-parses a folder in place and prunes vanished files; DB reset marks sources unscanned.
 
 Run: .venv/bin/python -m unittest tests.test_rescan -v
 """
@@ -24,10 +24,14 @@ class _FakeStore:
     def __init__(self, events):
         self.events = events
         self.count = 0
+        self.indexed_paths = []
 
     def remove_items_by_path(self, path):
         self.events.append(f"remove:{path}")
         self.count = 0
+
+    def get_indexed_file_mtimes(self, under=None):
+        return dict.fromkeys(self.indexed_paths, 0.0)
 
     def count_items_by_path(self, path):
         return self.count
@@ -38,8 +42,8 @@ class _FakeScanner:
         self.events = events
         self.store = store
 
-    def scan_path(self, path, source="local", on_progress=None, cancel_check=None, on_parsed=None):
-        self.events.append(f"scan:{path}")
+    def scan_path(self, path, source="local", on_progress=None, cancel_check=None, on_parsed=None, force=False):
+        self.events.append(f"scan:{path}:force" if force else f"scan:{path}")
         self.store.count = 2
         return 2
 
@@ -64,13 +68,36 @@ class RescanWorkerTest(unittest.TestCase):
         app_state.get_storage, app_state.get_scanner, app_state.get_watcher = self._getters
         self.tmp.cleanup()
 
-    def test_rescan_removes_before_scanning(self):
+    def test_rescan_forces_reparse_and_never_empties_the_source_first(self):
         self.store.count = 5
         manager = jobs.IndexJobManager()
         manager._worker(jobs.Job(self.folder, "local", "Docs", {"rescan": True}))
-        self.assertEqual(self.events, [f"remove:{self.folder}", f"scan:{self.folder}"])
-        listed = sources.list_all()
-        self.assertEqual(listed[0]["items_count"], 2)
+        self.assertEqual(self.events, [f"scan:{self.folder}:force"])
+        self.assertEqual(sources.list_all()[0]["items_count"], 2)
+
+    def test_rescan_prunes_rows_of_files_that_no_longer_exist(self):
+        kept = self.folder / "kept.txt"
+        kept.write_text("x")
+        gone = self.folder / "gone.txt"
+        self.store.indexed_paths = [str(kept), str(gone)]
+        jobs.IndexJobManager()._worker(jobs.Job(self.folder, "local", "Docs", {"rescan": True}))
+        self.assertEqual(self.events, [f"scan:{self.folder}:force", f"remove:{gone}"])
+
+    def test_cancelled_rescan_prunes_nothing(self):
+        self.store.indexed_paths = [str(self.folder / "gone.txt")]
+        manager = jobs.IndexJobManager()
+        manager.cancel_requested = True
+        manager._worker(jobs.Job(self.folder, "local", "Docs", {"rescan": True}))
+        self.assertEqual(self.events, [f"scan:{self.folder}:force"])
+
+    def test_rescan_of_runner_source_rebuilds_from_scratch(self):
+        saved = jobs.RUN_FUNCTIONS["macos_apps"]
+        jobs.RUN_FUNCTIONS["macos_apps"] = lambda progress, cancel, opts: self.events.append("run:apps")
+        try:
+            jobs.IndexJobManager()._worker(jobs.Job(Path.home(), "macos_apps", "Application", {"rescan": True}))
+        finally:
+            jobs.RUN_FUNCTIONS["macos_apps"] = saved
+        self.assertEqual(self.events, ["remove:/Applications", "run:apps"])
 
     def test_normal_index_does_not_remove(self):
         manager = jobs.IndexJobManager()
@@ -176,7 +203,7 @@ class RescanAndClearRouteTest(unittest.TestCase):
 
     def test_reset_all_wipes_config_tokens_and_caches(self):
         import google_auth
-        import routes.sources
+        import routes.media
 
         class _FakeWatcher:
             def sync_sources(self):
@@ -188,13 +215,13 @@ class RescanAndClearRouteTest(unittest.TestCase):
         previews.mkdir()
         photos = Path(self.tmp.name) / "photos"
         photos.mkdir()
-        saved = (google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.sources.PREVIEW_CACHE_DIR, app_state.get_watcher)
-        google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.sources.PREVIEW_CACHE_DIR = tokens, photos, previews
+        saved = (google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.media.PREVIEW_CACHE_DIR, app_state.get_watcher)
+        google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.media.PREVIEW_CACHE_DIR = tokens, photos, previews
         app_state.get_watcher = lambda: _FakeWatcher()
         try:
             res = self.client.post("/api/reset-all")
         finally:
-            google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.sources.PREVIEW_CACHE_DIR, app_state.get_watcher = saved
+            google_auth.TOKENS_PATH, google_auth.PHOTOS_CACHE_DIR, routes.media.PREVIEW_CACHE_DIR, app_state.get_watcher = saved
         self.assertEqual(res.status_code, 200)
         self.assertTrue(self.fake_store.cleared)
         self.assertEqual(app_config.get_configured_sources(), [])

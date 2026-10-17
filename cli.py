@@ -1,7 +1,19 @@
-import argparse
-import datetime
+import os
 from pathlib import Path
 import sys
+
+REPO_PYTHON = Path(__file__).resolve().parent / ".venv" / "bin" / "python3"
+
+def use_repo_python() -> None:
+    """Re-run under the repo's virtualenv so `python3 cli.py ...` works from any interpreter."""
+    if REPO_PYTHON.exists() and Path(sys.prefix).resolve() != REPO_PYTHON.parent.parent.resolve():
+        os.execv(REPO_PYTHON, [str(REPO_PYTHON), *sys.argv])
+
+if __name__ == "__main__":
+    use_repo_python()  # before the imports below, which fail under a bare system python
+
+import argparse
+import datetime
 import time
 import embedder
 import qa_engine
@@ -27,6 +39,7 @@ def cmd_index(args: argparse.Namespace) -> None:
             print(f"[{current}/{total}] Processing {filename}...")
 
     indexed_count = sc.scan_path(target_path, source=args.source, on_progress=on_progress)
+    sources.record_scan(target_path.name or str(target_path), str(target_path), args.source)
     print(f"Done! Successfully indexed {indexed_count} items from {target_path}.")
 
 def cmd_search(args: argparse.Namespace) -> None:

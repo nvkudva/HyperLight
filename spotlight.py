@@ -91,8 +91,14 @@ def _dedupe_key(record: Dict[str, Any]) -> Tuple[Any, ...]:
     return (record.get("filename"), size)
 
 
+def _bucket_sort_key(kind: str, items: List[Dict[str, Any]]) -> Tuple[float, int]:
+    top_score = max(item.get("score", 0.0) for item in items)
+    priority = BUCKET_ORDER.index(kind) if kind in BUCKET_ORDER else len(BUCKET_ORDER)
+    return (-top_score, priority)
+
+
 def group(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Ranked records -> buckets in BUCKET_ORDER, then first-seen order; first hit per file.
+    """Ranked records -> buckets, strongest top hit first (BUCKET_ORDER breaks ties); first hit per file.
 
     Images at or under EXCLUDED_IMAGE_PX are dropped; other small images (icons, thumbnails,
     mail attachments) sink below normal ones.
@@ -108,13 +114,8 @@ def group(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if len(items) < PER_BUCKET_OVERRIDES.get(kind, PER_BUCKET) and key not in seen_files:
             seen_files.add(key)
             items.append(r)
-    kinds = [k for k in BUCKET_ORDER if k in items_by_kind]
-    kinds += [k for k in items_by_kind if k not in kinds]
-    return [
-        {"kind": k, "label": BUCKET_LABELS.get(k, k), "items": items_by_kind[k]}
-        for k in kinds
-        if items_by_kind[k]
-    ]
+    kinds = sorted((k for k in items_by_kind if items_by_kind[k]), key=lambda k: _bucket_sort_key(k, items_by_kind[k]))
+    return [{"kind": k, "label": BUCKET_LABELS.get(k, k), "items": items_by_kind[k]} for k in kinds]
 
 
 def respond(query: str, buckets: List[Dict[str, Any]]) -> Dict[str, Any]:

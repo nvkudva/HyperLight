@@ -7,6 +7,7 @@ use. Importing this module must stay cheap and side-effect free.
 import urllib.parse
 
 import fastapi
+import fastapi.exceptions
 import fastapi.responses
 import fastapi.staticfiles
 import uvicorn
@@ -20,10 +21,23 @@ logger = logging_config.get_logger("web_app")
 app = fastapi.FastAPI(title="Hyperlight")
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+PORT = 8585
 
 
 def _is_local(url: str) -> bool:
-    return urllib.parse.urlsplit(url).hostname in LOCAL_HOSTS
+    """True for the app's own address; a different port is another local service, not us."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        return parts.hostname in LOCAL_HOSTS and parts.port == PORT
+    except ValueError:
+        return False
+
+
+@app.exception_handler(fastapi.exceptions.RequestValidationError)
+async def reject_invalid_request(request: fastapi.Request, exc: fastapi.exceptions.RequestValidationError):
+    """Reports which fields are wrong without echoing their values: they may be huge or unencodable."""
+    problems = [{"loc": e["loc"], "msg": e["msg"], "type": e["type"]} for e in exc.errors()]
+    return fastapi.responses.JSONResponse({"detail": problems}, status_code=422)
 
 
 @app.middleware("http")
@@ -34,7 +48,7 @@ async def reject_foreign_requests(request: fastapi.Request, call_next):
     cross-site subresource reads such as <img src=/api/thumbnail?path=...>.
     Top-level GET navigations stay allowed for the Google OAuth redirect.
     """
-    host_ok = (request.url.hostname or "") in LOCAL_HOSTS
+    host_ok = _is_local(str(request.url))
     origin = request.headers.get("origin")
     origin_ok = origin is None or _is_local(origin)
     site = request.headers.get("sec-fetch-site", "same-origin")
@@ -61,7 +75,7 @@ if pages.FRONTEND_DIST.exists():
 
 
 def main() -> None:
-    uvicorn.run(app, host="127.0.0.1", port=8585)
+    uvicorn.run(app, host="127.0.0.1", port=PORT)
 
 
 if __name__ == "__main__":

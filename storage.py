@@ -194,6 +194,12 @@ class Storage:
             clauses.append(f"path = '{q}' OR starts_with(path, '{prefix}')")
         return " OR ".join(f"({c})" for c in clauses)
 
+    def has_path(self, path: str) -> bool:
+        """True when an item is stored at exactly `path`."""
+        if not path or len(self.table) == 0:
+            return False
+        return self.table.count_rows(f"path = '{_quote(path)}'") > 0
+
     def count_items_by_path(self, target_path: str) -> int:
         if len(self.table) == 0:
             return 0

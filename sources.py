@@ -80,6 +80,8 @@ def set_watch(path: str, enabled: bool) -> None:
 
 
 def remove(path: str) -> None:
+    """Forget a source; a scan of it is stopped first so it cannot write rows or re-register itself."""
+    app_state.get_jobs().cancel_source(path)
     app_state.get_storage().remove_items_by_path(path)
     app_config.remove_configured_source(path)
     refresh()

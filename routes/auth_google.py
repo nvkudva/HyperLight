@@ -33,12 +33,15 @@ def api_google_auth_url(request: fastapi.Request) -> Dict[str, Any]:
 
 
 @router.get("/api/auth/google/callback", response_class=HTMLResponse)
-def api_google_callback(request: fastapi.Request, code: Optional[str] = None, error: Optional[str] = None) -> Any:
+def api_google_callback(request: fastapi.Request, code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None) -> Any:
     if error:
         return HTMLResponse(content=auth_cancelled_page(error), status_code=400)
 
     if not code:
         return HTMLResponse(content=auth_missing_code_page(), status_code=400)
+
+    if not google_auth.consume_state(state):
+        return HTMLResponse(content=auth_error_page(ValueError("This sign-in was not started from Hyperlight, or it expired.")), status_code=400)
 
     try:
         redirect_uri = str(request.url_for("api_google_callback"))

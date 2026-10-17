@@ -9,8 +9,11 @@ sys.path.insert(0, ".")
 import spotlight  # noqa: E402
 
 
-def rec(type_, path, filename=None):
-    return {"type": type_, "path": path, "filename": filename or path.rsplit("/", 1)[-1]}
+def rec(type_, path, filename=None, score=None):
+    record = {"type": type_, "path": path, "filename": filename or path.rsplit("/", 1)[-1]}
+    if score is not None:
+        record["score"] = score
+    return record
 
 
 class GroupTest(unittest.TestCase):
@@ -27,6 +30,14 @@ class GroupTest(unittest.TestCase):
     def test_mail_comes_before_photos(self):
         buckets = spotlight.group([rec("photo", "/p/1.jpg"), rec("email", "/m/1.emlx"), rec("document", "/d/a.pdf")])
         self.assertEqual([b["kind"] for b in buckets], ["email", "photo", "document"])
+
+    def test_strongest_top_hit_orders_buckets_before_bucket_priority(self):
+        buckets = spotlight.group([
+            rec("email", "/m/1.emlx", score=0.1),
+            rec("document", "/d/storage.py", score=0.4),
+            rec("app", "/Applications/Safari.app", score=0.2),
+        ])
+        self.assertEqual([b["kind"] for b in buckets], ["text", "app", "email"])
 
     def test_labels_cover_scanner_types(self):
         buckets = spotlight.group([rec("bookmark", "/b/x.webloc"), rec("email", "/m/1.emlx")])

@@ -2,6 +2,7 @@ import hashlib
 import os
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 from typing import Any, Dict, List, Optional
 import embedder
@@ -153,25 +154,24 @@ def reveal_in_finder(target_path: str) -> bool:
     except Exception:
         return False
 
-def get_mounted_network_volumes() -> List[Dict[str, str]]:
+NETWORK_FILESYSTEMS = {"nfs", "smbfs", "afpfs", "webdav"}
+MOUNT_LINE = re.compile(r"^.+? on (?P<path>/.*) \((?P<filesystem>[^,)]+)")
+
+def _network_volumes_in(mount_output: str) -> List[Dict[str, str]]:
     volumes = []
-    vol_dir = Path("/Volumes")
-    if not vol_dir.exists():
-        return volumes
-    for item in vol_dir.iterdir():
-        if item.name.startswith("."):
-            continue
-        try:
-            is_boot = item.resolve() == Path("/")
-            if not is_boot and (item.is_dir() or item.is_symlink()):
-                volumes.append({
-                    "name": item.name,
-                    "path": str(item.resolve()),
-                    "type": "network_volume"
-                })
-        except Exception:
-            pass
+    for line in mount_output.splitlines():
+        match = MOUNT_LINE.match(line)
+        if match and match["filesystem"] in NETWORK_FILESYSTEMS:
+            path = match["path"]
+            volumes.append({"name": Path(path).name or path, "path": path, "type": "network_volume"})
     return volumes
+
+def get_mounted_network_volumes() -> List[Dict[str, str]]:
+    try:
+        mounts = subprocess.run(["mount"], capture_output=True, text=True, timeout=5, check=True).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return _network_volumes_in(mounts)
 
 # Folders macOS only opens for apps with Full Disk Access; the first one present decides.
 FULL_DISK_ACCESS_PROBES = ("Library/Mail", "Library/Safari")

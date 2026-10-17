@@ -7,9 +7,13 @@ import watchdog.events
 import watchdog.observers
 import app_config
 import embedder
+import logging_config
 import parsers
 import scanner
 import storage
+
+logger = logging_config.get_logger("watcher")
+
 
 class DebouncedHandler(watchdog.events.FileSystemEventHandler):
     def __init__(self, callback: Callable[[str, str], None], watched_roots: Callable[[], Iterable[str]] = lambda: ()):
@@ -76,7 +80,13 @@ class DebouncedHandler(watchdog.events.FileSystemEventHandler):
                         del self.pending_events[path]
             for path in ready_paths:
                 if os.path.exists(path):
-                    self.callback(path, "modified")
+                    self._notify_modified(path)
+
+    def _notify_modified(self, path: str) -> None:
+        try:
+            self.callback(path, "modified")
+        except Exception:
+            logger.exception("Indexing %s failed", path)
 
     def stop(self) -> None:
         self.running = False

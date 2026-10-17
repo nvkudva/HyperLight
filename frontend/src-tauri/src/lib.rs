@@ -11,6 +11,7 @@ fn load_ui_when_backend_ready(app: tauri::AppHandle) {
   std::thread::spawn(move || {
     let already_up = backend::healthy();
     if !already_up && !backend::ensure_running() {
+      show_backend_error(&app);
       return;
     }
     let Some(win) = app.get_webview_window("main") else { return };
@@ -20,6 +21,17 @@ fn load_ui_when_backend_ready(app: tauri::AppHandle) {
       let _ = win.navigate(target);
     }
   });
+}
+
+const BACKEND_ERROR_HTML: &str = "<p style=\"font:15px -apple-system,sans-serif;padding:48px;line-height:1.5\">\
+  Hyperlight could not start its search service.<br>See ~/.hyperlight/backend.log, then choose Restart from the menu bar icon.</p>";
+
+fn show_backend_error(app: &tauri::AppHandle) {
+  hotkey::show_window(app);
+  let Some(win) = app.get_webview_window("main") else { return };
+  // The text is ASCII, so Rust's Debug quoting is also a valid JavaScript string literal.
+  let script = format!("document.body.innerHTML = {BACKEND_ERROR_HTML:?};");
+  let _ = win.eval(&script);
 }
 
 #[cfg(target_os = "macos")]
@@ -76,6 +88,9 @@ pub fn run() {
     .expect("error while building tauri application");
 
   app.run(|app, event| {
+    if let tauri::RunEvent::Exit = event {
+      backend::stop_spawned();
+    }
     #[cfg(target_os = "macos")]
     if let tauri::RunEvent::Reopen { .. } = event {
       hotkey::show_window(app);

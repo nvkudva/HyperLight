@@ -5,13 +5,38 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import fastapi
 from fastapi.responses import Response
 
+import app_state
+import google_auth
 import parsers
 
 router = fastapi.APIRouter()
+
+HYPERLIGHT_DIR = Path.home() / ".hyperlight"
+PREVIEW_CACHE_DIR = HYPERLIGHT_DIR / "previews"
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    return path.is_relative_to(root.resolve())
+
+
+def is_openable(target: str) -> bool:
+    """Only items in the index and our own caches may be read, previewed, opened or revealed;
+    everything else under ~/.hyperlight (config, tokens, the index itself) stays private."""
+    if not target.startswith("/"):
+        return app_state.get_storage().has_path(target)
+    path = Path(target).resolve()
+    if _is_within(path, HYPERLIGHT_DIR):
+        return _is_within(path, PREVIEW_CACHE_DIR) or _is_within(path, google_auth.PHOTOS_CACHE_DIR)
+    return app_state.get_storage().has_path(str(path))
+
+
+def not_indexed_response(**fields: Any) -> Response:
+    return fastapi.responses.JSONResponse(status_code=403, content={"error": "not_indexed", **fields})
 
 
 @router.get("/api/thumbnail")
@@ -23,9 +48,6 @@ def api_thumbnail(path: str) -> Response:
     return fastapi.responses.FileResponse(
         file_path, media_type=mime, headers={"Cache-Control": "private, max-age=3600"}
     )
-
-
-PREVIEW_CACHE_DIR = Path.home() / ".hyperlight" / "previews"
 
 
 @router.get("/api/media")
@@ -44,6 +66,8 @@ TEXT_PREVIEW_EXTENSIONS = parsers.TEXT_EXTENSIONS | parsers.CODE_EXTENSIONS | {"
 def api_text(path: str) -> Response:
     """First 64 KB of a text-like file, for the preview pane."""
     file_path = Path(path).resolve()
+    if not is_openable(str(file_path)):
+        return not_indexed_response()
     if not file_path.is_file() or file_path.suffix.lower() not in TEXT_PREVIEW_EXTENSIONS:
         return Response(status_code=404)
     with file_path.open("rb") as handle:
@@ -55,6 +79,8 @@ def api_text(path: str) -> Response:
 @router.get("/api/preview")
 def api_preview(path: str, size: int = 800) -> Response:
     file_path = Path(path).resolve()
+    if not is_openable(str(file_path)):
+        return not_indexed_response()
     is_app_bundle = file_path.suffix.lower() == ".app" and file_path.is_dir()
     if not file_path.is_file() and not is_app_bundle:
         return Response(status_code=404)
