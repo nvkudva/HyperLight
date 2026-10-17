@@ -4,7 +4,7 @@ Every change to a Source goes through here, so callers never have to remember
 to resync the watcher, and "can this Source be live-scanned?" has one answer.
 """
 import os
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, NamedTuple, Optional, Set
 
 import app_config
 import app_state
@@ -13,17 +13,43 @@ import google_auth
 SYSTEM_SOURCE_TYPE = "macos_system"
 
 
+class Runner(NamedTuple):
+    """A source indexed by its own code instead of a folder scan."""
+    name: str
+    path: str  # fixed path the source is recorded under
+    kind: str  # source_type of the records it writes
+    is_cloud: bool
+    rescannable: bool  # can run again without user input (Photos needs a picker session)
+
+
+RUNNERS: Dict[str, Runner] = {
+    "google_drive_cloud": Runner("Google Drive", "https://drive.google.com", "google_drive", True, True),
+    "google_photos_cloud": Runner("Google Photos", str(google_auth.PHOTOS_CACHE_DIR.resolve()), "google_photos", True, False),
+    "gmail_cloud": Runner("Gmail", "https://mail.google.com", "gmail", True, True),
+    "macos_apps": Runner("macOS Applications", "/Applications", SYSTEM_SOURCE_TYPE, False, True),
+    "macos_settings": Runner("macOS Settings", "x-apple.systempreferences:", SYSTEM_SOURCE_TYPE, False, True),
+}
+
+
+def runner_of(source: Dict[str, Any]) -> Optional[str]:
+    """Key of the runner that indexes `source`, or None for a plain folder."""
+    for key, runner in RUNNERS.items():
+        if source.get("path") == runner.path and source.get("source_type") == runner.kind:
+            return key
+    return None
+
+
 def is_watchable(source: Dict[str, Any]) -> bool:
-    path = source.get("path", "")
-    return (
-        source.get("source_type") != SYSTEM_SOURCE_TYPE
-        and not path.startswith("http")
-        and path != str(google_auth.PHOTOS_CACHE_DIR.resolve())
-    )
+    return runner_of(source) is None and not source.get("path", "").startswith("http")
 
 
 def list_all() -> List[Dict[str, Any]]:
-    return [{**s, "watchable": is_watchable(s)} for s in app_config.get_configured_sources()]
+    """Configured sources, with item counts read live from the index."""
+    store = app_state.get_storage()
+    return [
+        {**s, "items_count": store.count_items_by_path(s["path"]), "watchable": is_watchable(s), "runner": runner_of(s)}
+        for s in app_config.get_configured_sources()
+    ]
 
 
 def watched_paths() -> Set[str]:
@@ -37,13 +63,13 @@ def watched_paths() -> Set[str]:
     }
 
 
-def record_scan(name: str, path: str, source_type: str, items_count: int) -> None:
-    app_config.save_configured_source(name, path, source_type, items_count)
+def record_scan(name: str, path: str, source_type: str) -> None:
+    app_config.save_configured_source(name, path, source_type)
     refresh()
 
 
-def reset_counts() -> None:
-    app_config.reset_source_counts()
+def mark_unscanned() -> None:
+    app_config.reset_scan_times()
 
 
 def set_watch(path: str, enabled: bool) -> None:
@@ -58,5 +84,11 @@ def remove(path: str) -> None:
 
 
 def refresh() -> None:
-    """Re-apply watched_paths() to the live watcher, e.g. after a settings change."""
-    app_state.get_watcher().sync_sources()
+    """Re-apply watched_paths() to the live watcher, e.g. after a settings change.
+
+    A watcher that has not started yet syncs when it starts, so this never
+    forces the embedding model to load.
+    """
+    live_watcher = app_state.peek_watcher()
+    if live_watcher is not None:
+        live_watcher.sync_sources()

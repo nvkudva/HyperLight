@@ -18,8 +18,11 @@ fake_whisper = types.ModuleType("whisper")
 
 
 class _FakeModel:
-    def transcribe(self, path, fp16=False):
-        return {"text": "tax invoice"}
+    text = "tax invoice"
+    no_speech_prob = 0.0
+
+    def transcribe(self, samples, fp16=False, temperature=0, condition_on_previous_text=False):
+        return {"text": type(self).text, "segments": [{"no_speech_prob": type(self).no_speech_prob}]}
 
 
 fake_whisper.load_model = lambda name, device=None: _FakeModel()
@@ -37,13 +40,20 @@ class _FakeEmbedder:
         type(self).text_calls += 1
         return [0.0] * 768
 
-    def embed_audio(self, samples, rate):
+    def null_vectors(self):
+        return [[0.0] * 768]
+
+    def embed_query_audio(self, text, samples, rate):
         type(self).audio_calls += 1
+        type(self).last_text = text
         return [0.0] * 768
 
 
 class _FakeStorage:
-    def search(self, vector, query_text=None, limit=60, photo_limit=40):
+    last_kwargs = {}
+
+    def search(self, vector, null_vectors, query_text=None, limit=60, photo_limit=40, boost_only=False):
+        type(self).last_kwargs = {"query_text": query_text, "boost_only": boost_only}
         return []
 
 
@@ -60,6 +70,8 @@ def _wav_bytes() -> bytes:
 class AudioSearchFirstCallTest(unittest.TestCase):
     def setUp(self):
         audio._transcriber = None
+        _FakeModel.text = "tax invoice"
+        _FakeModel.no_speech_prob = 0.0
         _FakeEmbedder.audio_calls = 0
         _FakeEmbedder.text_calls = 0
         app_state.get_embedder = lambda: _FakeEmbedder()
@@ -83,14 +95,38 @@ class AudioSearchFirstCallTest(unittest.TestCase):
                 timeout=30,
             )
             self.assertEqual(res.status_code, 200, res.text)
-            # No transcription: audio embedding searched directly, no query text.
-            self.assertEqual(res.json()["query"], "")
+            self.assertEqual(res.json()["query"], "tax invoice")
             self.assertGreaterEqual(_FakeEmbedder.audio_calls, 1)
-            self.assertEqual(_FakeEmbedder.text_calls, 0)
-            self.assertIsNone(audio._transcriber)
+            self.assertEqual(_FakeStorage.last_kwargs, {"query_text": "tax invoice", "boost_only": True})
             health = client.get("/api/health", timeout=5)
             self.assertEqual(health.status_code, 200)
             self.assertEqual(health.json(), {"ok": True})
+
+    def _post(self, client):
+        return client.post("/api/audio-search", files={"file": ("clip.wav", _wav_bytes(), "audio/wav")}, timeout=30)
+
+    def test_no_speech_returns_empty_buckets(self):
+        import fastapi
+        from fastapi.testclient import TestClient
+
+        app = fastapi.FastAPI()
+        app.include_router(audio.router)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            _FakeModel.no_speech_prob = 0.9
+            self.assertEqual(self._post(client).json(), {"query": "", "buckets": [], "total_matches": 0})
+            _FakeModel.no_speech_prob = 0.0
+            _FakeModel.text = " ... "
+            self.assertEqual(self._post(client).json(), {"query": "", "buckets": [], "total_matches": 0})
+            self.assertEqual(_FakeEmbedder.audio_calls, 0)
+
+    def test_warmup_ok(self):
+        import fastapi
+        from fastapi.testclient import TestClient
+
+        app = fastapi.FastAPI()
+        app.include_router(audio.router)
+        with TestClient(app) as client:
+            self.assertEqual(client.post("/api/audio-warmup").json(), {"status": "ok"})
 
     def test_spotlight_query_length_capped(self):
         from routes.schemas import SpotlightRequest

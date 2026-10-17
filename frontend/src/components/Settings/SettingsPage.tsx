@@ -1,23 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  ApiError,
-  browseFolder,
   clearDatabase,
   fetchAppSettings,
-  indexAppleMail,
-  indexApps,
-  indexDriveLocations,
-  indexICloudLocations,
-  indexSettings,
-  openSettingsPane,
-  removeSource,
   resetApp,
-  rescanSource,
-  startIndex,
   toggleSourceWatch,
   updateAppSettings,
 } from '../../api'
-import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus } from '../../types'
+import { useSourceActions } from '../../hooks/useSourceActions'
+import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
 import {
   ChatIcon,
   CloudIcon,
@@ -77,7 +67,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 }) => {
   const titleRef = useRef<HTMLHeadingElement>(null)
   const [activeTab, setActiveTab] = useState<SettingsTab>('sources')
-  const [manualPath, setManualPath] = useState('')
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
   const [appSettings, setAppSettings] = useState<AppSettings>({
     always_on_scanning: true,
@@ -113,14 +102,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     toastTimer.current = window.setTimeout(() => setToast(null), 5000)
   }
 
-  const handleReveal = async (path: string) => {
-    try {
-      const res = await onRevealTarget(path)
-      if (!res.success) showToast(`Could not reveal '${path}' in Finder.`, 'red')
-    } catch (err: any) {
-      showToast(`Reveal failed: ${err.message}`, 'red')
-    }
-  }
+  const sourceActions = useSourceActions({ sources, showToast, onStartProgress, onRefreshSources, onRevealTarget })
 
   const handleToggleAlwaysOn = async () => {
     const nextVal = !appSettings.always_on_scanning
@@ -172,69 +154,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
-  const normPath = (p: string) => p.replace(/\/$/, '')
-  const isDuplicate = (p: string) => {
-    const t = normPath(p)
-    return sources.some((s) => {
-      const e = normPath(s.path)
-      return e === t || t.startsWith(e + '/') || e.startsWith(t + '/')
-    })
-  }
-
-  const handleAddManual = async (e?: React.FormEvent) => {
-    e?.preventDefault()
-    if (!manualPath.trim()) {
-      showToast('Please enter a valid folder path.', 'amber')
-      return
-    }
-    if (isDuplicate(manualPath.trim())) {
-      showToast(`'${manualPath.trim()}' is already indexed (or overlaps an added source).`, 'amber')
-      return
-    }
-    showToast(`Adding '${manualPath.trim()}'...`, 'blue')
-    try {
-      const res = await startIndex(manualPath.trim(), 'local')
-      setManualPath('')
-      showToast(res.status === 'queued' ? `Queued '${res.name}'.` : `Indexing started for '${res.name}'!`, 'emerald')
-      onStartProgress()
-      onRefreshSources()
-    } catch (err: any) {
-      showToast(`Error: ${err.message}`, 'red')
-    }
-  }
-
-  const handleBrowseFinder = async () => {
-    showToast('Opening Finder folder picker...', 'blue')
-    try {
-      const res = await browseFolder('Select a folder to index in Hyperlight')
-      if (res.path && !res.canceled) {
-        if (isDuplicate(res.path)) {
-          showToast(`'${res.name}' is already indexed.`, 'amber')
-          return
-        }
-        showToast(`Selected '${res.name}'. Indexing...`, 'emerald')
-        await startIndex(res.path, 'local', res.name)
-        onStartProgress()
-        onRefreshSources()
-      } else if (res.canceled) {
-        showToast('Folder selection canceled.', 'slate')
-      }
-    } catch (err: any) {
-      showToast(`Finder error: ${err.message}`, 'red')
-    }
-  }
-
-  const handleRemoveSource = async (path: string) => {
-    showToast('Removing source...', 'blue')
-    try {
-      await removeSource(path)
-      showToast('Source removed.', 'emerald')
-      onRefreshSources()
-    } catch (err: any) {
-      showToast(`Error removing source: ${err.message}`, 'red')
-    }
-  }
-
   const handleClearDb = async () => {
     showToast('Clearing vector database...', 'blue')
     try {
@@ -257,106 +176,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }
 
-  const handleIndexApps = async () => {
-    showToast('Indexing macOS applications...', 'blue')
-    try {
-      const data = await indexApps()
-      showToast(data.status === 'queued' ? 'macOS applications queued for indexing.' : 'Indexing macOS applications…', 'emerald')
-      onStartProgress()
-    } catch (err: any) {
-      showToast(`Error indexing apps: ${err.message}`, 'red')
-    }
-  }
-
-  const handleIndexSettings = async () => {
-    showToast('Indexing macOS settings...', 'blue')
-    try {
-      const data = await indexSettings()
-      showToast(data.status === 'queued' ? 'macOS settings queued for indexing.' : 'Indexing macOS settings…', 'emerald')
-      onStartProgress()
-    } catch (err: any) {
-      showToast(`Error indexing settings: ${err.message}`, 'red')
-    }
-  }
-
-  const handleIndexICloud = async (locations: DriveLocation[]) => {    showToast('Indexing iCloud Drive...', 'blue')
-    try {
-      await indexICloudLocations(locations)
-      showToast('Indexing iCloud Drive…', 'emerald')
-      onStartProgress()
-      onRefreshSources()
-    } catch (err: any) {
-      showToast(`Error indexing iCloud Drive: ${err.message}`, 'red')
-    }
-  }
-
-  const handleIndexDrive = async (locations: DriveLocation[]) => {
-    showToast('Indexing Google Drive...', 'blue')
-    try {
-      await indexDriveLocations(locations)
-      showToast('Indexing Google Drive…', 'emerald')
-      onStartProgress()
-      onRefreshSources()
-    } catch (err: any) {
-      showToast(`Error indexing Drive: ${err.message}`, 'red')
-    }
-  }
-
-  const handleIndexAppleMail = async () => {
-    showToast('Indexing Apple Mail...', 'blue')
-    try {
-      await indexAppleMail()
-      showToast('Indexing Apple Mail…', 'emerald')
-      onStartProgress()
-      onRefreshSources()
-    } catch (err: any) {
-      if (err instanceof ApiError && err.code === 'full_disk_access') {
-        showToast(err.message, 'amber')
-        openSettingsPane('full-disk-access')
-      } else {
-        showToast(`Error indexing Apple Mail: ${err.message}`, 'red')
-      }
-    }
-  }
-
-  const handleIndexPreset = (p: string) => {
-    if (isDuplicate(p)) {
-      showToast(`'${p}' is already indexed.`, 'amber')
-      return
-    }
-    showToast(`Indexing ${p}...`, 'blue')
-    startIndex(p, 'local')
-      .then(() => {
-        showToast(`Started index for ${p}`, 'emerald')
-        onStartProgress()
-        onRefreshSources()
-      })
-      .catch((err) => showToast(err.message, 'red'))
-  }
-
-  const handleRescan = (s: ConfiguredSource) => {
-    showToast(`Rescanning ${s.name}...`, 'blue')
-    rescanSource(s.path)
-      .then((res) => {
-        showToast(res.status === 'queued' ? `Queued rescan for '${s.name}'.` : `Rescanning '${s.name}'...`, 'emerald')
-        onStartProgress()
-        onRefreshSources()
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.code === 'full_disk_access') {
-          showToast(err.message, 'amber')
-          openSettingsPane('full-disk-access')
-        } else {
-          showToast(err.message, 'red')
-        }
-      })
-  }
-
   const localSources = sources.filter((s) => s.source_type !== 'macos_system')
   const isGlobalAlwaysOn = appSettings.always_on_scanning
   const presets = availablePresets(sources)
-  const hasAppsSource = sources.some((s) => s.source_type === 'macos_system' && !s.path.startsWith('x-apple.systempreferences:'))
-  const hasSettingsSource = sources.some((s) => s.path.startsWith('x-apple.systempreferences:'))
+  const hasAppsSource = sources.some((s) => s.runner === 'macos_apps')
+  const hasSettingsSource = sources.some((s) => s.runner === 'macos_settings')
   const jobs = activeJobs(indexStatus)
   const jobForSource = (s: ConfiguredSource) =>
     jobs.find((j) => (j.path ? j.path === s.path : j.name === s.name))
@@ -413,22 +237,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             totalItems={totalItems}
             indexStatus={indexStatus}
             jobs={jobs}
-            manualPath={manualPath}
-            onManualPathChange={setManualPath}
             jobForSource={jobForSource}
-            onBrowseFinder={handleBrowseFinder}
-            onAddManual={handleAddManual}
-            onIndexPreset={handleIndexPreset}
-            onIndexApps={handleIndexApps}
-            onIndexSettings={handleIndexSettings}
-            onIndexICloud={handleIndexICloud}
-            onIndexDrive={handleIndexDrive}
-            onIndexAppleMail={handleIndexAppleMail}
+            actions={sourceActions}
             onToggleAlwaysOn={handleToggleAlwaysOn}
             onToggleSourceWatch={handleToggleSourceWatch}
-            onReveal={handleReveal}
-            onRescan={handleRescan}
-            onRemoveSource={handleRemoveSource}
             titleRef={titleRef}
           />
         )}

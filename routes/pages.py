@@ -10,7 +10,7 @@ router = fastapi.APIRouter()
 
 
 def resource_root() -> Path:
-    """Where bundled resources (frontend/dist, templates) live.
+    """Where bundled resources (frontend/dist) live.
 
     Frozen PyInstaller sidecar: resources extract to ``sys._MEIPASS``.
     ``HYPERLIGHT_RESOURCE_DIR`` overrides for tests and custom layouts.
@@ -26,15 +26,11 @@ def resource_root() -> Path:
 
 
 FRONTEND_DIST = resource_root() / "frontend" / "dist"
-TEMPLATE_PATH = resource_root() / "templates" / "index.html"
 
 
 @router.get("/", response_class=HTMLResponse)
 def index_page() -> str:
-    react_index = FRONTEND_DIST / "index.html"
-    if react_index.exists():
-        return react_index.read_text(encoding="utf-8")
-    return TEMPLATE_PATH.read_text(encoding="utf-8")
+    return (FRONTEND_DIST / "index.html").read_text(encoding="utf-8")
 
 
 @router.get("/api/health")

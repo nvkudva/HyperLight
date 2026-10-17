@@ -26,13 +26,26 @@ class SlowEmbedder(FakeEmbedder):
 class FakeStorage:
     def __init__(self):
         self.items = []
+        self.writes = []
 
     def get_indexed_file_mtimes(self, under=None):
         return {}
 
-    def add_items(self, items):
+    def add_items(self, items, replace_paths=()):
+        self.writes.append((list(replace_paths), [item["path"] for item in items]))
         self.items.extend(items)
         return len(items)
+
+
+class EditedFileStorage(FakeStorage):
+    """Reports one already-indexed file with an older mtime than on disk."""
+
+    def __init__(self, indexed_path):
+        super().__init__()
+        self.indexed_path = indexed_path
+
+    def get_indexed_file_mtimes(self, under=None):
+        return {self.indexed_path: 1.0}
 
 
 class ScanPathTest(unittest.TestCase):
@@ -46,26 +59,23 @@ class ScanPathTest(unittest.TestCase):
             self.assertEqual(store.items[0]["filename"], "notes.txt")
             self.assertEqual(store.items[0]["source"], "icloud_drive")
 
-    def test_edited_file_replaces_its_old_chunks(self):
-        class EditedFileStorage(FakeStorage):
-            def __init__(self, indexed_path):
-                super().__init__()
-                self.indexed_path = indexed_path
-                self.removed = []
-
-            def get_indexed_file_mtimes(self, under=None):
-                return {self.indexed_path: 1.0}
-
-            def remove_items_by_path(self, path):
-                self.removed.append(path)
-
+    def test_edited_file_replaces_its_old_chunks_in_the_same_write(self):
         with tempfile.TemporaryDirectory() as tmp:
             note = Path(tmp) / "notes.txt"
             note.write_text("new text after the edit", encoding="utf-8")
-            store = EditedFileStorage(str(note.resolve()))
+            resolved = str(note.resolve())
+            store = EditedFileStorage(resolved)
             scanner.Scanner(FakeEmbedder(), store).scan_path(Path(tmp))
-            self.assertEqual(store.removed, [str(note.resolve())])
-            self.assertEqual(len(store.items), 1)
+            self.assertEqual(store.writes, [([resolved], [resolved])])
+
+    def test_emptied_file_still_drops_its_old_chunks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            note = Path(tmp) / "notes.txt"
+            note.write_text("", encoding="utf-8")
+            resolved = str(note.resolve())
+            store = EditedFileStorage(resolved)
+            scanner.Scanner(FakeEmbedder(), store).scan_path(Path(tmp))
+            self.assertEqual(store.writes, [([resolved], [])])
 
     def test_cancel_drops_queued_embedding_batches(self):
         with tempfile.TemporaryDirectory() as tmp:

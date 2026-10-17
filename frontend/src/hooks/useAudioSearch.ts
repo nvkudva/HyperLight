@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { searchByAudio } from '../api'
-import { useSegmentedRecorder } from './useSegmentedRecorder'
+import * as api from '../api'
+import { micErrorMessage } from './useSegmentedRecorder'
+import workletUrl from './pcmWorklet.js?url&no-inline'
 import type { SearchBucket } from '../types'
 
+const SAMPLE_RATE = 16000
 const MAX_RECORD_MS = 90000
-const LIVE_SEGMENT_MS = 2000
-const SILENCE_MS = 3000
-const VOICE_RMS = 0.02
-const MIN_LIVE_SEC = 0.4
-const SEARCH_WINDOW_SEC = 30
 const WAVE_BARS = 24
-const TARGET_RATE = 16000
 const WAVE_FLOOR = 0.08
 const WAVE_SMOOTH = 0.35
+
+const MIN_SPEECH_RMS = 0.01
+const NOISE_FLOOR_MULTIPLIER = 3
+const INITIAL_NOISE_FLOOR = 0.003
+const MIN_UTTERANCE_SEC = 0.25
+const PAUSE_SEC = 0.6
+const SEARCH_INTERVAL_SEC = 2.5
+const SEARCH_PAD_SEC = 0.2
+const MAX_SEARCH_SEC = 30
+const AUTO_STOP_SEC = 1.2
+const NO_SPEECH_STOP_SEC = 6
 
 interface AudioSearch {
   supported: boolean
@@ -29,6 +36,30 @@ interface AudioSearch {
 interface AudioSearchCallbacks {
   onResults: (buckets: SearchBucket[], transcript: string) => void
   onSearching: () => void
+  onStart?: () => void
+}
+
+// All times below are positions on the 16kHz sample clock, so VAD decisions
+// don't depend on how late the main thread happens to run.
+interface CaptureState {
+  chunks: { start: number; samples: Float32Array }[]
+  base: number
+  total: number
+  noiseFloor: number
+  inSpeech: boolean
+  utteranceStart: number
+  utteranceVoiced: number
+  lastVoicedEnd: number
+  lastSpeechEnd: number
+  firstSpeechStart: number | null
+  unsentSpeech: boolean
+  lastSendAt: number
+}
+
+interface CaptureResources {
+  stream: MediaStream
+  context: AudioContext
+  node: AudioWorkletNode
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number): Blob {
@@ -57,15 +88,6 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   return new Blob([buffer], { type: 'audio/wav' })
 }
 
-export function rmsOfTimeDomain(data: Uint8Array): number {
-  let sum = 0
-  for (let i = 0; i < data.length; i++) {
-    const v = (data[i] - 128) / 128
-    sum += v * v
-  }
-  return Math.sqrt(sum / Math.max(1, data.length))
-}
-
 export function resampleMono(input: Float32Array, fromRate: number, toRate: number): Float32Array {
   if (fromRate === toRate || input.length === 0) return input
   const len = Math.max(1, Math.floor((input.length / fromRate) * toRate))
@@ -80,32 +102,115 @@ export function resampleMono(input: Float32Array, fromRate: number, toRate: numb
   return out
 }
 
-// Records the mic stream, draws a live waveform into waveRef, and searches
-// while the user is still speaking: each recorded segment is decoded,
-// appended to a cumulative PCM buffer, then only the most recent
-// SEARCH_WINDOW_SEC seconds are resampled to 16kHz mono WAV and sent to audio
-// search, so results update as speech comes in without re-uploading minutes
-// of audio every segment. A 3s silence (or the 90s cap) stops the mic.
-export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks): AudioSearch {
+
+function createCaptureState(base: number, noiseFloor: number): CaptureState {
+  return {
+    chunks: [],
+    base,
+    total: base,
+    noiseFloor,
+    inSpeech: false,
+    utteranceStart: base,
+    utteranceVoiced: 0,
+    lastVoicedEnd: base,
+    lastSpeechEnd: base,
+    firstSpeechStart: null,
+    unsentSpeech: false,
+    lastSendAt: base,
+  }
+}
+
+function rmsOf(samples: Float32Array): number {
+  let sum = 0
+  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i]
+  return Math.sqrt(sum / Math.max(1, samples.length))
+}
+
+function ingestChunk(state: CaptureState, samples: Float32Array) {
+  const start = state.total
+  const end = start + samples.length
+  state.chunks.push({ start, samples })
+  state.total = end
+
+  const rms = rmsOf(samples)
+  const voiced = rms > Math.max(state.noiseFloor * NOISE_FLOOR_MULTIPLIER, MIN_SPEECH_RMS)
+  // The floor falls fast but rises slowly, and barely moves during speech, so
+  // talking never raises the bar for itself.
+  const adaptRate = voiced ? 0.002 : rms < state.noiseFloor ? 0.2 : 0.05
+  state.noiseFloor += (rms - state.noiseFloor) * adaptRate
+
+  if (!voiced) {
+    if (state.inSpeech && end - state.lastVoicedEnd >= PAUSE_SEC * SAMPLE_RATE) state.inSpeech = false
+    return
+  }
+  if (!state.inSpeech) {
+    state.inSpeech = true
+    state.utteranceStart = start
+    state.utteranceVoiced = 0
+  }
+  state.utteranceVoiced += samples.length
+  state.lastVoicedEnd = end
+  if (state.utteranceVoiced < MIN_UTTERANCE_SEC * SAMPLE_RATE) return
+  if (state.firstSpeechStart === null) {
+    state.firstSpeechStart = state.utteranceStart
+    state.lastSendAt = state.utteranceStart
+  }
+  state.lastSpeechEnd = end
+  state.unsentSpeech = true
+}
+
+function shouldSearch(state: CaptureState): boolean {
+  if (!state.unsentSpeech) return false
+  const sincePause = state.total - state.lastSpeechEnd
+  const sinceSend = state.total - state.lastSendAt
+  return sincePause >= PAUSE_SEC * SAMPLE_RATE || sinceSend >= SEARCH_INTERVAL_SEC * SAMPLE_RATE
+}
+
+function shouldAutoStop(state: CaptureState): boolean {
+  if (state.firstSpeechStart === null) return state.total - state.base >= NO_SPEECH_STOP_SEC * SAMPLE_RATE
+  return state.total - state.lastSpeechEnd >= AUTO_STOP_SEC * SAMPLE_RATE
+}
+
+function collectSpeechSamples(state: CaptureState): Float32Array {
+  const pad = SEARCH_PAD_SEC * SAMPLE_RATE
+  const end = Math.min(state.total, state.lastSpeechEnd + pad)
+  const start = Math.max(state.base, (state.firstSpeechStart ?? state.base) - pad, end - MAX_SEARCH_SEC * SAMPLE_RATE)
+  const out = new Float32Array(Math.max(0, end - start))
+  for (const chunk of state.chunks) {
+    const chunkEnd = chunk.start + chunk.samples.length
+    if (chunkEnd <= start || chunk.start >= end) continue
+    const from = Math.max(start, chunk.start)
+    const to = Math.min(end, chunkEnd)
+    out.set(chunk.samples.subarray(from - chunk.start, to - chunk.start), from - start)
+  }
+  return out
+}
+
+// Captures the mic continuously (AudioWorklet, 16kHz mono) and searches by
+// what was said so far: after a ~600ms pause following new speech, and every
+// ~2.5s during long speech. One request at a time; speech that arrives
+// meanwhile is sent once the request returns. The mic stops itself shortly
+// after the user finishes talking, or silently if nobody speaks.
+export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchCallbacks): AudioSearch {
+  const [listening, setListening] = useState(false)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const canvasElRef = useRef<HTMLCanvasElement | null>(null)
   const setWaveCanvas = useCallback((el: HTMLCanvasElement | null) => {
     canvasElRef.current = el
   }, [])
-  const cbRef = useRef({ onResults, onSearching })
-  const ctxRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
+  const cbRef = useRef({ onResults, onSearching, onStart })
+  const resourcesRef = useRef<CaptureResources | null>(null)
   const rafRef = useRef<number | null>(null)
   const levelsRef = useRef<number[]>([])
   const maxTimerRef = useRef<number | null>(null)
-  const pcmRef = useRef<Float32Array[]>([])
-  const pcmLenRef = useRef(0)
-  const nativeRateRef = useRef(TARGET_RATE)
-  const liveBusyRef = useRef(false)
-  const lastVoiceRef = useRef(0)
+  const stateRef = useRef(createCaptureState(0, INITIAL_NOISE_FLOOR))
+  const inFlightRef = useRef<Promise<void> | null>(null)
+  const lastTranscriptRef = useRef('')
   const generationRef = useRef(0)
-  const heardVoiceRef = useRef(false)
+  const listeningRef = useRef(false)
+  const startingRef = useRef(false)
+  const disposedRef = useRef(false)
 
   const accentRef = useRef('')
   const drawWave = useCallback(() => {
@@ -136,132 +241,106 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     ctx.globalAlpha = 1
   }, [])
 
-  const clearMaxTimer = () => {
-    if (maxTimerRef.current === null) return
-    window.clearTimeout(maxTimerRef.current)
-    maxTimerRef.current = null
-  }
+  useEffect(() => {
+    cbRef.current = { onResults, onSearching, onStart }
+  })
 
-  const teardownAudio = () => {
+  const teardownCapture = () => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-    clearMaxTimer()
+    if (maxTimerRef.current !== null) {
+      window.clearTimeout(maxTimerRef.current)
+      maxTimerRef.current = null
+    }
+    const resources = resourcesRef.current
+    resourcesRef.current = null
+    if (!resources) return
+    resources.node.port.onmessage = null
+    resources.stream.getTracks().forEach((track) => track.stop())
     try {
-      void ctxRef.current?.close()
+      resources.node.disconnect()
+      void resources.context.close()
     } catch {
       // Ignore teardown errors
     }
-    ctxRef.current = null
-    analyserRef.current = null
   }
 
-  useEffect(() => {
-    cbRef.current = { onResults, onSearching }
-  })
+  const handleResponse = (response: api.SpotlightResponse) => {
+    const transcript = (response.query ?? '').trim()
+    if (!transcript || transcript === lastTranscriptRef.current) return
+    lastTranscriptRef.current = transcript
+    cbRef.current.onResults(response.buckets || [], transcript)
+  }
 
-  const searchCumulative = async (session: number, final: boolean) => {
-    if (!recorder.isCurrent(session)) return
+  const sendSearch = (): Promise<void> => {
+    const state = stateRef.current
     const generation = generationRef.current
-    const total = pcmLenRef.current
-    const rate = nativeRateRef.current
-    if (total < rate * MIN_LIVE_SEC || !heardVoiceRef.current) {
-      if (final) setSearching(false)
-      return
-    }
-    if (!final && liveBusyRef.current) return
-    liveBusyRef.current = true
-    if (final) setSearching(true)
-    try {
-      const takeTotal = Math.min(total, rate * SEARCH_WINDOW_SEC)
-      const tail: Float32Array[] = []
-      let need = takeTotal
-      for (let i = pcmRef.current.length - 1; i >= 0 && need > 0; i--) {
-        const part = pcmRef.current[i]
-        if (part.length <= need) {
-          tail.unshift(part)
-          need -= part.length
-        } else {
-          tail.unshift(part.subarray(part.length - need))
-          need = 0
-        }
-      }
-      const combined = new Float32Array(takeTotal)
-      let off = 0
-      for (const part of tail) {
-        combined.set(part, off)
-        off += part.length
-      }
-      const wav = encodeWav(resampleMono(combined, rate, TARGET_RATE), TARGET_RATE)
-      const res = await searchByAudio(wav)
-      if (!recorder.isCurrent(session) || generation !== generationRef.current) return
-      cbRef.current.onResults(res.buckets || [], res.query || '')
-    } catch (err) {
-      if (final && recorder.isCurrent(session)) setError((err as Error)?.message ?? 'Audio search failed.')
-    } finally {
-      liveBusyRef.current = false
-      if (final) setSearching(false)
-    }
-  }
-
-  const finishSegment = (session: number, final: boolean) => {
-    if (final) teardownAudio()
-    void searchCumulative(session, final)
-  }
-
-  const handleSegment = (blob: Blob, session: number, final: boolean) => {
-    const decodeCtx = ctxRef.current
-    const generation = generationRef.current
-    if (blob.size === 0 || !decodeCtx) {
-      finishSegment(session, final)
-      return
-    }
-    void blob
-      .arrayBuffer()
-      .then((buf) => decodeCtx.decodeAudioData(buf))
-      .then((decoded) => {
-        if (!recorder.isCurrent(session) || generation !== generationRef.current) return
-        const mono = decoded.getChannelData(0)
-        pcmRef.current.push(new Float32Array(mono))
-        pcmLenRef.current += mono.length
-        nativeRateRef.current = decoded.sampleRate
+    const wav = encodeWav(collectSpeechSamples(state), SAMPLE_RATE)
+    state.unsentSpeech = false
+    state.lastSendAt = state.total
+    setSearching(true)
+    cbRef.current.onSearching()
+    const request: Promise<void> = api
+      .searchByAudio(wav)
+      .then((response) => {
+        if (generation === generationRef.current) handleResponse(response)
       })
-      .catch(() => {
-        // Undecodable segment: keep listening, next cycle carries on.
+      .catch((err) => {
+        if (generation === generationRef.current) setError((err as Error)?.message ?? 'Audio search failed.')
       })
-      .finally(() => finishSegment(session, final))
+      .finally(() => {
+        // A reset or newer request may already own these; only clean up our own.
+        if (inFlightRef.current !== request) return
+        inFlightRef.current = null
+        setSearching(false)
+      })
+    inFlightRef.current = request
+    return request
   }
 
-  const recorder = useSegmentedRecorder({
-    segmentMs: LIVE_SEGMENT_MS,
-    onSegment: handleSegment,
-    onError: setError,
-  })
-
+  // Ends capture, then runs one last search for speech not yet sent, after
+  // any request already in flight.
   const stop = () => {
-    clearMaxTimer()
-    recorder.stop()
+    if (!listeningRef.current) return
+    listeningRef.current = false
+    setListening(false)
+    teardownCapture()
+    const generation = generationRef.current
+    void (async () => {
+      await inFlightRef.current
+      if (generation !== generationRef.current || !stateRef.current.unsentSpeech) return
+      await sendSearch()
+    })()
+  }
+
+  const handleChunk = (samples: Float32Array) => {
+    const state = stateRef.current
+    ingestChunk(state, samples)
+    if (shouldAutoStop(state)) {
+      stop()
+      return
+    }
+    if (!inFlightRef.current && shouldSearch(state)) void sendSearch()
   }
 
   // Drops the audio heard so far and any search in flight. The mic keeps
   // recording, so later speech starts a fresh search.
   const reset = () => {
     generationRef.current += 1
-    pcmRef.current = []
-    pcmLenRef.current = 0
-    liveBusyRef.current = false
-    lastVoiceRef.current = performance.now()
-    heardVoiceRef.current = false
+    inFlightRef.current = null
+    lastTranscriptRef.current = ''
+    stateRef.current = createCaptureState(stateRef.current.total, stateRef.current.noiseFloor)
     setSearching(false)
   }
 
   // Stops the mic and discards everything: no search runs for the audio so far.
   const cancel = () => {
     reset()
-    clearMaxTimer()
-    recorder.cancel()
-    teardownAudio()
+    listeningRef.current = false
+    setListening(false)
+    teardownCapture()
   }
 
   const stopRef = useRef(stop)
@@ -269,86 +348,114 @@ export function useAudioSearch({ onResults, onSearching }: AudioSearchCallbacks)
     stopRef.current = stop
   })
 
-  const loopRef = useRef(() => {})
-  useEffect(() => {
-    loopRef.current = () => {
-      const analyser = analyserRef.current
-      if (!analyser) return
-      const data = new Uint8Array(analyser.fftSize)
+  const startWaveform = (analyser: AnalyserNode) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      levelsRef.current = new Array(WAVE_BARS).fill(0.4)
+      drawWave()
+      return
+    }
+    const data = new Uint8Array(analyser.fftSize)
+    const tick = () => {
       analyser.getByteTimeDomainData(data)
-      if (rmsOfTimeDomain(data) > VOICE_RMS) {
-        lastVoiceRef.current = performance.now()
-        heardVoiceRef.current = true
-      }
-      else if (recorder.isRecording() && performance.now() - lastVoiceRef.current > SILENCE_MS) {
-        stopRef.current()
-        return
-      }
       const slice = Math.max(1, Math.floor(data.length / WAVE_BARS))
       for (let i = 0; i < WAVE_BARS; i++) {
         let peak = 0
-        const start = i * slice
-        const end = Math.min(data.length, start + slice)
-        for (let j = start; j < end; j++) {
-          const v = Math.abs(data[j] - 128) / 128
-          if (v > peak) peak = v
+        const from = i * slice
+        const to = Math.min(data.length, from + slice)
+        for (let j = from; j < to; j++) {
+          const level = Math.abs(data[j] - 128) / 128
+          if (level > peak) peak = level
         }
         const target = Math.max(WAVE_FLOOR, Math.min(1, peak * 1.8))
         const prev = levelsRef.current[i] ?? WAVE_FLOOR
         levelsRef.current[i] = prev + (target - prev) * (target > prev ? 0.6 : WAVE_SMOOTH)
       }
       drawWave()
-      rafRef.current = requestAnimationFrame(() => loopRef.current())
+      rafRef.current = requestAnimationFrame(tick)
     }
-  })
+    tick()
+  }
 
-  const attachWaveform = (stream: MediaStream) => {
-    try {
-      const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext ?? AudioContext
-      const audioCtx = new AudioCtx()
-      ctxRef.current = audioCtx
-      nativeRateRef.current = audioCtx.sampleRate || TARGET_RATE
-      const analyser = audioCtx.createAnalyser()
-      analyser.fftSize = 2048
-      audioCtx.createMediaStreamSource(stream).connect(analyser)
-      analyserRef.current = analyser
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        levelsRef.current = new Array(WAVE_BARS).fill(0.4)
-        drawWave()
-      } else {
-        loopRef.current()
-      }
-    } catch {
-      // Waveform is decorative; recording continues without it.
+  const openCapture = async (stream: MediaStream): Promise<CaptureResources> => {
+    const context = new AudioContext({ sampleRate: SAMPLE_RATE })
+    await context.audioWorklet.addModule(workletUrl)
+    if (context.state === 'suspended') await context.resume()
+    const node = new AudioWorkletNode(context, 'pcm-capture')
+    const nativeRate = context.sampleRate
+    node.port.onmessage = (event: MessageEvent<Float32Array>) => {
+      const samples = nativeRate === SAMPLE_RATE ? event.data : resampleMono(event.data, nativeRate, SAMPLE_RATE)
+      handleChunk(samples)
     }
+    const source = context.createMediaStreamSource(stream)
+    const analyser = context.createAnalyser()
+    analyser.fftSize = 2048
+    source.connect(analyser)
+    source.connect(node)
+    // Some engines only pull audio through nodes that reach the destination;
+    // the processor writes no output, so this stays silent.
+    node.connect(context.destination)
+    startWaveform(analyser)
+    return { stream, context, node }
   }
 
   const start = async () => {
+    if (startingRef.current || listeningRef.current) return
+    startingRef.current = true
     setError(null)
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (err) {
+      startingRef.current = false
+      setError(micErrorMessage((err as DOMException)?.name))
+      return
+    }
+    startingRef.current = false
+    if (disposedRef.current) {
+      stream.getTracks().forEach((track) => track.stop())
+      return
+    }
+    generationRef.current += 1
+    inFlightRef.current = null
+    lastTranscriptRef.current = ''
+    stateRef.current = createCaptureState(0, INITIAL_NOISE_FLOOR)
     levelsRef.current = []
-    pcmRef.current = []
-    pcmLenRef.current = 0
-    liveBusyRef.current = false
-    heardVoiceRef.current = false
     setSearching(false)
-    const stream = await recorder.start()
-    if (!stream) return
-    lastVoiceRef.current = performance.now()
-    attachWaveform(stream)
-    cbRef.current.onSearching()
+    try {
+      resourcesRef.current = await openCapture(stream)
+    } catch {
+      stream.getTracks().forEach((track) => track.stop())
+      setError('Could not start audio recording on this device.')
+      return
+    }
+    listeningRef.current = true
+    setListening(true)
+    api.warmupAudio().catch(() => {})
+    cbRef.current.onStart?.()
     maxTimerRef.current = window.setTimeout(() => stopRef.current(), MAX_RECORD_MS)
   }
 
   const toggle = () => {
-    if (recorder.listening) stop()
+    if (listeningRef.current) stop()
     else void start()
   }
 
-  useEffect(() => teardownAudio, [])
+  useEffect(() => {
+    disposedRef.current = false
+    return () => {
+      disposedRef.current = true
+      generationRef.current += 1
+      teardownCapture()
+    }
+  }, [])
 
   return {
-    supported: recorder.supported && (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined'),
-    listening: recorder.listening,
+    supported:
+      typeof navigator !== 'undefined' &&
+      !!navigator.mediaDevices?.getUserMedia &&
+      typeof AudioContext !== 'undefined' &&
+      typeof AudioWorkletNode !== 'undefined',
+    listening,
     searching,
     error,
     waveCanvas: setWaveCanvas,

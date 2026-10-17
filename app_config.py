@@ -99,7 +99,7 @@ def get_configured_sources() -> List[Dict[str, Any]]:
 
 
 def save_configured_source(
-    name: str, path: str, source_type: str, items_count: int, watch_enabled: Optional[bool] = None
+    name: str, path: str, source_type: str, watch_enabled: Optional[bool] = None
 ) -> None:
     resolved_path = _resolve(path)
     with _editing() as data:
@@ -110,7 +110,6 @@ def save_configured_source(
                 s["name"] = name
                 s["path"] = resolved_path
                 s["source_type"] = source_type
-                s["items_count"] = items_count
                 s["last_scanned"] = time.time()
                 if watch_enabled is not None:
                     s["watch_enabled"] = watch_enabled
@@ -123,7 +122,6 @@ def save_configured_source(
                 "name": name,
                 "path": resolved_path,
                 "source_type": source_type,
-                "items_count": items_count,
                 "last_scanned": time.time(),
                 "watch_enabled": True if watch_enabled is None else watch_enabled,
             })
@@ -135,10 +133,9 @@ def reset_all() -> None:
         CONFIG_PATH.unlink(missing_ok=True)
 
 
-def reset_source_counts() -> None:
+def reset_scan_times() -> None:
     with _editing() as data:
         for s in data["sources"]:
-            s["items_count"] = 0
             s["last_scanned"] = 0
 
 

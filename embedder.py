@@ -6,6 +6,8 @@ import PIL.Image
 import sentence_transformers
 import torch
 
+import ranking
+
 MAX_INPUT_CHARS = 2000
 
 
@@ -38,6 +40,7 @@ class Embedder:
         self._model_lock = threading.Lock()
         self._query_cache: Dict[str, List[float]] = {}
         self._query_cache_lock = threading.Lock()
+        self._null_vectors: Optional[List[List[float]]] = None
 
     def embed_query(self, query: str) -> List[float]:
         cleaned = _clip(query.strip())
@@ -59,6 +62,12 @@ class Embedder:
                 self._query_cache.pop(next(iter(self._query_cache)))
             self._query_cache[key] = result
         return result
+
+    def null_vectors(self) -> List[List[float]]:
+        """Embeddings of ranking.NULL_QUERIES, the baseline each search result is scored against."""
+        if self._null_vectors is None:
+            self._null_vectors = [self.embed_query(q) for q in ranking.NULL_QUERIES]
+        return self._null_vectors
 
     def embed_text(self, text: str, title: Optional[str] = None, is_query: bool = False) -> List[float]:
         if is_query:
@@ -97,6 +106,17 @@ class Embedder:
             audio = {"array": numpy.asarray(samples, dtype=numpy.float32), "sampling_rate": sampling_rate}
             with self._model_lock:
                 vec = self.model.encode({"audio": audio}, normalize_embeddings=True)
+            return vec.tolist()
+        except Exception:
+            return None
+
+    def embed_query_audio(self, text: str, samples: Sequence[float], sampling_rate: int = 16000) -> Optional[List[float]]:
+        """One joint text+audio embedding; averaging separate vectors measured worse."""
+        try:
+            audio = {"array": numpy.asarray(samples, dtype=numpy.float32), "sampling_rate": sampling_rate}
+            prompt = f"task: search result | query: {_clip(text.strip())}"
+            with self._model_lock:
+                vec = self.model.encode({"text": prompt, "audio": audio}, normalize_embeddings=True)
             return vec.tolist()
         except Exception:
             return None

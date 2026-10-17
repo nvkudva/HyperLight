@@ -26,6 +26,7 @@ export interface ConfiguredSource {
   last_scanned?: number
   watch_enabled?: boolean
   watchable: boolean
+  runner: string | null
 }
 
 export type HotkeyConfig =

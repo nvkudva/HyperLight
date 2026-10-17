@@ -36,8 +36,25 @@ class PathPrefixTest(unittest.TestCase):
         self.assertIn("b", self.store._known_ids)
         self.assertEqual(self.store.add_items([_item("e", "/x/Docs/e.txt")]), 1)
 
+    def test_replace_paths_swaps_a_files_rows_and_keeps_its_folder_twin(self):
+        self.store.add_items([_item("a2", "/x/Docs/a.txt")], replace_paths=["/x/Docs/a.txt", "/x/Docs"])
+        self.assertEqual(self.store.count_items_by_path("/x/Docs/a.txt"), 1)
+        self.assertEqual(self.store.count_items_by_path("/x/Docs2"), 1)
+        self.assertNotIn("a", self.store._known_id_set())
+        self.assertEqual(self.store.add_items([_item("a", "/x/Docs/a.txt")]), 1)
+
     def test_mtimes_scoped_to_folder(self):
         self.assertEqual(sorted(self.store.get_indexed_file_mtimes(under="/x/Docs2")), ["/x/Docs2/b.txt"])
+
+
+class IndexVersionTest(unittest.TestCase):
+    def test_index_from_another_model_is_rebuilt_and_matching_one_kept(self):
+        db_path = Path(tempfile.mkdtemp())
+        storage.Storage(db_path).add_items([_item("a", "/x/a.txt")])
+        self.assertEqual(len(storage.Storage(db_path).table), 1)
+        (db_path / "index_version").write_text("other-model:768")
+        self.assertEqual(len(storage.Storage(db_path).table), 0)
+        self.assertEqual((db_path / "index_version").read_text(), storage.INDEX_VERSION)
 
 
 if __name__ == "__main__":

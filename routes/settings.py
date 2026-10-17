@@ -6,7 +6,6 @@ import fastapi
 import app_config
 import app_state
 import sources
-import storage
 from routes.schemas import SettingsUpdateRequest, SourceWatchRequest
 
 router = fastapi.APIRouter()
@@ -14,7 +13,7 @@ router = fastapi.APIRouter()
 
 @router.get("/api/settings")
 def api_get_settings() -> Dict[str, Any]:
-    settings = storage.get_app_settings()
+    settings = app_config.get_app_settings()
     return {
         **{key: settings[key] for key in app_config.DEFAULT_SETTINGS},
         "watched_paths_count": len(getattr(app_state.peek_watcher(), "watches", {}) or {}),
@@ -27,7 +26,7 @@ def api_update_settings(req: SettingsUpdateRequest) -> Dict[str, Any]:
     if "custom_instructions" in updates:
         updates["custom_instructions"] = updates["custom_instructions"].strip()[:4000]
     if updates:
-        storage.update_app_settings(updates)
+        app_config.update_app_settings(updates)
     if "always_on_scanning" in updates:
         sources.refresh()
     return api_get_settings()

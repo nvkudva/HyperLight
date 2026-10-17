@@ -225,19 +225,8 @@ def get_status() -> Dict[str, Any]:
     }
 
 
-
-from google_sync import (  # noqa: E402  (re-exported so existing imports keep working)
-    GoogleScopeError,
-    create_photos_picker_session,
-    sync_gmail,
-    sync_google_drive,
-    sync_google_photos,
-)
-
 __all__ = [
-    "GoogleScopeError",
     "PHOTOS_CACHE_DIR",
-    "create_photos_picker_session",
     "disconnect",
     "exchange_code",
     "fetch_userinfo",
@@ -247,7 +236,4 @@ __all__ = [
     "get_valid_access_token",
     "parse_client_json",
     "save_direct_token",
-    "sync_gmail",
-    "sync_google_drive",
-    "sync_google_photos",
 ]

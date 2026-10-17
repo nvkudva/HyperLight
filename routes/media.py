@@ -9,7 +9,7 @@ from pathlib import Path
 import fastapi
 from fastapi.responses import Response
 
-import scanner
+import parsers
 
 router = fastapi.APIRouter()
 
@@ -33,13 +33,13 @@ PREVIEW_CACHE_DIR = Path.home() / ".hyperlight" / "previews"
 @router.get("/api/media")
 def api_media(path: str) -> Response:
     file_path = Path(path).resolve()
-    if not file_path.is_file() or file_path.suffix.lower() not in scanner.VIDEO_EXTENSIONS | scanner.AUDIO_EXTENSIONS:
+    if not file_path.is_file() or file_path.suffix.lower() not in parsers.VIDEO_EXTENSIONS | parsers.AUDIO_EXTENSIONS:
         return Response(status_code=404)
     return fastapi.responses.FileResponse(file_path)
 
 
 TEXT_PREVIEW_BYTES = 64 * 1024
-TEXT_PREVIEW_EXTENSIONS = scanner.TEXT_EXTENSIONS | scanner.CODE_EXTENSIONS | {".log", ".xml", ".toml", ".ini", ".rtf"}
+TEXT_PREVIEW_EXTENSIONS = parsers.TEXT_EXTENSIONS | parsers.CODE_EXTENSIONS | {".log", ".xml", ".toml", ".ini", ".rtf"}
 
 
 @router.get("/api/text")

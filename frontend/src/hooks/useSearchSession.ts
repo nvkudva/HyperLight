@@ -22,19 +22,17 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
   })
 
   const voice = useAudioSearch({
-    onSearching: () => {
+    onStart: () => {
       onActivityRef.current()
       setQueryState('')
       setVoiceResult(null)
     },
+    // Previous results stay on screen (dimmed) while the next request runs.
+    onSearching: () => onActivityRef.current(),
     onResults: (buckets, transcript) => {
       onActivityRef.current()
-      // No transcription: Gemma returns matches, not words. Label the result
-      // by the top match it identified; fall back to any transcript text.
-      const topItem = buckets[0]?.items[0]
-      const label = transcript.trim() || topItem?.filename || 'Voice search'
       setQueryState('')
-      setVoiceResult({ transcript: label, buckets })
+      setVoiceResult({ transcript, buckets })
       recordSearch(VOICE_HISTORY_TITLE)
     },
   })
@@ -66,7 +64,8 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
     return () => clearTimeout(timer)
   }, [query, recordSearch])
 
-  return { query, setQuery, voice, voiceResult, clearVoice, cancelSearch, cancelVoice }
+  // The search box shows the spoken transcript while a voice result is live.
+  return { query: voiceResult?.transcript ?? query, setQuery, voice, voiceResult, clearVoice, cancelSearch, cancelVoice }
 }
 
 export type SearchSession = ReturnType<typeof useSearchSession>

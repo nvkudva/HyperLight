@@ -1,8 +1,8 @@
 """Voice routes: EmbeddingGemma audio search, plus dictation transcription.
 
-Audio search embeds the WAV straight with EmbeddingGemma and vector-searches
-(no Whisper). /api/transcribe stays for chat dictation, where the literal
-words are the message being composed.
+Audio search transcribes with Whisper, then embeds transcript + audio jointly
+(see spotlight.query_audio). /api/transcribe stays for chat dictation, where the
+literal words are the message being composed.
 """
 import os
 import tempfile
@@ -14,6 +14,7 @@ from typing import Any
 import fastapi
 import numpy
 
+import app_state
 import logging_config
 import spotlight
 
@@ -36,6 +37,19 @@ def get_transcriber():
                 _transcriber = whisper.load_model("base", device="cpu")
                 logger.info("Whisper model ready.")
     return _transcriber
+
+
+def _transcribe_samples(samples: numpy.ndarray) -> dict:
+    model = get_transcriber()
+    with _transcribe_lock:
+        return model.transcribe(samples, fp16=False, temperature=0, condition_on_previous_text=False)
+
+
+@router.post("/api/audio-warmup")
+def api_audio_warmup() -> Any:
+    get_transcriber()
+    app_state.get_embedder()
+    return {"status": "ok"}
 
 
 @router.post("/api/transcribe")
@@ -93,7 +107,7 @@ def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
         if n_channels > 1:
             samples = samples.reshape(-1, n_channels).mean(axis=1)
         samples = samples[: 16000 * 120]
-        response = spotlight.query_audio(samples, 16000)
+        response = spotlight.query_audio(samples, 16000, _transcribe_samples)
         if response is None:
             return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
         logger.info(f"Audio search -> {response['total_matches']} matches across {len(response['buckets'])} buckets")

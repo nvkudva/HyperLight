@@ -17,7 +17,6 @@
 - [x] Build macOS Spotlight-style floating HUD interface with instant live search and Gemma answer drawer
 - [x] Verify end-to-end multi-domain Siri Search replacement across all entity types
 - [x] Accelerate scanning pipeline with directory pruning, incremental mtime skipping, batched MPS inference, and batched storage writes
-- [x] Document scanning speedup experiments and conclusions in speedup.md
 - [x] Build native macOS FSEvents real-time background file watcher for instant zero-wait indexing
 - [x] Phase 1: Build non-blocking asynchronous logging and modular systems architecture (logging_config.py)
 - [x] Phase 2: Add network folder and Google Drive auto-discovery connectors with Reveal-in-Finder endpoint
@@ -78,3 +77,5 @@
 - [ ] Add optional per-setting actions so results can flip the switch, not just open the pane: no public generic toggle API exists (Siri uses private system intents), so cover scriptable settings via AppleScript dictionaries (dark mode verified: System Events appearance preferences), Shortcuts actions, or defaults write; confirm with user before executing; skip Accessibility UI clicking (fragile)
 - [x] Add iCloud Drive as a cloud source (auto-detect ~/Library/Mobile Documents/com~apple~CloudDocs, Index button in Settings cloud modal, icloud_drive source type, live watcher covers it)
 - [x] Fix folder scans broken by ThreadPoolExecutor.imap (no such method): use pool.map so scan_path parses and stores files again
+- [ ] Search inside audio and video files: today parsers.py stores only a filename/metadata record for VIDEO_EXTENSIONS and AUDIO_EXTENSIONS, so content is not searchable; plan Whisper transcript chunks with timestamps (embed as text), ffmpeg keyframes every few seconds (embed as images), store the timestamp in metadata, and seek to it when a result opens
+- [ ] Make a nicer animated demo video: current Mac wallpaper as background, quick results only (a few result types, not all), do not use "starlight" as the search query

@@ -9,7 +9,6 @@ ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = [
     (os.path.join(ROOT, "frontend", "dist"), "frontend/dist"),
-    (os.path.join(ROOT, "templates"), "templates"),
 ]
 binaries = []
 hiddenimports = [

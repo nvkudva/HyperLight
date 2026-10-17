@@ -106,7 +106,11 @@ export const App: React.FC = () => {
     session.setQuery(q)
   }
 
-  native.useHotkey((voiceOn) => {
+  native.useHotkey((voiceOn, release) => {
+    if (release) {
+      if (voiceOn && session.voice.listening) session.voice.stop()
+      return
+    }
     setScreen('search')
     session.clearVoice()
     searchInputRef.current?.focus()

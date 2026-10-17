@@ -192,6 +192,10 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
   return data.text ?? ''
 }
 
+export async function warmupAudio(): Promise<{ status: string }> {
+  return post('/api/audio-warmup')
+}
+
 export async function searchByAudio(wav: Blob): Promise<SpotlightResponse> {
   const form = new FormData()
   form.append('file', wav, 'clip.wav')

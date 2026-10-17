@@ -40,6 +40,7 @@ const SESSION_EVENT_TAP: u32 = 1;
 const HEAD_INSERT_EVENT_TAP: u32 = 0;
 const TAP_OPTION_LISTEN_ONLY: u32 = 1;
 const EV_KEY_DOWN: u32 = 10;
+const EV_KEY_UP: u32 = 11;
 const EV_FLAGS_CHANGED: u32 = 12;
 const EV_TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFF_FFFE;
 const EV_TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
@@ -52,6 +53,9 @@ const MASK_MODS: u64 = MASK_SHIFT | MASK_CTRL | MASK_ALT | MASK_CMD;
 const KEYCODE_RIGHT_CTRL: i64 = 62;
 const KEYCODE_RIGHT_OPTION: i64 = 61;
 const DOUBLE_PRESS: Duration = Duration::from_millis(400);
+/// Shorter than a deliberate hold but longer than a tap, so a tap-to-toggle
+/// press never reads as hold-to-talk.
+const HOLD_TO_TALK: Duration = Duration::from_millis(400);
 
 /// A modifier key that triggers when pressed twice in quick succession.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +79,10 @@ fn double_tap_for(name: &str) -> DoubleTap {
 
 fn tap_matches(tap: DoubleTap, keycode: i64, flags: u64) -> bool {
   keycode == tap.keycode && flags & tap.mask != 0
+}
+
+fn is_hold_release(held_for: Duration) -> bool {
+  held_for >= HOLD_TO_TALK
 }
 
 /// Records one press; returns true when it completes a double-press pair.
@@ -101,6 +109,8 @@ struct Config {
 pub struct State {
   config: Mutex<Config>,
   last_tap_press: Mutex<Option<Instant>>,
+  /// When the last trigger fired and the keycode whose release ends the hold.
+  trigger_hold: Mutex<Option<(Instant, i64)>>,
 }
 
 impl Default for State {
@@ -108,6 +118,7 @@ impl Default for State {
     Self {
       config: Mutex::new(Config { enabled: true, voice: true, double_tap: Some(DOUBLE_RIGHT_CTRL), combo_key: None, combo_mods: 0 }),
       last_tap_press: Mutex::new(None),
+      trigger_hold: Mutex::new(None),
     }
   }
 }
@@ -163,6 +174,22 @@ pub fn reveal(app: &tauri::AppHandle, voice: bool) {
   let _ = app.emit(EVENT, serde_json::json!({ "voice": voice }));
 }
 
+fn emit_release(app: &tauri::AppHandle, voice: bool) {
+  let _ = app.emit(EVENT, serde_json::json!({ "voice": voice, "release": true }));
+}
+
+/// Ends the tracked hold when its key comes up; true if it lasted long enough.
+fn take_hold_release(state: &State, keycode: i64) -> bool {
+  let Ok(mut hold) = state.trigger_hold.lock() else { return false };
+  match *hold {
+    Some((since, held_keycode)) if held_keycode == keycode => {
+      *hold = None;
+      is_hold_release(since.elapsed())
+    }
+    _ => false,
+  }
+}
+
 fn is_double_tap(state: &State, tap: DoubleTap, event: *mut c_void) -> bool {
   let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
   let flags = unsafe { CGEventGetFlags(event) };
@@ -197,13 +224,28 @@ extern "C" fn tap_callback(_proxy: *mut c_void, etype: u32, event: *mut c_void, 
   if !cfg.enabled {
     return event;
   }
+  let keycode = unsafe { CGEventGetIntegerValueField(event, FIELD_KEYCODE) };
   let hit = match etype {
     EV_FLAGS_CHANGED => cfg.double_tap.is_some_and(|tap| is_double_tap(ctx.state, tap, event)),
     EV_KEY_DOWN => is_combo(&cfg, event),
     _ => false,
   };
   if hit {
+    let trigger_keycode = cfg.double_tap.map_or(keycode, |tap| tap.keycode);
+    if let Ok(mut hold) = ctx.state.trigger_hold.lock() {
+      *hold = Some((Instant::now(), trigger_keycode));
+    }
     reveal(&ctx.app, cfg.voice);
+    return event;
+  }
+  let released = match etype {
+    // A modifier release is a FlagsChanged for its keycode with the mask bit cleared.
+    EV_FLAGS_CHANGED => cfg.double_tap.is_some_and(|tap| keycode == tap.keycode && unsafe { CGEventGetFlags(event) } & tap.mask == 0),
+    EV_KEY_UP => cfg.combo_key.is_some(),
+    _ => false,
+  };
+  if released && take_hold_release(ctx.state, keycode) {
+    emit_release(&ctx.app, cfg.voice);
   }
   event
 }
@@ -219,7 +261,7 @@ pub fn spawn(app: tauri::AppHandle, state: &'static State) {
           SESSION_EVENT_TAP,
           HEAD_INSERT_EVENT_TAP,
           TAP_OPTION_LISTEN_ONLY,
-          (1u64 << EV_KEY_DOWN) | (1u64 << EV_FLAGS_CHANGED),
+          (1u64 << EV_KEY_DOWN) | (1u64 << EV_KEY_UP) | (1u64 << EV_FLAGS_CHANGED),
           tap_callback,
           refcon,
         )
@@ -279,7 +321,7 @@ pub fn keyboard_access_granted() -> bool {
 
 #[cfg(test)]
 mod tests {
-  use super::{DoubleTap, MASK_ALT, MASK_CTRL, double_tap_for, register_press, tap_matches};
+  use super::{DoubleTap, MASK_ALT, MASK_CTRL, double_tap_for, is_hold_release, register_press, tap_matches};
   use std::time::{Duration, Instant};
 
   #[test]
@@ -295,6 +337,12 @@ mod tests {
   fn double_ctrl_stays_default_for_other_names() {
     assert_eq!(double_tap_for("double_ctrl"), DoubleTap { keycode: 62, mask: MASK_CTRL });
     assert_eq!(double_tap_for("anything-else"), DoubleTap { keycode: 62, mask: MASK_CTRL });
+  }
+
+  #[test]
+  fn only_a_long_hold_counts_as_hold_to_talk() {
+    assert!(!is_hold_release(Duration::from_millis(399)));
+    assert!(is_hold_release(Duration::from_millis(400)));
   }
 
   #[test]

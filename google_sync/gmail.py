@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
+import parsers
 import scanner
 from google_sync.common import api_error, require_token
 
@@ -57,7 +58,7 @@ def sync_gmail(
             subject = hdrs.get("Subject", "(no subject)")
             if on_progress:
                 on_progress(subject, idx + 1, total)
-            records.append(scanner.email_record(
+            records.append(parsers.email_record(
                 record_id=f"gmail_{msg['id']}",
                 source="gmail",
                 path=f"https://mail.google.com/mail/u/0/#all/{msg['threadId']}",

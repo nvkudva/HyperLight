@@ -12,7 +12,6 @@ import connectors
 import google_auth
 import logging_config
 import sources
-import storage
 from routes.media import PREVIEW_CACHE_DIR
 from routes.schemas import BrowseFolderRequest, IndexRequest, LaunchRequest, RemoveSourceRequest, SourceWatchRequest
 
@@ -59,7 +58,7 @@ def api_icloud_locations() -> Dict[str, Any]:
 
 @router.post("/api/index-apps")
 def api_index_apps() -> Dict[str, Any]:
-    return {"status": app_state.get_jobs().start_indexing(Path("/Applications"), "macos_apps", "macOS Applications")}
+    return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_apps", "macOS Applications")}
 
 
 @router.post("/api/index-settings")
@@ -113,7 +112,7 @@ def api_clear() -> Dict[str, str]:
     jobs.stop_indexing()
     jobs.wait_until_idle()
     app_state.get_storage().clear()
-    sources.reset_counts()
+    sources.mark_unscanned()
     return {"status": "cleared"}
 
 
@@ -132,12 +131,6 @@ def api_reset_all() -> Dict[str, str]:
     return {"status": "reset"}
 
 
-CLOUD_RESCAN_SOURCES = {
-    "google_drive": "google_drive_cloud",
-    "gmail": "gmail_cloud",
-}
-
-
 @router.post("/api/sources/rescan")
 def api_rescan_source(req: RemoveSourceRequest) -> Any:
     source = next((s for s in sources.list_all() if s.get("path") == req.path), None)
@@ -152,16 +145,11 @@ def api_rescan_source(req: RemoveSourceRequest) -> Any:
     name = source.get("name") or req.path
     path = source.get("path", req.path)
     source_type = source.get("source_type", "local")
-    if source_type == sources.SYSTEM_SOURCE_TYPE:
-        if path.startswith("x-apple.systempreferences:"):
-            status = app_state.get_jobs().start_indexing(Path.home(), "macos_settings", name, rescan=True)
-        else:
-            status = app_state.get_jobs().start_indexing(Path("/Applications"), "macos_apps", name, rescan=True)
+    runner = source.get("runner")
+    if runner and sources.RUNNERS[runner].rescannable:
+        status = app_state.get_jobs().start_indexing(Path.home(), runner, name, rescan=True)
     elif path.startswith("http"):
-        cloud_source = CLOUD_RESCAN_SOURCES.get(source_type)
-        if cloud_source is None:
-            return fastapi.responses.JSONResponse(status_code=400, content={"error": "rescan_unsupported", "message": f"Rescan is not available for '{name}'. Reconnect it to index it again."})
-        status = app_state.get_jobs().start_indexing(Path.home(), cloud_source, name, rescan=True)
+        return fastapi.responses.JSONResponse(status_code=400, content={"error": "rescan_unsupported", "message": f"Rescan is not available for '{name}'. Reconnect it to index it again."})
     else:
         target = Path(path).expanduser().resolve()
         if not target.exists():
@@ -243,7 +231,7 @@ def api_browse_folder(req: Optional[BrowseFolderRequest] = None) -> Dict[str, An
 
 @router.get("/api/discovered-locations")
 def api_discovered_locations() -> Dict[str, Any]:
-    existing_sources = {s.get("path") for s in storage.get_configured_sources()}
+    existing_sources = {s.get("path") for s in app_config.get_configured_sources()}
     locations = []
 
     cloud_storage = Path.home() / "Library" / "CloudStorage"

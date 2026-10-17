@@ -1,4 +1,4 @@
-"""Rescan deletes a folder's indexed data before re-indexing; DB reset zeroes source counts.
+"""Rescan deletes a folder's indexed data before re-indexing; DB reset marks sources unscanned.
 
 Run: .venv/bin/python -m unittest tests.test_rescan -v
 """
@@ -90,11 +90,10 @@ class ResetCountsTest(unittest.TestCase):
         app_config.CONFIG_PATH = self._config_path
         self.tmp.cleanup()
 
-    def test_reset_counts_zeroes_items_and_last_scanned(self):
-        app_config.save_configured_source("Docs", str(self.folder), "local", 42)
-        sources.reset_counts()
+    def test_mark_unscanned_zeroes_last_scanned(self):
+        app_config.save_configured_source("Docs", str(self.folder), "local")
+        sources.mark_unscanned()
         listed = app_config.get_configured_sources()
-        self.assertEqual(listed[0]["items_count"], 0)
         self.assertEqual(listed[0]["last_scanned"], 0)
         self.assertEqual(listed[0]["path"], str(self.folder.resolve()))
         self.assertTrue(listed[0]["watch_enabled"])
@@ -123,6 +122,9 @@ class _FakeClearStore:
     def clear(self):
         self.cleared = True
 
+    def count_items_by_path(self, path):
+        return 0
+
 
 class RescanAndClearRouteTest(unittest.TestCase):
     def setUp(self):
@@ -132,7 +134,7 @@ class RescanAndClearRouteTest(unittest.TestCase):
         (self.folder / "a.txt").write_text("hello")
         self._config_path = app_config.CONFIG_PATH
         app_config.CONFIG_PATH = Path(self.tmp.name) / "config.json"
-        app_config.save_configured_source("Docs", str(self.folder), "local", 7)
+        app_config.save_configured_source("Docs", str(self.folder), "local")
         self.fake_jobs = _FakeJobs()
         self.fake_store = _FakeClearStore()
         self._getters = (app_state.get_jobs, app_state.get_storage)
@@ -165,12 +167,12 @@ class RescanAndClearRouteTest(unittest.TestCase):
         self.assertEqual(res.status_code, 404)
         self.assertEqual(self.fake_jobs.calls, [])
 
-    def test_clear_route_zeroes_source_counts(self):
+    def test_clear_route_marks_sources_unscanned(self):
         res = self.client.post("/api/clear", json={"force": True})
         self.assertEqual(res.status_code, 200)
         self.assertTrue(self.fake_store.cleared)
         self.assertTrue(self.fake_jobs.stopped)
-        self.assertEqual(app_config.get_configured_sources()[0]["items_count"], 0)
+        self.assertEqual(app_config.get_configured_sources()[0]["last_scanned"], 0)
 
     def test_reset_all_wipes_config_tokens_and_caches(self):
         import google_auth

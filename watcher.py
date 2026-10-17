@@ -5,7 +5,9 @@ import time
 from typing import Any, Callable, Dict, Iterable, Optional, Set
 import watchdog.events
 import watchdog.observers
+import app_config
 import embedder
+import parsers
 import scanner
 import storage
 
@@ -30,9 +32,12 @@ class DebouncedHandler(watchdog.events.FileSystemEventHandler):
 
     def _should_handle(self, path: str) -> bool:
         p = Path(path)
-        if p.name.startswith(".") or any(part in scanner.IGNORED_DIRS for part in self._parts_below_watched_root(p)):
+        if p.name.startswith("."):
             return False
-        return p.suffix.lower() in scanner.ALL_EXTENSIONS
+        parts = self._parts_below_watched_root(p)
+        if any(scanner.is_ignored_dir(parent, name) for parent, name in zip(("",) + parts[:-2], parts[:-1])):
+            return False
+        return parsers.is_indexable(p.name)
 
     def on_created(self, event: watchdog.events.FileSystemEvent) -> None:
         if not event.is_directory and self._should_handle(event.src_path):
@@ -108,16 +113,12 @@ class LiveWatcher:
             return
 
         source = "local"
-        for src in storage.get_configured_sources():
+        for src in app_config.get_configured_sources():
             src_path = src.get("path", "")
             if src_path and (file_path == src_path or file_path.startswith(src_path.rstrip("/") + "/")):
                 source = src.get("source_type", "local")
                 break
 
-        try:
-            self.storage.remove_items_by_path(file_path)
-        except Exception:
-            pass
         count = self.scanner.scan_path(p, source=source)
         if self.on_indexed and count > 0:
             self.on_indexed(p.name, "indexed")

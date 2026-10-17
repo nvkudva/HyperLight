@@ -1,7 +1,7 @@
 """Frozen (PyInstaller) builds must serve the UI from bundled resources.
 
 In a frozen sidecar, ``routes/pages.py`` sits inside the PyInstaller bundle,
-so ``frontend/dist`` and ``templates`` resolve under ``sys._MEIPASS`` (or the
+so ``frontend/dist`` resolves under ``sys._MEIPASS`` (or the
 ``HYPERLIGHT_RESOURCE_DIR`` override), not beside the repo checkout.
 
 Run: .venv/bin/python -m unittest tests.test_pages_paths -v

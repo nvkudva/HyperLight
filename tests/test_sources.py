@@ -29,6 +29,9 @@ class _FakeStorage:
     def remove_items_by_path(self, path):
         self.removed.append(path)
 
+    def count_items_by_path(self, path):
+        return 0
+
 
 class SourceRegistryTest(unittest.TestCase):
     def setUp(self):
@@ -39,13 +42,13 @@ class SourceRegistryTest(unittest.TestCase):
         app_config.CONFIG_PATH = Path(self.tmp.name) / "config.json"
         self.watcher = _FakeWatcher()
         self.store = _FakeStorage()
-        self._getters = (app_state.get_watcher, app_state.get_storage)
-        app_state.get_watcher = lambda: self.watcher
+        self._getters = (app_state.peek_watcher, app_state.get_storage)
+        app_state.peek_watcher = lambda: self.watcher
         app_state.get_storage = lambda: self.store
 
     def tearDown(self):
         app_config.CONFIG_PATH = self._config_path
-        app_state.get_watcher, app_state.get_storage = self._getters
+        app_state.peek_watcher, app_state.get_storage = self._getters
         self.tmp.cleanup()
 
     def test_watchable_rule(self):
@@ -56,15 +59,20 @@ class SourceRegistryTest(unittest.TestCase):
         self.assertFalse(sources.is_watchable({"path": cache, "source_type": "google_photos"}))
 
     def test_record_scan_lists_watchable_and_resyncs(self):
-        sources.record_scan("Docs", str(self.folder), "local", 3)
-        sources.record_scan("Apps", "/Applications", "macos_system", 40)
-        listed = {s["name"]: s["watchable"] for s in sources.list_all()}
-        self.assertEqual(listed, {"Docs": True, "Apps": False})
+        sources.record_scan("Docs", str(self.folder), "local")
+        sources.record_scan("Apps", "/Applications", "macos_system")
+        listed = {s["name"]: (s["watchable"], s["runner"]) for s in sources.list_all()}
+        self.assertEqual(listed, {"Docs": (True, None), "Apps": (False, "macos_apps")})
         self.assertEqual(sources.watched_paths(), {str(self.folder.resolve())})
         self.assertEqual(self.watcher.syncs, 2)
 
+    def test_refresh_before_watcher_starts_does_not_start_it(self):
+        app_state.peek_watcher = lambda: None
+        sources.record_scan("Docs", str(self.folder), "local")
+        self.assertEqual(self.watcher.syncs, 0)
+
     def test_set_watch_and_always_on_gate(self):
-        sources.record_scan("Docs", str(self.folder), "local", 3)
+        sources.record_scan("Docs", str(self.folder), "local")
         sources.set_watch(str(self.folder), False)
         self.assertEqual(sources.watched_paths(), set())
         sources.set_watch(str(self.folder), True)
@@ -72,7 +80,7 @@ class SourceRegistryTest(unittest.TestCase):
         self.assertEqual(sources.watched_paths(), set())
 
     def test_remove_drops_index_config_and_resyncs(self):
-        sources.record_scan("Docs", str(self.folder), "local", 3)
+        sources.record_scan("Docs", str(self.folder), "local")
         sources.remove(str(self.folder))
         self.assertEqual(sources.list_all(), [])
         self.assertEqual(self.store.removed, [str(self.folder)])

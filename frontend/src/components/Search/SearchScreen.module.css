@@ -10,6 +10,14 @@
   -webkit-backdrop-filter: var(--sidebar-blur);
 }
 
+.screen > :not(footer) {
+  transition: opacity 0.2s ease;
+}
+
+.dimmed > :not(footer) {
+  opacity: 0.5;
+}
+
 .emptyState {
   flex: 1;
   display: flex;

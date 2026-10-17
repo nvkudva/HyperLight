@@ -1,12 +1,13 @@
 """Background indexing job queue (one active scan, rest wait in line)."""
 import os
+import dataclasses
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
 import app_state
 import connectors
-import google_auth
+import google_sync
 import logging_config
 import sources
 
@@ -19,24 +20,22 @@ class Job(NamedTuple):
     name: str
     options: Dict[str, Any]
 
-
-class CloudSource(NamedTuple):
-    name: str
-    path: str
-    kind: str
-    run: Callable[..., Any]
+    def tracked_path(self) -> str:
+        """Path the source is recorded under; runners use their fixed one."""
+        runner = sources.RUNNERS.get(self.source)
+        return runner.path if runner else str(self.path)
 
 
 def _sync_drive(progress, cancel, opts: Dict[str, Any]) -> None:
-    google_auth.sync_google_drive(app_state.get_embedder(), app_state.get_storage(), on_progress=progress, cancel_check=cancel)
+    google_sync.sync_google_drive(app_state.get_embedder(), app_state.get_storage(), on_progress=progress, cancel_check=cancel)
 
 
 def _sync_photos(progress, cancel, opts: Dict[str, Any]) -> None:
-    google_auth.sync_google_photos(app_state.get_embedder(), app_state.get_storage(), opts["session_id"], on_progress=progress, cancel_check=cancel)
+    google_sync.sync_google_photos(app_state.get_embedder(), app_state.get_storage(), opts["session_id"], on_progress=progress, cancel_check=cancel)
 
 
 def _sync_gmail(progress, cancel, opts: Dict[str, Any]) -> None:
-    google_auth.sync_gmail(app_state.get_embedder(), app_state.get_storage(), on_progress=progress, cancel_check=cancel)
+    google_sync.sync_gmail(app_state.get_embedder(), app_state.get_storage(), on_progress=progress, cancel_check=cancel)
 
 
 def _index_apps(progress, cancel, opts: Dict[str, Any]) -> None:
@@ -47,17 +46,32 @@ def _index_settings(progress, cancel, opts: Dict[str, Any]) -> None:
     connectors.index_system_settings(app_state.get_embedder(), app_state.get_storage())
 
 
-CLOUD_SOURCES: Dict[str, CloudSource] = {
-    "google_drive_cloud": CloudSource("Google Drive", "https://drive.google.com", "google_drive", _sync_drive),
-    "google_photos_cloud": CloudSource("Google Photos", str(google_auth.PHOTOS_CACHE_DIR), "google_photos", _sync_photos),
-    "gmail_cloud": CloudSource("Gmail", "https://mail.google.com", "gmail", _sync_gmail),
+# How each sources.RUNNERS entry indexes; the registry holds what they are.
+RUN_FUNCTIONS: Dict[str, Callable[..., Any]] = {
+    "google_drive_cloud": _sync_drive,
+    "google_photos_cloud": _sync_photos,
+    "gmail_cloud": _sync_gmail,
+    "macos_apps": _index_apps,
+    "macos_settings": _index_settings,
 }
+assert RUN_FUNCTIONS.keys() == sources.RUNNERS.keys()
 
-# Indexed by a custom runner like the cloud sources, but local (not shown as a cloud job).
-SYSTEM_SOURCES: Dict[str, CloudSource] = {
-    "macos_apps": CloudSource("macOS Applications", "/Applications", sources.SYSTEM_SOURCE_TYPE, _index_apps),
-    "macos_settings": CloudSource("macOS Settings", "x-apple.systempreferences:", sources.SYSTEM_SOURCE_TYPE, _index_settings),
-}
+
+@dataclasses.dataclass
+class JobProgress:
+    """What the active (or last) job reports; a fresh one per job, so nothing leaks between runs."""
+    current_folder: str = ""
+    current_path: str = ""
+    current_source: str = ""
+    current_file: str = ""
+    current_index: int = 0
+    total_files: int = 0
+    percent: float = 0.0
+    indexed_items: int = 0
+    parsed_files: int = 0
+    status: str = "Idle"
+    state: str = "idle"
+    error_code: str = ""
 
 
 class IndexJobManager:
@@ -65,59 +79,40 @@ class IndexJobManager:
         self.lock = threading.Lock()
         self.is_running = False
         self.cancel_requested = False
-        self.current_folder = ""
-        self.current_path = ""
-        self.current_source = ""
-        self.current_file = ""
-        self.current_index = 0
-        self.total_files = 0
-        self.percent = 0.0
-        self.indexed_items = 0
-        self.parsed_files = 0
-        self.status = "Idle"
-        self.state = "idle"
-        self.error_code = ""
+        self.progress = JobProgress()
         self.thread: Optional[threading.Thread] = None
         self.pending: List[Job] = []
 
     def get_status(self) -> Dict[str, Any]:
         with self.lock:
+            progress = self.progress
+            current_runner = sources.RUNNERS.get(progress.current_source)
             jobs: List[Dict[str, Any]] = []
-            if self.is_running and self.current_path:
+            if self.is_running and progress.current_path:
                 jobs.append({
-                    "name": self.current_folder,
-                    "path": self.current_path,
+                    "name": progress.current_folder,
+                    "path": progress.current_path,
                     "state": "running",
-                    "percent": round(self.percent, 1),
-                    "current_index": self.current_index,
-                    "parsed_files": self.parsed_files,
-                    "total_files": self.total_files,
+                    "percent": round(progress.percent, 1),
+                    "current_index": progress.current_index,
+                    "parsed_files": progress.parsed_files,
+                    "total_files": progress.total_files,
                 })
             for job in self.pending:
                 jobs.append({
                     "name": job.name,
-                    "path": str(job.path),
+                    "path": job.tracked_path(),
                     "state": "queued",
                     "percent": 0.0,
                     "current_index": 0,
                     "total_files": 0,
                 })
             return {
+                **dataclasses.asdict(progress),
+                "percent": round(progress.percent, 1),
                 "is_running": self.is_running,
                 "cancel_requested": self.cancel_requested,
-                "current_folder": self.current_folder,
-                "current_path": self.current_path,
-                "current_source": self.current_source,
-                "current_file": self.current_file,
-                "current_index": self.current_index,
-                "parsed_files": self.parsed_files,
-                "total_files": self.total_files,
-                "percent": round(self.percent, 1),
-                "indexed_items": self.indexed_items,
-                "status": self.status,
-                "state": self.state,
-                "error_code": self.error_code,
-                "is_cloud": self.current_source in CLOUD_SOURCES,
+                "is_cloud": current_runner is not None and current_runner.is_cloud,
                 "queued": [job.name for job in self.pending],
                 "jobs": jobs,
             }
@@ -134,21 +129,15 @@ class IndexJobManager:
         return "started"
 
     def _launch(self, job: Job) -> None:
-        path, source, name = job.path, job.source, job.name
         with self.lock:
-            self.state = "running"
-            self.error_code = ""
             self.cancel_requested = False
-            self.current_folder = name
-            self.current_path = str(path)
-            self.current_source = source
-            self.current_file = ""
-            self.current_index = 0
-            self.total_files = 0
-            self.percent = 0.0
-            self.indexed_items = 0
-            self.parsed_files = 0
-            self.status = f"Preparing to scan '{name}'..."
+            self.progress = JobProgress(
+                current_folder=job.name,
+                current_path=job.tracked_path(),
+                current_source=job.source,
+                status=f"Preparing to scan '{job.name}'...",
+                state="running",
+            )
 
         self.thread = threading.Thread(
             target=self._worker,
@@ -162,7 +151,7 @@ class IndexJobManager:
             self.pending.clear()
             if self.is_running:
                 self.cancel_requested = True
-                self.status = "Stopping scan..."
+                self.progress.status = "Stopping scan..."
 
     def wait_until_idle(self, timeout: float = 30.0) -> None:
         thread = self.thread
@@ -175,58 +164,56 @@ class IndexJobManager:
 
         def on_progress(filename: str, current: int, total: int) -> None:
             with self.lock:
-                self.current_file = filename
-                self.current_index = current
-                self.total_files = total
-                self.percent = (current / total * 100.0) if total > 0 else 0.0
-                self.status = f"Scanning file {current} of {total}..."
+                progress = self.progress
+                progress.current_file = filename
+                progress.current_index = current
+                progress.total_files = total
+                progress.percent = (current / total * 100.0) if total > 0 else 0.0
+                progress.status = f"Scanning file {current} of {total}..."
 
         def on_parsed(parsed_files: int) -> None:
             with self.lock:
-                self.parsed_files = parsed_files
+                self.progress.parsed_files = parsed_files
 
         def cancel_check() -> bool:
             with self.lock:
                 return self.cancel_requested
 
-        runner = CLOUD_SOURCES.get(job.source) or SYSTEM_SOURCES.get(job.source)
-        if runner:
-            name, track_path, kind = runner.name, runner.path, runner.kind
-        else:
-            name, track_path, kind = job.name, str(job.path), job.source
+        runner = sources.RUNNERS.get(job.source)
+        track_path = job.tracked_path()
+        name, kind = (runner.name, runner.kind) if runner else (job.name, job.source)
         try:
             if job.options.get("rescan"):
-                pre_count = store.count_items_by_path(track_path)
                 store.remove_items_by_path(track_path)
-                sources.record_scan(name, track_path, kind, pre_count)
-            else:
-                sources.record_scan(name, track_path, kind, store.count_items_by_path(track_path))
+            sources.record_scan(name, track_path, kind)
             if runner:
-                runner.run(on_progress, cancel_check, job.options)
+                RUN_FUNCTIONS[job.source](on_progress, cancel_check, job.options)
             else:
                 if job.path.is_dir():
                     os.listdir(job.path)  # PermissionError (no Full Disk Access) must not look like an empty folder
                 sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check, on_parsed=on_parsed)
+            sources.record_scan(name, track_path, kind)
             total_items = store.count_items_by_path(track_path)
-            sources.record_scan(name, track_path, kind, total_items)
             with self.lock:
+                progress = self.progress
                 if self.cancel_requested:
-                    self.state = "cancelled"
-                    self.status = f"Scan stopped. Indexed {total_items} items so far."
+                    progress.state = "cancelled"
+                    progress.status = f"Scan stopped. Indexed {total_items} items so far."
                 else:
-                    self.state = "finished"
-                    self.percent = 100.0
-                    self.status = f"Finished! Indexed {total_items} items from '{name}'."
-                self.indexed_items = total_items
+                    progress.state = "finished"
+                    progress.percent = 100.0
+                    progress.status = f"Finished! Indexed {total_items} items from '{name}'."
+                progress.indexed_items = total_items
         except Exception as e:
             with self.lock:
-                self.state = "error"
+                progress = self.progress
+                progress.state = "error"
                 if isinstance(e, PermissionError):
-                    self.error_code = "full_disk_access"
-                    self.status = f"Hyperlight can't read '{name}'. Allow it under Settings > Permissions, then rescan."
+                    progress.error_code = "full_disk_access"
+                    progress.status = f"Hyperlight can't read '{name}'. Allow it under Settings > Permissions, then rescan."
                 else:
-                    self.error_code = "reauth_required" if isinstance(e, google_auth.GoogleScopeError) else ""
-                    self.status = f"Error during indexing: {e}"
+                    progress.error_code = "reauth_required" if isinstance(e, google_sync.GoogleScopeError) else ""
+                    progress.status = f"Error during indexing: {e}"
         finally:
             with self.lock:
                 self.cancel_requested = False

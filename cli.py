@@ -34,7 +34,7 @@ def cmd_search(args: argparse.Namespace) -> None:
     store = storage.Storage()
 
     query_vec = emb.embed_query(args.query)
-    results = store.search(query_vec, query_text=args.query, item_type=args.type, limit=args.limit)
+    results = store.search(query_vec, emb.null_vectors(), query_text=args.query, item_type=args.type, limit=args.limit)
 
     if not results:
         print(f"No results found for '{args.query}'.")
@@ -44,7 +44,7 @@ def cmd_search(args: argparse.Namespace) -> None:
     for idx, item in enumerate(results, start=1):
         item_type = item["type"].upper()
         score = item["score"]
-        print(f"{idx}. [{item_type}] {item['filename']} (distance: {score:.4f})")
+        print(f"{idx}. [{item_type}] {item['filename']} (score: {score:.4f})")
         print(f"   Path: {item['path']}")
         if item["type"] in ("document", "contact", "calendar", "bookmark"):
             page = item.get("metadata", {}).get("page")
@@ -62,7 +62,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
 
     print(f"Searching indexed files for context...")
     query_vec = emb.embed_query(args.question)
-    docs = store.search(query_vec, query_text=args.question, limit=args.limit)
+    docs = store.search(query_vec, emb.null_vectors(), query_text=args.question, limit=args.limit)
 
     print(f"Generating answer using Gemma 2...\n")
     result = engine.generate_answer(args.question, docs)

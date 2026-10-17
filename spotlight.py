@@ -4,11 +4,13 @@ Owns bucket kinds, their labels and order, per-bucket caps and path dedupe,
 so text search, voice search and the frontend all agree on one answer.
 """
 import functools
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+import numpy
 import PIL.Image
 
 import app_state
+import parsers
 
 CANDIDATE_LIMIT = 60
 PHOTO_CANDIDATES = 40
@@ -48,6 +50,8 @@ def bucket_of(record: Dict[str, Any]) -> str:
     name = (record.get("filename") or record.get("path") or "").lower()
     dot = name.rfind(".")
     ext = name[dot:] if dot != -1 else ""
+    if ext in parsers.IMAGE_EXTENSIONS:
+        return "photo"  # a cloud-only image, indexed by name until downloaded
     return "document" if ext in OFFICE_DOC_EXTENSIONS else "text"
 
 
@@ -78,21 +82,31 @@ def demotion(record: Dict[str, Any]) -> int:
     return 2 if min(size) < TINY_IMAGE_PX or is_mail_attachment else 1
 
 
+def _dedupe_key(record: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Same name and byte size counts as one file: a mail attachment saved per message, or a
+    file chunked into several records."""
+    size = (record.get("metadata") or {}).get("size_bytes")
+    if size is None:
+        return (record.get("path"),)
+    return (record.get("filename"), size)
+
+
 def group(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Ranked records -> buckets in BUCKET_ORDER, then first-seen order; first hit per path.
+    """Ranked records -> buckets in BUCKET_ORDER, then first-seen order; first hit per file.
 
     Images at or under EXCLUDED_IMAGE_PX are dropped; other small images (icons, thumbnails,
     mail attachments) sink below normal ones.
     """
     items_by_kind: Dict[str, List[Dict[str, Any]]] = {}
-    seen_paths = set()
+    seen_files = set()
     for r in sorted(results, key=demotion):
         if is_excluded_size(r):
             continue
         kind = bucket_of(r)
         items = items_by_kind.setdefault(kind, [])
-        if len(items) < PER_BUCKET_OVERRIDES.get(kind, PER_BUCKET) and r.get("path") not in seen_paths:
-            seen_paths.add(r.get("path"))
+        key = _dedupe_key(r)
+        if len(items) < PER_BUCKET_OVERRIDES.get(kind, PER_BUCKET) and key not in seen_files:
+            seen_files.add(key)
             items.append(r)
     kinds = [k for k in BUCKET_ORDER if k in items_by_kind]
     kinds += [k for k in items_by_kind if k not in kinds]
@@ -119,13 +133,34 @@ def query(text: str) -> Dict[str, Any]:
     return respond(text, _search(vector, text))
 
 
-def query_audio(samples: Sequence[float], rate: int) -> Optional[Dict[str, Any]]:
-    """Search by the audio embedding directly (no transcription). None if embedding fails."""
-    vector = app_state.get_embedder().embed_audio(samples, rate)
+MIN_SPEECH_RMS = 0.005
+MAX_NO_SPEECH_PROB = 0.6
+
+
+def _transcript_if_speech(samples: Sequence[float], transcribe: Callable[[Any], Dict[str, Any]]) -> str:
+    """The spoken words, or "" when the clip is quiet, Whisper hears no speech, or the text is only punctuation."""
+    if float(numpy.sqrt(numpy.mean(numpy.square(samples)))) < MIN_SPEECH_RMS:
+        return ""
+    result = transcribe(samples)
+    segments = result.get("segments") or []
+    if segments and all(s.get("no_speech_prob", 0.0) > MAX_NO_SPEECH_PROB for s in segments):
+        return ""
+    text = (result.get("text") or "").strip()
+    return text if any(c.isalnum() for c in text) else ""
+
+
+def query_audio(samples: Sequence[float], rate: int, transcribe: Callable[[Any], Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Voice search: transcript + audio embedded jointly, transcript words only boost.
+    Empty response for non-speech; None if embedding fails."""
+    samples = numpy.asarray(samples, dtype=numpy.float32)
+    transcript = _transcript_if_speech(samples, transcribe)
+    if not transcript:
+        return respond("", [])
+    vector = app_state.get_embedder().embed_query_audio(transcript, samples, rate)
     if vector is None:
         return None
-    return respond("", _search(vector, None))
+    return respond(transcript, _search(vector, transcript, boost_only=True))
 
 
-def _search(vector: List[float], text: Optional[str]) -> List[Dict[str, Any]]:
-    return group(app_state.get_storage().search(vector, query_text=text, limit=CANDIDATE_LIMIT, photo_limit=PHOTO_CANDIDATES))
+def _search(vector: List[float], text: Optional[str], boost_only: bool = False) -> List[Dict[str, Any]]:
+    return group(app_state.get_storage().search(vector, app_state.get_embedder().null_vectors(), query_text=text, limit=CANDIDATE_LIMIT, photo_limit=PHOTO_CANDIDATES, boost_only=boost_only))

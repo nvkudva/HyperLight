@@ -36,6 +36,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   const feedRef = useRef<HTMLDivElement>(null)
   const q = query.trim()
   const isAudio = voiceResult !== null
+  const dimmed = isAudio && voiceSearching
   const hasQuery = q.length > 0 || isAudio
   const liveTitle = isAudio ? 'Voice search' : q
 
@@ -88,7 +89,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
 
   if (!feedMode) {
     return (
-      <div className={styles.screen}>
+      <div className={`${styles.screen} ${dimmed ? styles.dimmed : ''}`}>
         {!hasQuery ? (
           <div className={styles.emptyState}>
             <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>
@@ -118,7 +119,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   const cardCount = cards.length + (hasQuery ? 1 : 0)
 
   return (
-    <div className={styles.screen}>
+    <div className={`${styles.screen} ${dimmed ? styles.dimmed : ''}`}>
       {!hasQuery && cards.length === 0 ? (
         <div className={styles.emptyState}>
           <p className={styles.emptyTitle}>Start typing to search everything on this Mac.</p>

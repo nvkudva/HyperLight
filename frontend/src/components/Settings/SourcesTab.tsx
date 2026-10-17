@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { fetchDriveLocations, fetchICloudLocations } from '../../api'
+import type { SourceActions } from '../../hooks/useSourceActions'
 import type { ConfiguredSource, DriveLocation, IndexJobInfo, IndexJobStatus } from '../../types'
 import {
   AppIcon,
@@ -26,22 +27,10 @@ interface SourcesTabProps {
   totalItems: number
   indexStatus?: IndexJobStatus | null
   jobs: IndexJobInfo[]
-  manualPath: string
-  onManualPathChange: (path: string) => void
   jobForSource: (s: ConfiguredSource) => IndexJobInfo | undefined
-  onBrowseFinder: () => void
-  onAddManual: (e?: React.FormEvent) => void
-  onIndexPreset: (p: string) => void
-  onIndexApps: () => void
-  onIndexSettings: () => void
-  onIndexICloud: (locations: DriveLocation[]) => void
-  onIndexDrive: (locations: DriveLocation[]) => void
-  onIndexAppleMail: () => void
+  actions: SourceActions
   onToggleAlwaysOn: () => void
   onToggleSourceWatch: (s: ConfiguredSource) => void
-  onReveal: (path: string) => void
-  onRescan: (s: ConfiguredSource) => void
-  onRemoveSource: (path: string) => void
   titleRef: React.Ref<HTMLHeadingElement>
 }
 
@@ -57,25 +46,14 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
   totalItems,
   indexStatus,
   jobs,
-  manualPath,
-  onManualPathChange,
   jobForSource,
-  onBrowseFinder,
-  onAddManual,
-  onIndexPreset,
-  onIndexApps,
-  onIndexSettings,
-  onIndexICloud,
-  onIndexDrive,
-  onIndexAppleMail,
+  actions,
   onToggleAlwaysOn,
   onToggleSourceWatch,
-  onReveal,
-  onRescan,
-  onRemoveSource,
   titleRef,
 }) => {
   const [modal, setModal] = useState<ModalKind>(null)
+  const [manualPath, setManualPath] = useState('')
   const [icloudLocations, setIcloudLocations] = useState<DriveLocation[]>([])
   const [driveLocations, setDriveLocations] = useState<DriveLocation[]>([])
 
@@ -233,12 +211,12 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                       </td>
                       <td>
                         <span className={styles.rowActions}>
-                          <button className={styles.iconButton} onClick={() => onReveal(s.path)} title="Reveal in Finder" aria-label={`Reveal ${s.name} in Finder`}>
+                          <button className={styles.iconButton} onClick={() => actions.reveal(s.path)} title="Reveal in Finder" aria-label={`Reveal ${s.name} in Finder`}>
                             <RevealIcon className="w-4 h-4" />
                           </button>
                           <button
                             className={styles.iconButton}
-                            onClick={() => onRescan(s)}
+                            onClick={() => actions.rescan(s)}
                             disabled={!!job}
                             title={job ? 'Already indexing' : 'Re-index this source'}
                             aria-label={`Re-index ${s.name}`}
@@ -247,7 +225,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                           </button>
                           <button
                             className={`${styles.iconButton} ${styles.iconButtonDanger}`}
-                            onClick={() => onRemoveSource(s.path)}
+                            onClick={() => actions.remove(s.path)}
                             title="Remove from index"
                             aria-label={`Remove ${s.name}`}
                           >
@@ -282,7 +260,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                   </div>
                   <button className={styles.iconButton} onClick={() => setModal(null)} aria-label="Close">✕</button>
                 </div>
-                <button className={`${shared.button} ${shared.primary} ${styles.fullWidth}`} onClick={closeAnd(onBrowseFinder)}>
+                <button className={`${shared.button} ${shared.primary} ${styles.fullWidth}`} onClick={closeAnd(actions.browseFinder)}>
                   Choose Folder… (system picker)
                 </button>
 
@@ -291,7 +269,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                     <div className={styles.modalSectionTitle}>Common folders</div>
                     <div className={styles.chipRow}>
                       {quickPresets.map((p) => (
-                        <button key={p} className={styles.chip} title={p} onClick={closeAnd(() => onIndexPreset(p))}>
+                        <button key={p} className={styles.chip} title={p} onClick={closeAnd(() => actions.indexPreset(p))}>
                           <FolderIcon className={styles.chipIcon} />
                           {p.replace('~/', '')}
                         </button>
@@ -300,14 +278,18 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                   </>
                 )}
                 <div className={styles.modalSectionTitle}>Advanced</div>
-                <form className={styles.pathForm} onSubmit={(e) => { onAddManual(e); setModal(null) }}>
+                <form className={styles.pathForm} onSubmit={(e) => {
+                  e.preventDefault()
+                  actions.addFolder(manualPath).then((added) => added && setManualPath(''))
+                  setModal(null)
+                }}>
                   <input
                     type="text"
                     className={styles.input}
                     aria-label="Folder path"
                     placeholder="~/Documents, /Volumes/Share…"
                     value={manualPath}
-                    onChange={(e) => onManualPathChange(e.target.value)}
+                    onChange={(e) => setManualPath(e.target.value)}
                   />
                   <button type="submit" className={`${shared.button} ${shared.primary}`}>Add</button>
                 </form>
@@ -324,7 +306,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                     {hasMailSource ? (
                       <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
                     ) : (
-                      <button className={shared.button} onClick={closeAnd(onIndexAppleMail)}>Index</button>
+                      <button className={shared.button} onClick={closeAnd(actions.indexAppleMail)}>Index</button>
                     )}
                   </li>
                   <li className={styles.modalRow}>
@@ -338,7 +320,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                     {hasAppsSource ? (
                       <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
                     ) : (
-                      <button className={shared.button} onClick={closeAnd(onIndexApps)}>Index</button>
+                      <button className={shared.button} onClick={closeAnd(actions.indexApps)}>Index</button>
                     )}
                   </li>
                   <li className={styles.modalRow}>
@@ -352,7 +334,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                     {hasSettingsSource ? (
                       <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
                     ) : (
-                      <button className={shared.button} onClick={closeAnd(onIndexSettings)}>Index</button>
+                      <button className={shared.button} onClick={closeAnd(actions.indexSettings)}>Index</button>
                     )}
                   </li>
                 </ul>
@@ -371,7 +353,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                       {addedPaths.has(loc.path) ? (
                         <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
                       ) : (
-                        <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); onIndexDrive(driveLocations) }}>
+                        <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); actions.indexDrive(driveLocations) }}>
                           Index
                         </button>
                       )}
@@ -389,7 +371,7 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
                       {addedPaths.has(loc.path) ? (
                         <span className={`${shared.badge} ${shared.badgeSuccess}`}>Added</span>
                       ) : (
-                        <button className={`${shared.button} ${shared.primary}`} onClick={() => { setModal(null); onIndexICloud(icloudLocations) }}>
+                        <button className={`${shared.button} ${shared.primary}`} onClick={closeAnd(() => actions.indexICloud([loc]))}>
                           Index
                         </button>
                       )}

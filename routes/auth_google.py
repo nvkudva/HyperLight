@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 import app_state
 import connectors
 import google_auth
+import google_sync
 import logging_config
 from routes.auth_pages import auth_cancelled_page, auth_error_page, auth_missing_code_page, auth_success_page
 from routes.schemas import GoogleTokenRequest
@@ -83,7 +84,7 @@ def api_google_sync_drive() -> Dict[str, Any]:
 @router.post("/api/auth/google/sync-photos")
 def api_google_sync_photos() -> Any:
     try:
-        session = google_auth.create_photos_picker_session()
+        session = google_sync.create_photos_picker_session()
     except Exception as e:
         return fastapi.responses.JSONResponse(status_code=400, content={"error": str(e)})
     status = app_state.get_jobs().start_indexing(Path.home(), "google_photos_cloud", "Google Photos", {"session_id": session["id"]})
