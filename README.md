@@ -33,7 +33,7 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 - **One search for everything.** Documents, code, photos, mail, contacts, calendar events, bookmarks, System Settings and apps share a single semantic index. Type *"receipt from dinner"* or *"sunset at the beach"* and get the right photos and files.
 - **Less noise.** Results must beat a relevance floor, so gibberish and filler words like *"the"* return nothing instead of random files.
 - **Photos get their own lane.** Photos are ranked in a separate pool, so text hits never crowd them out. Up to 30 photos per search, 12 at first, with a "Show more" button.
-- **Ask questions.** A local LLM (Gemma 2 through Ollama) answers questions about your files and cites its sources. If nothing relevant is found, it says so instead of guessing.
+- **Ask questions from the terminal.** `python3 cli.py ask "..."` sends the best matches to a local LLM (Gemma 2 through Ollama), which answers and cites its sources. If nothing relevant is found, it says so instead of guessing.
 
 ### 🎙️ Speak your search
 - **Talk, pause, see results.** Press the hotkey and speak. Hyperlight searches when you pause, shows what it heard in the search box, and stops listening shortly after you finish.
@@ -63,6 +63,9 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 ### 🔒 Private by design
 - Embeddings, vector search, speech recognition and question answering all run on your Mac.
 - No file content goes to a cloud AI service.
+- **Locked-down local API.** The backend listens on `127.0.0.1:8585` only and rejects foreign Host and Origin headers, so a web page cannot read your files. Previews, thumbnails and *Open* only work for files that are in your index.
+- **Credentials stay yours.** Google tokens are stored owner-only (`0600`), and OAuth sign-in is protected with a one-time `state` check.
+- **Safe re-scans.** A re-scan keeps your existing results until the new pass succeeds, and removing a source stops its scan first.
 
 ---
 
@@ -173,6 +176,14 @@ This starts the backend on port 8585, builds the Tauri shell, signs it and opens
 python3 web_app.py
 # open http://127.0.0.1:8585
 ```
+
+### Run the tests
+```bash
+uv pip install -r requirements-dev.txt
+python -m pytest -q
+cd frontend && bunx tsc -b && bun run lint
+```
+CI runs the same checks on every push and pull request.
 
 ### Use the command line
 ```bash

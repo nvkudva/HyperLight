@@ -79,3 +79,7 @@
 - [x] Fix folder scans broken by ThreadPoolExecutor.imap (no such method): use pool.map so scan_path parses and stores files again
 - [ ] Search inside audio and video files: today parsers.py stores only a filename/metadata record for VIDEO_EXTENSIONS and AUDIO_EXTENSIONS, so content is not searchable; plan Whisper transcript chunks with timestamps (embed as text), ffmpeg keyframes every few seconds (embed as images), store the timestamp in metadata, and seek to it when a result opens
 - [ ] Make a nicer animated demo video: current Mac wallpaper as background, quick results only (a few result types, not all), do not use "starlight" as the search query
+- [ ] Rescan of cloud and system sources (Drive, Gmail, Apps, Settings) still clears rows before syncing; make it replace-then-prune like folder rescans
+- [ ] App config: a write right after an unreadable (OSError) read can overwrite config.json with defaults; make writes refuse when the last read failed
+- [ ] Add a Content-Security-Policy header to the FastAPI-served UI (the Tauri CSP only covers bundled assets)
+- [ ] Notarize releases with a Developer ID; CI today only checks tsc, lint, build and pytest
