@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/hyperlight_banner.png" alt="Hyperlight" width="720">
-</p>
+![Hyperlight](assets/hyperlight_banner.png)
 
 <h1 align="center">Hyperlight</h1>
 
@@ -21,15 +19,11 @@
 
 Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu bar, opens with a double-tap of Control, and understands text, images and speech in one search.
 
-<p align="center">
-  <img src="docs/screenshots/search-code.png" alt="Searching for storage.py shows the file first, with a syntax-highlighted preview" width="820">
-  <br><sub><i>Type a filename or describe what's inside. Code previews are syntax-highlighted.</i></sub>
-</p>
+![Searching for storage.py shows the file with a syntax-highlighted preview](docs/screenshots/search-code.png)
+*Type a filename or describe what's inside. Code previews are syntax-highlighted.*
 
-<p align="center">
-  <img src="docs/screenshots/search-settings.png" alt="Searching for display brightness finds the Displays settings pane" width="820">
-  <br><sub><i>System Settings panes are indexed too. "display brightness" finds Displays.</i></sub>
-</p>
+![Searching for display brightness finds the Displays settings pane](docs/screenshots/search-settings.png)
+*System Settings panes are indexed too. "display brightness" finds Displays.*
 
 ---
 
