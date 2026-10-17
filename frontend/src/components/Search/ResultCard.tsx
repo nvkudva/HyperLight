@@ -382,7 +382,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                   <button className={`${styles.actionButton} ${styles.primary}`} onClick={() => onOpen(current)}>
                     Open
                   </button>
-                  {!current.path.startsWith('http') && (
+                  {!current.path.startsWith('http') && kindOf(current) !== 'setting' && (
                     <button className={styles.actionButton} onClick={() => onReveal(current.path)}>
                       Show in Finder
                     </button>

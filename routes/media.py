@@ -42,6 +42,8 @@ def not_indexed_response(**fields: Any) -> Response:
 @router.get("/api/thumbnail")
 def api_thumbnail(path: str) -> Response:
     file_path = Path(path).resolve()
+    if not is_openable(str(file_path)):
+        return not_indexed_response()
     mime, _ = mimetypes.guess_type(str(file_path))
     if not file_path.is_file() or not mime or not mime.startswith("image/"):
         return Response(status_code=404)
@@ -53,6 +55,8 @@ def api_thumbnail(path: str) -> Response:
 @router.get("/api/media")
 def api_media(path: str) -> Response:
     file_path = Path(path).resolve()
+    if not is_openable(str(file_path)):
+        return not_indexed_response()
     if not file_path.is_file() or file_path.suffix.lower() not in parsers.VIDEO_EXTENSIONS | parsers.AUDIO_EXTENSIONS:
         return Response(status_code=404)
     return fastapi.responses.FileResponse(file_path)

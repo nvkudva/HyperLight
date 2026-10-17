@@ -54,6 +54,19 @@ class FileAccessTest(unittest.TestCase):
         (app_state.get_storage, media.HYPERLIGHT_DIR, media.PREVIEW_CACHE_DIR, google_auth.PHOTOS_CACHE_DIR, connectors.launch_target, connectors.reveal_in_finder) = self.saved
         self.tmp.cleanup()
 
+    def test_thumbnail_and_media_refuse_unindexed_files(self):
+        picture = self.unindexed.with_suffix(".png")
+        picture.write_bytes(b"png")
+        recording = self.unindexed.with_suffix(".mp3")
+        recording.write_bytes(b"mp3")
+        self.assertEqual(self.client.get("/api/thumbnail", params={"path": str(picture)}).status_code, 403)
+        self.assertEqual(self.client.get("/api/media", params={"path": str(recording)}).status_code, 403)
+
+    def test_launch_allows_web_links_without_an_index_entry(self):
+        res = self.client.post("/api/launch", json={"path": "https://example.com/docs"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.opened, [("launch", "https://example.com/docs")])
+
     def test_text_serves_indexed_file(self):
         res = self.client.get("/api/text", params={"path": str(self.indexed)})
         self.assertEqual((res.status_code, res.text), (200, "indexed text"))

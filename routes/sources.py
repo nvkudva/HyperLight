@@ -1,4 +1,5 @@
 """Index sources, scan jobs, and local-target routes."""
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -19,6 +20,8 @@ logger = logging_config.get_logger("routes.sources")
 
 router = fastapi.APIRouter()
 
+WEB_LINK = re.compile(r"https?://", re.IGNORECASE)
+
 SETTINGS_PANES = {
     "full-disk-access": "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
     "internet-accounts": "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension",
@@ -27,7 +30,7 @@ SETTINGS_PANES = {
 
 @router.post("/api/launch")
 def api_launch(req: LaunchRequest) -> Any:
-    if not media.is_openable(req.path):
+    if not WEB_LINK.match(req.path) and not media.is_openable(req.path):
         return media.not_indexed_response(success=False, path=req.path)
     success = connectors.launch_target(req.path)
     logger.info(f"Launch target: '{req.path}' -> success={success}")

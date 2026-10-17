@@ -47,10 +47,6 @@ class LocalOriginGuardTest(unittest.TestCase):
         res = self.client.get("/api/health", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"})
         self.assertEqual(res.status_code, 200)
 
-    def test_thumbnail_refuses_non_image_files(self):
-        res = self.client.get("/api/thumbnail?path=/etc/hosts")
-        self.assertEqual(res.status_code, 404)
-
 
 if __name__ == "__main__":
     unittest.main()

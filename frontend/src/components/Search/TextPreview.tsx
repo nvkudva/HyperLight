@@ -130,7 +130,7 @@ function openExternal(href: string) {
   launchTarget(href).catch(() => window.open(href, '_blank', 'noopener,noreferrer'))
 }
 
-// A preview link must never navigate the app window, and relative links point into the previewed file's folder, not the app.
+// A preview link must never navigate the app window, and relative links and images point into the previewed file's folder, not the app, and remote images would phone home.
 const MARKDOWN_COMPONENTS: Components = {
   a: ({ href, children }) => {
     if (!href || !EXTERNAL_URL.test(href)) return <>{children}</>
@@ -146,6 +146,7 @@ const MARKDOWN_COMPONENTS: Components = {
       </a>
     )
   },
+  img: ({ alt }) => <>{alt}</>,
 }
 
 interface TextPreviewProps {
