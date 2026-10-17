@@ -40,6 +40,7 @@ export interface AppSettings {
   hotkey_enabled: boolean
   hotkey: HotkeyConfig
   hotkey_voice: boolean
+  voice_transcription: boolean
   watched_paths_count?: number
 }
 

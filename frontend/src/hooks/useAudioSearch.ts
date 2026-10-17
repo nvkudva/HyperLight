@@ -269,9 +269,12 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
 
   const handleResponse = (response: api.SpotlightResponse) => {
     const transcript = (response.query ?? '').trim()
-    if (!transcript || transcript === lastTranscriptRef.current) return
+    const buckets = response.buckets || []
+    // Raw-audio search (Whisper off) has no transcript, so results alone count.
+    if (!transcript && buckets.length === 0) return
+    if (transcript && transcript === lastTranscriptRef.current) return
     lastTranscriptRef.current = transcript
-    cbRef.current.onResults(response.buckets || [], transcript)
+    cbRef.current.onResults(buckets, transcript)
   }
 
   const sendSearch = (): Promise<void> => {

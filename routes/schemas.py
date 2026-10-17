@@ -43,6 +43,7 @@ class SettingsUpdateRequest(pydantic.BaseModel):
     hotkey_enabled: Optional[bool] = None
     hotkey: Optional[Union[Literal["double_ctrl", "double_option"], HotkeyCombo]] = None
     hotkey_voice: Optional[bool] = None
+    voice_transcription: Optional[bool] = None
 
 
 class SourceWatchRequest(pydantic.BaseModel):

@@ -21,6 +21,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "hotkey_enabled": True,
     "hotkey": "double_ctrl",
     "hotkey_voice": True,
+    "voice_transcription": True,
 }
 
 

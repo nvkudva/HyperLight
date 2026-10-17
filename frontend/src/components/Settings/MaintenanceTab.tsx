@@ -6,6 +6,8 @@ interface MaintenanceTabProps {
   totalItems: number
   sources: ConfiguredSource[]
   localSources: ConfiguredSource[]
+  voiceTranscription: boolean
+  onToggleVoiceTranscription: () => void
   onClearDb: () => void
   onResetApp: () => void
 }
@@ -14,6 +16,8 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   totalItems,
   sources,
   localSources,
+  voiceTranscription,
+  onToggleVoiceTranscription,
   onClearDb,
   onResetApp,
 }) => {
@@ -44,6 +48,27 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
           </span>
           <span className={shared.statLabel}>Live Watched Folders</span>
         </div>
+      </div>
+    </div>
+
+    <div className={shared.card}>
+      <div className={shared.cardHeader}>
+        <div className={shared.cardHeaderCol}>
+          <h2 className={shared.cardTitle}>Whisper transcription</h2>
+          <p className={shared.cardSubtitle}>
+            Transcribe voice searches with Whisper before matching. When off, searches use the raw audio only.
+          </p>
+        </div>
+        <label className={shared.switch} title="Toggle Whisper transcription">
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Whisper transcription"
+            checked={voiceTranscription}
+            onChange={onToggleVoiceTranscription}
+          />
+          <span className={shared.slider} />
+        </label>
       </div>
     </div>
 
