@@ -7,10 +7,8 @@ import {
   CloudIcon,
   FolderIcon,
   MailIcon,
-  RescanIcon,
-  RevealIcon,
-  TrashIcon,
 } from '../common/Icons'
+import { SourcesTable } from './SourcesTable'
 import settingsStyles from './SettingsPage.module.css'
 import styles from './SourcesTab.module.css'
 import shared from './SettingsShared.module.css'
@@ -147,98 +145,13 @@ export const SourcesTab: React.FC<SourcesTabProps> = ({
         {sources.length === 0 ? (
           <div className={shared.emptyState}>No sources yet. Add a folder or cloud account above.</div>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.sourcesTable}>
-              <thead>
-                <tr>
-                  <th scope="col">Source</th>
-                  <th scope="col">Path</th>
-                  <th scope="col" className={styles.numCol}>Files</th>
-                  <th scope="col" className={styles.numCol}>Live scan</th>
-                  <th scope="col">
-                    <span className={styles.srOnly}>Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sources.map((s) => {
-                  const isApp = s.source_type === 'macos_system'
-                  const isWatchable = s.watchable
-                  const isWatchOn = s.watch_enabled !== false
-                  const job = jobForSource(s)
-                  return (
-                    <tr key={s.path}>
-                      <td>
-                        <span className={styles.cellSource}>
-                          <span className={`${shared.icon} ${isApp ? shared.iconIndigo : shared.iconAccent}`}>
-                            {isApp ? <AppIcon className="w-4 h-4" /> : <FolderIcon className="w-4 h-4" />}
-                          </span>
-                          <span className={shared.sourceName}>{s.name}</span>
-                          {job?.state === 'running' && (
-                            <span className={styles.jobInline} title={`Indexing file ${job.current_index.toLocaleString()} of ${job.total_files.toLocaleString()}`}>
-                              <span className={styles.jobTrack}>
-                                <span className={styles.jobFill} style={{ width: `${job.percent}%` }} />
-                              </span>
-                              <span className={styles.jobPercent}>{Math.round(job.percent)}%</span>
-                            </span>
-                          )}
-                          {job?.state === 'queued' && (
-                            <span className={`${shared.badge} ${shared.badgeAccent}`}>Queued</span>
-                          )}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={shared.sourcePath} title={s.path}>{s.path}</span>
-                      </td>
-                      <td className={styles.numCol}>
-                        <span className={styles.filesCount}>{s.items_count.toLocaleString()}</span>
-                      </td>
-                      <td className={styles.numCol}>
-                        {isGlobalAlwaysOn && isWatchable ? (
-                          <label className={shared.switch} title={`Toggle live scan for ${s.name}`}>
-                            <input
-                              role="switch"
-                              type="checkbox"
-                              checked={isWatchOn}
-                              onChange={() => onToggleSourceWatch(s)}
-                              aria-label={`Live scan for ${s.name}`}
-                            />
-                            <span className={shared.slider} />
-                          </label>
-                        ) : (
-                          <span className={styles.liveDash} title={isApp ? 'System source' : 'Not watchable'}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={styles.rowActions}>
-                          <button className={styles.iconButton} onClick={() => actions.reveal(s.path)} title="Reveal in Finder" aria-label={`Reveal ${s.name} in Finder`}>
-                            <RevealIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            className={styles.iconButton}
-                            onClick={() => actions.rescan(s)}
-                            disabled={!!job}
-                            title={job ? 'Already indexing' : 'Re-index this source'}
-                            aria-label={`Re-index ${s.name}`}
-                          >
-                            <RescanIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            className={`${styles.iconButton} ${styles.iconButtonDanger}`}
-                            onClick={() => actions.remove(s.path)}
-                            title="Remove from index"
-                            aria-label={`Remove ${s.name}`}
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <SourcesTable
+            sources={sources}
+            isGlobalAlwaysOn={isGlobalAlwaysOn}
+            jobForSource={jobForSource}
+            actions={actions}
+            onToggleSourceWatch={onToggleSourceWatch}
+          />
         )}
       </div>
 

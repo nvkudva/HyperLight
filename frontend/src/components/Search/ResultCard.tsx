@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { flattenBuckets, useLiveSearch } from '../../hooks/useLiveSearch'
+import { useRecordSearch } from '../../hooks/useRecordSearch'
 import type { SearchBucket, SearchResult } from '../../types'
 import {
   AppIcon,
@@ -39,6 +40,7 @@ export interface ResultCardProps {
   eager?: boolean
   plain?: boolean
   registerKeyHandler?: (h: (e: React.KeyboardEvent) => void) => void
+  onSearched?: (query: string) => void
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
@@ -88,6 +90,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     eager = false,
     plain = false,
     registerKeyHandler,
+    onSearched,
     onOpen,
     onReveal,
     onContextMenu,
@@ -118,20 +121,29 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
     const live = useLiveSearch(snapshot ? '' : query, 150, nearby)
     const allBuckets = snapshot ?? live.buckets
     const isSearching = snapshot ? snapshotSearching : live.isSearching
+    useRecordSearch(query, !snapshot && nearby && !isSearching && !live.hasFailed, onSearched)
 
+    const [failedPhotos, setFailedPhotos] = useState<Set<string>>(() => new Set())
     const [expandedKinds, setExpandedKinds] = useState<Set<string>>(new Set())
+    const loadablePhotos = useMemo(
+      () =>
+        allBuckets.map((b) =>
+          b.kind === 'photo' ? { ...b, items: b.items.filter((item) => !failedPhotos.has(item.path)) } : b
+        ),
+      [allBuckets, failedPhotos]
+    )
     const buckets = useMemo(
       () =>
-        allBuckets.map((b) => {
+        loadablePhotos.map((b) => {
           const collapsedLimit = COLLAPSED_LIMITS[b.kind]
           if (collapsedLimit && !expandedKinds.has(b.kind)) return { ...b, items: b.items.slice(0, collapsedLimit) }
           if (b.kind === 'app' || b.kind === 'setting') return { ...b, items: b.items.slice(0, 2) }
           return b
         }),
-      [allBuckets, expandedKinds]
+      [loadablePhotos, expandedKinds]
     )
     const hiddenCount = (kind: string) => {
-      const total = allBuckets.find((b) => b.kind === kind)?.items.length ?? 0
+      const total = loadablePhotos.find((b) => b.kind === kind)?.items.length ?? 0
       return expandedKinds.has(kind) ? 0 : Math.max(0, total - (COLLAPSED_LIMITS[kind] ?? total))
     }
 
@@ -221,10 +233,16 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
         {!plain && (
           <header className={styles.resultCardHeader}>
             <span className={styles.resultCardTitle}>{title}</span>
-            <span className={styles.resultCardMeta}>{isSearching ? 'Searching…' : `${flatItems.length} results`}</span>
+            <span className={styles.resultCardMeta}>
+              {live.hasFailed ? 'Unavailable' : isSearching ? 'Searching…' : `${flatItems.length} results`}
+            </span>
           </header>
         )}
-        {!nearby || (isSearching && flatItems.length === 0) ? (
+        {live.hasFailed ? (
+          <p role="alert" className={styles.emptyNote}>
+            Search unavailable. Check that Hyperlight is running, then try again.
+          </p>
+        ) : !nearby || (isSearching && flatItems.length === 0) ? (
           <p className={styles.emptyNote}>{isSearching || !nearby ? 'Searching…' : 'No results'}</p>
         ) : flatItems.length === 0 ? (
           <p className={styles.emptyNote}>No results</p>
@@ -241,7 +259,6 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                         {bucket.items.map((item, idx) => {
                           const index = offset + idx
                           const isSelected = index === selected
-                          if (failedPreviews.has(item.path)) return null
                           return (
                             <img
                               key={item.path || idx}
@@ -250,13 +267,13 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                               aria-selected={isSelected}
                               className={`${styles.photoCell} ${isSelected ? styles.photoCellSelected : ''}`}
                               src={`/api/thumbnail?path=${encodeURIComponent(item.path)}`}
-                              alt=""
+                              alt={item.filename}
                               loading="lazy"
                               onMouseEnter={() => setSelected(index)}
                               onClick={() => setSelected(index)}
                               onDoubleClick={() => onOpen(item)}
                               onContextMenu={(e) => onContextMenu(e, item.path, item.filename)}
-                              onError={() => setFailedPreviews((prev) => new Set(prev).add(item.path))}
+                              onError={() => setFailedPhotos((prev) => new Set(prev).add(item.path))}
                             />
                           )
                         })}

@@ -264,6 +264,24 @@
   color: var(--red);
 }
 
+.destructiveAction {
+  margin-left: 0.75rem;
+}
+
+.confirmRemove {
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border: 0.5px solid var(--red);
+  border-radius: var(--r-xs);
+  background: var(--red-tint);
+  color: var(--label);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .jobInline {
   display: inline-flex;
   align-items: center;
@@ -291,6 +309,29 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (max-width: 860px) {
+  .pathCol {
+    display: none;
+  }
+
+  .sourcesHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .headerStatus {
+    justify-content: flex-start;
+  }
+
+  .statusLine {
+    flex-basis: 100%;
+  }
+
+  .numCol {
+    width: auto;
+  }
 }
 
 /* Modals */

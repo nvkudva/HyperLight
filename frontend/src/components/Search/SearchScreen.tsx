@@ -14,6 +14,7 @@ interface SearchScreenProps {
   onOpen: (item: SearchResult) => void
   onReveal: (path: string) => void
   onContextMenu: (e: React.MouseEvent, path: string, filename: string) => void
+  onSearched: (query: string) => void
   voiceResult: VoiceResult | null
   voiceSearching: boolean
   history: Conversation[]
@@ -27,6 +28,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   onOpen,
   onReveal,
   onContextMenu,
+  onSearched,
   voiceResult,
   voiceSearching,
   history,
@@ -80,6 +82,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         eager
         plain={!feedMode}
         registerKeyHandler={registerKeyHandler}
+        onSearched={onSearched}
         onOpen={onOpen}
         onReveal={onReveal}
         onContextMenu={onContextMenu}

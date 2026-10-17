@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChatMessage, Conversation } from '../types'
+import type { Conversation } from '../types'
 
 const STORAGE_KEY = 'conversations'
 const MAX_CONVERSATIONS = 100
 const PERSIST_DEBOUNCE_MS = 500
 // A search that extends the previous one within this window is the same search, typed further.
 const SAME_SEARCH_WINDOW_MS = 8000
+
+function newId(): string {
+  return crypto.randomUUID?.() ?? `c_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
 
 function load(): Conversation[] {
   try {
@@ -25,7 +29,6 @@ function load(): Conversation[] {
 
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>(load)
-  const [activeId, setActiveId] = useState<string | null>(null)
 
   const persist = useCallback((items: Conversation[]) => {
     try {
@@ -48,13 +51,6 @@ export function useConversations() {
     return () => window.removeEventListener('pagehide', flush)
   }, [persist])
 
-  const create = useCallback((title: string, kind: 'search' | 'chat' = 'chat') => {
-    const conv: Conversation = { id: `c_${Date.now()}`, title: title.slice(0, 60), kind, messages: [], updatedAt: Date.now() }
-    setConversations((prev) => [conv, ...prev].slice(0, MAX_CONVERSATIONS))
-    setActiveId(conv.id)
-    return conv.id
-  }, [])
-
   const recordSearch = useCallback((query: string) => {
     const title = query.trim().slice(0, 60)
     if (!title) return
@@ -76,7 +72,7 @@ export function useConversations() {
         return [updated, ...prev.filter((c) => c.id !== existing.id)]
       }
       const conv: Conversation = {
-        id: `c_${Date.now()}`,
+        id: newId(),
         title,
         kind: 'search',
         messages: [{ id: `user_${Date.now()}`, sender: 'user', text: title, timestamp: Date.now() }],
@@ -86,21 +82,9 @@ export function useConversations() {
     })
   }, [])
 
-  const append = useCallback((id: string, message: ChatMessage) => {
-    setConversations((prev) => {
-      const conv = prev.find((c) => c.id === id)
-      if (!conv) return prev
-      const updated = { ...conv, messages: [...conv.messages, message], updatedAt: Date.now() }
-      return [updated, ...prev.filter((c) => c.id !== id)]
-    })
-  }, [])
-
   const remove = useCallback((id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id))
-    setActiveId((cur) => (cur === id ? null : cur))
   }, [])
 
-  const active = conversations.find((c) => c.id === activeId) ?? null
-
-  return { conversations, active, activeId, select: setActiveId, create, append, remove, recordSearch }
+  return { conversations, remove, recordSearch }
 }

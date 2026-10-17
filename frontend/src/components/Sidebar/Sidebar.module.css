@@ -206,5 +206,4 @@
 .resizeHandle:hover,
 .resizeHandle:focus-visible {
   background: rgba(var(--accent-rgb), 0.35);
-  box-shadow: none;
 }

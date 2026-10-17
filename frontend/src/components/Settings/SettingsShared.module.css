@@ -297,13 +297,13 @@
 }
 
 .primary {
-  background: var(--accent);
+  background: var(--accent-fill);
   border-color: transparent;
   color: #fff;
 }
 
 .primary:hover {
-  background: rgba(var(--accent-rgb), 0.88);
+  filter: brightness(0.92);
 }
 
 .destructive {

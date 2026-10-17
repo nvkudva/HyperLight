@@ -87,10 +87,6 @@
   color: var(--label);
 }
 
-.title:focus {
-  outline: none;
-}
-
 .headerMeta {
   display: flex;
   align-items: center;
@@ -148,4 +144,24 @@
 .iconOrange {
   background: var(--orange-tint);
   color: var(--orange);
+}
+
+@media (max-width: 760px) {
+  .sideNav {
+    width: 3.5rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .navButton {
+    justify-content: center;
+    padding: 0.375rem;
+  }
+
+  .navLabel {
+    display: none;
+  }
+
+  .content {
+    padding: 1rem 1rem 2rem;
+  }
 }

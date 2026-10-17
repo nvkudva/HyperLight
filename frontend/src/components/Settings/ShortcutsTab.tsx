@@ -37,6 +37,12 @@ export function hotkeyLabel(hotkey: HotkeyConfig): string {
   return hotkey.label
 }
 
+type DoubleTapHotkey = 'double_ctrl' | 'double_option'
+
+const DOUBLE_TAP_PRESETS: Array<{ hotkey: DoubleTapHotkey; label: string }> = [
+  { hotkey: 'double_ctrl', label: 'Right Ctrl ×2' },
+  { hotkey: 'double_option', label: 'Right Option ×2' },
+]
 
 interface ShortcutsTabProps {
   settings: AppSettings
@@ -93,10 +99,8 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
     return () => window.removeEventListener('keydown', onKey, true)
   }, [recording, onSaveHotkey, onShowToast])
 
-  const handleReset = () => onSaveHotkey({ hotkey: 'double_ctrl' }, 'Shortcut reset to double-press Right Ctrl.')
-
-  const handleDoubleOption = () =>
-    onSaveHotkey({ hotkey: 'double_option' }, 'Shortcut set to double-press Right Option (right side only).')
+  const selectPreset = (hotkey: DoubleTapHotkey) =>
+    onSaveHotkey({ hotkey }, `Shortcut set to ${hotkeyLabel(hotkey).toLowerCase()}.`)
 
   const handleKeyboardAccess = async () => {
     const granted = await native.requestKeyboardAccess()
@@ -118,7 +122,7 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
           <div className={shared.cardHeaderCol}>
             <h2 className={shared.cardTitle}>Quick search shortcut</h2>
             <p className={shared.cardSubtitle}>
-              Opens Hyperlight anywhere on this Mac and starts voice search with the mic on.
+              Opens Hyperlight anywhere on this Mac{voice ? ' and starts voice search with the mic on' : ''}.
             </p>
           </div>
           <label className={shared.switch} title="Toggle global shortcut">
@@ -144,12 +148,16 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
               <button className={shared.button} onClick={() => setRecording(true)}>
                 Change
               </button>
-              <button className={shared.button} onClick={handleDoubleOption}>
-                Double Right Option
-              </button>
-              <button className={shared.button} onClick={handleReset}>
-                Reset
-              </button>
+              {DOUBLE_TAP_PRESETS.map((preset) => (
+                <button
+                  key={preset.hotkey}
+                  className={`${shared.button} ${settings.hotkey === preset.hotkey ? shared.primary : ''}`}
+                  aria-pressed={settings.hotkey === preset.hotkey}
+                  onClick={() => selectPreset(preset.hotkey)}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </>
           )}
         </div>

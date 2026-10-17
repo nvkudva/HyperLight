@@ -1,6 +1,7 @@
 .shortcutRow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.75rem;
 }
@@ -9,6 +10,7 @@
   font-size: 0.8125rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   padding: 0.375rem 0.75rem;
+  white-space: nowrap;
   border-radius: var(--r-sm);
   background: var(--fill);
   color: var(--label);

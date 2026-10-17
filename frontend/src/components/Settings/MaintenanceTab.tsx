@@ -1,11 +1,11 @@
 import React from 'react'
-import type { ConfiguredSource } from '../../types'
 import shared from './SettingsShared.module.css'
 
 interface MaintenanceTabProps {
   totalItems: number
-  sources: ConfiguredSource[]
-  localSources: ConfiguredSource[]
+  sourceCount: number
+  isLiveScanning: boolean
+  watchedCount: number
   voiceTranscription: boolean
   onToggleVoiceTranscription: () => void
   onClearDb: () => void
@@ -14,8 +14,9 @@ interface MaintenanceTabProps {
 
 export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   totalItems,
-  sources,
-  localSources,
+  sourceCount,
+  isLiveScanning,
+  watchedCount,
   voiceTranscription,
   onToggleVoiceTranscription,
   onClearDb,
@@ -39,13 +40,11 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
           <span className={shared.statLabel}>Total Indexed Items</span>
         </div>
         <div className={shared.statCard}>
-          <span className={shared.statValue}>{sources.length}</span>
+          <span className={shared.statValue}>{sourceCount}</span>
           <span className={shared.statLabel}>Configured Sources</span>
         </div>
         <div className={shared.statCard}>
-          <span className={shared.statValue}>
-            {localSources.filter((s) => s.watch_enabled !== false).length}
-          </span>
+          <span className={shared.statValue}>{isLiveScanning ? watchedCount : 'Off'}</span>
           <span className={shared.statLabel}>Live Watched Folders</span>
         </div>
       </div>

@@ -36,7 +36,6 @@ export type HotkeyConfig =
 
 export interface AppSettings {
   always_on_scanning: boolean
-  custom_instructions: string
   hotkey_enabled: boolean
   hotkey: HotkeyConfig
   hotkey_voice: boolean
@@ -102,8 +101,6 @@ export interface ChatMessage {
   id: string
   sender: 'user' | 'assistant'
   text?: string
-  photos?: SearchResult[]
-  sources?: SearchResult[]
   timestamp: number
 }
 

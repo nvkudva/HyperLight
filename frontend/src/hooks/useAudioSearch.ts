@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../api'
-import { micErrorMessage } from './useSegmentedRecorder'
 import workletUrl from './pcmWorklet.js?url&no-inline'
 import type { SearchBucket } from '../types'
 
@@ -60,6 +59,14 @@ interface CaptureResources {
   stream: MediaStream
   context: AudioContext
   node: AudioWorkletNode
+}
+
+function micErrorMessage(name?: string): string {
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return 'Microphone blocked. Enable it in System Settings → Privacy & Security → Microphone, then try again.'
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No microphone found on this Mac.'
+  if (name === 'NotReadableError') return 'Microphone is busy in another app. Close it, then try again.'
+  return 'Could not access the microphone on this device.'
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number): Blob {
@@ -381,8 +388,18 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
 
   const openCapture = async (stream: MediaStream): Promise<CaptureResources> => {
     const context = new AudioContext({ sampleRate: SAMPLE_RATE })
-    await context.audioWorklet.addModule(workletUrl)
-    if (context.state === 'suspended') await context.resume()
+    try {
+      await context.audioWorklet.addModule(workletUrl)
+      if (context.state === 'suspended') await context.resume()
+      const node = createCaptureNode(context, stream)
+      return { stream, context, node }
+    } catch (err) {
+      context.close().catch(() => {})
+      throw err
+    }
+  }
+
+  const createCaptureNode = (context: AudioContext, stream: MediaStream): AudioWorkletNode => {
     const node = new AudioWorkletNode(context, 'pcm-capture')
     const nativeRate = context.sampleRate
     node.port.onmessage = (event: MessageEvent<Float32Array>) => {
@@ -398,7 +415,7 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
     // the processor writes no output, so this stays silent.
     node.connect(context.destination)
     startWaveform(analyser)
-    return { stream, context, node }
+    return node
   }
 
   const start = async () => {

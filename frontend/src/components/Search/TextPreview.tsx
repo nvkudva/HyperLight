@@ -12,7 +12,8 @@ import swift from 'highlight.js/lib/languages/swift'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
-import Markdown from 'react-markdown'
+import Markdown, { type Components } from 'react-markdown'
+import { launchTarget } from '../../api'
 import styles from './TextPreview.module.css'
 
 const TEXT_PREVIEW = /\.(txt|md|csv|json|py|js|ts|swift|rs|go|sh|ya?ml|html|css|log|xml|toml|ini)$/i
@@ -123,6 +124,30 @@ const CodeBlock: React.FC<{ source: string; language?: string }> = ({ source, la
   return <pre className={styles.code} dangerouslySetInnerHTML={{ __html: highlighted }} />
 }
 
+const EXTERNAL_URL = /^https?:\/\//i
+
+function openExternal(href: string) {
+  launchTarget(href).catch(() => window.open(href, '_blank', 'noopener,noreferrer'))
+}
+
+// A preview link must never navigate the app window, and relative links point into the previewed file's folder, not the app.
+const MARKDOWN_COMPONENTS: Components = {
+  a: ({ href, children }) => {
+    if (!href || !EXTERNAL_URL.test(href)) return <>{children}</>
+    return (
+      <a
+        href={href}
+        onClick={(e) => {
+          e.preventDefault()
+          openExternal(href)
+        }}
+      >
+        {children}
+      </a>
+    )
+  },
+}
+
 interface TextPreviewProps {
   path: string
   snippet: string
@@ -158,7 +183,7 @@ export const TextPreview: React.FC<TextPreviewProps> = ({ path, snippet }) => {
   if (ext === 'md') {
     return (
       <div className={styles.markdown}>
-        <Markdown>{text}</Markdown>
+        <Markdown components={MARKDOWN_COMPONENTS}>{text}</Markdown>
       </div>
     )
   }

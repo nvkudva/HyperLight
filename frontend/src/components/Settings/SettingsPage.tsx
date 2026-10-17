@@ -9,7 +9,6 @@ import {
 import { useSourceActions } from '../../hooks/useSourceActions'
 import type { AppSettings, ConfiguredSource, GoogleStatus, IndexJobStatus } from '../../types'
 import {
-  ChatIcon,
   CloudIcon,
   DatabaseIcon,
   FolderIcon,
@@ -17,7 +16,6 @@ import {
   ZapIcon,
 } from '../common/Icons'
 import { GoogleAccountCard } from '../Google/GoogleAccountCard'
-import { AssistantTab } from './AssistantTab'
 import { MaintenanceTab } from './MaintenanceTab'
 import { PermissionList } from '../Permission/PermissionList'
 import { ShortcutsTab, saveHotkeyPatch } from './ShortcutsTab'
@@ -34,12 +32,11 @@ const STATUS_CLASS: Record<string, string> = {
   slate: styles.statusNeutral,
 }
 
-type SettingsTab = 'sources' | 'cloud' | 'assistant' | 'shortcuts' | 'permissions' | 'maintenance'
+type SettingsTab = 'sources' | 'cloud' | 'shortcuts' | 'permissions' | 'maintenance'
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; tint: string }> = [
   { id: 'sources', label: 'Sources', icon: FolderIcon, tint: shared.iconAccent },
   { id: 'cloud', label: 'Cloud & Accounts', icon: CloudIcon, tint: shared.iconGreen },
-  { id: 'assistant', label: 'Assistant', icon: ChatIcon, tint: shared.iconAccent },
   { id: 'shortcuts', label: 'Shortcuts', icon: KeyboardIcon, tint: shared.iconIndigo },
   { id: 'permissions', label: 'Permissions', icon: ZapIcon, tint: shared.iconGreen },
   { id: 'maintenance', label: 'Maintenance', icon: DatabaseIcon, tint: shared.iconIndigo },
@@ -70,23 +67,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
   const [appSettings, setAppSettings] = useState<AppSettings>({
     always_on_scanning: true,
-    custom_instructions: '',
     hotkey_enabled: true,
     hotkey: 'double_ctrl',
     hotkey_voice: true,
     voice_transcription: true,
     watched_paths_count: 0,
   })
-  const [draftInstructions, setDraftInstructions] = useState('')
-  const [savingInstructions, setSavingInstructions] = useState(false)
 
   // Load app settings
   useEffect(() => {
     fetchAppSettings()
-      .then((s) => {
-        setAppSettings(s)
-        setDraftInstructions(s.custom_instructions ?? '')
-      })
+      .then(setAppSettings)
       .catch((err) => console.error('Failed to load app settings:', err))
   }, [])
 
@@ -141,20 +132,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleSaveHotkey = (patch: Partial<AppSettings>, toastMsg?: string) =>
     saveHotkeyPatch(patch, setAppSettings, showToast, toastMsg)
 
-  const handleSaveInstructions = async () => {
-    setSavingInstructions(true)
-    try {
-      const updated = await updateAppSettings({ custom_instructions: draftInstructions })
-      setAppSettings(updated)
-      setDraftInstructions(updated.custom_instructions ?? draftInstructions)
-      showToast('Assistant instructions saved. They apply to new chat answers.', 'emerald')
-    } catch (err: any) {
-      showToast(`Failed to save instructions: ${err.message}`, 'red')
-    } finally {
-      setSavingInstructions(false)
-    }
-  }
-
   const handleToggleSourceWatch = async (s: ConfiguredSource) => {
     const nextVal = s.watch_enabled === false
     showToast(
@@ -194,6 +171,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const localSources = sources.filter((s) => s.source_type !== 'macos_system')
   const isGlobalAlwaysOn = appSettings.always_on_scanning
+  const watchedCount = appSettings.watched_paths_count ?? localSources.length
   const presets = availablePresets(sources)
   const hasAppsSource = sources.some((s) => s.runner === 'macos_apps')
   const hasSettingsSource = sources.some((s) => s.runner === 'macos_settings')
@@ -214,12 +192,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               key={t.id}
               className={`${styles.navButton} ${isActive ? styles.navButtonActive : ''}`}
               onClick={() => setActiveTab(t.id)}
+              aria-label={t.label}
+              title={t.label}
               aria-current={isActive ? 'page' : undefined}
             >
               <span className={`${styles.navIconTile} ${t.tint}`}>
                 <Icon className="w-3.5 h-3.5" />
               </span>
-              <span>{t.label}</span>
+              <span className={styles.navLabel}>{t.label}</span>
             </button>
           )
         })}
@@ -249,7 +229,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             hasAppsSource={hasAppsSource}
             hasSettingsSource={hasSettingsSource}
             isGlobalAlwaysOn={isGlobalAlwaysOn}
-            watchedCount={appSettings.watched_paths_count ?? localSources.length}
+            watchedCount={watchedCount}
             totalItems={totalItems}
             indexStatus={indexStatus}
             jobs={jobs}
@@ -271,16 +251,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               onStartProgress={onStartProgress}
             />
           </div>
-        )}
-
-        {activeTab === 'assistant' && (
-          <AssistantTab
-            draftInstructions={draftInstructions}
-            savedInstructions={appSettings.custom_instructions ?? ''}
-            saving={savingInstructions}
-            onDraftChange={setDraftInstructions}
-            onSave={handleSaveInstructions}
-          />
         )}
 
         {activeTab === 'shortcuts' && (
@@ -310,8 +280,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {activeTab === 'maintenance' && (
           <MaintenanceTab
             totalItems={totalItems}
-            sources={sources}
-            localSources={localSources}
+            sourceCount={sources.length}
+            isLiveScanning={isGlobalAlwaysOn}
+            watchedCount={watchedCount}
             voiceTranscription={appSettings.voice_transcription}
             onToggleVoiceTranscription={handleToggleVoiceTranscription}
             onClearDb={handleClearDb}

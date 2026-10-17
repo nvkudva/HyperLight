@@ -85,8 +85,11 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     native.resizeWindow()
-    searchInputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (!isOnboarding) searchInputRef.current?.focus()
+  }, [isOnboarding])
 
   const { status: indexStatus, refresh: refreshIndexStatus } = useIndexPolling(reloadData)
 
@@ -178,7 +181,7 @@ export const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-    <div className={styles.appContainer}>
+    <div className={styles.appContainer} inert={isOnboarding}>
       {backendDown && (
         <div
           role="alert"
@@ -240,6 +243,7 @@ export const App: React.FC = () => {
               voiceResult={session.voiceResult}
               voiceSearching={session.voice.searching}
               registerKeyHandler={registerSearchKeyHandler}
+              onSearched={chats.recordSearch}
               onOpen={openResult}
               onReveal={revealTarget}
               onContextMenu={handleContextMenu}
@@ -264,20 +268,19 @@ export const App: React.FC = () => {
         )}
       </div>
 
-      {isOnboarding && (
-        <React.Suspense fallback={loadingFallback}>
-          <OnboardingWizard
-            onStartProgress={refreshIndexStatus}
-            onDone={() => {
-              localStorage.setItem('onboarded', '1')
-              setIsOnboarding(false)
-            }}
-          />
-        </React.Suspense>
-      )}
-
       <ContextMenu state={contextMenu} onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))} />
     </div>
+    {isOnboarding && (
+      <React.Suspense fallback={loadingFallback}>
+        <OnboardingWizard
+          onStartProgress={refreshIndexStatus}
+          onDone={() => {
+            localStorage.setItem('onboarded', '1')
+            setIsOnboarding(false)
+          }}
+        />
+      </React.Suspense>
+    )}
     </ErrorBoundary>
   )
 }

@@ -11,13 +11,14 @@
   --green-rgb: 52, 199, 89;
   --indigo-rgb: 88, 86, 214;
   --label: rgb(var(--label-rgb));
-  --label-2: rgba(60, 60, 67, 0.72);
-  --label-3: rgba(60, 60, 67, 0.5);
+  --label-2: rgba(60, 60, 67, 0.86);
+  --label-3: rgba(60, 60, 67, 0.74);
   --separator: rgba(60, 60, 67, 0.18);
   --surface: rgb(var(--surface-rgb));
   --fill: rgb(242, 242, 247);
   --window-bg: rgb(246, 246, 248);
   --accent: rgb(var(--accent-rgb));
+  --accent-fill: rgb(0, 102, 214);
   --accent-tint: rgba(var(--accent-rgb), 0.1);
   --red: rgb(var(--red-rgb));
   --red-tint: rgba(var(--red-rgb), 0.1);
@@ -50,7 +51,7 @@
     --green-rgb: 48, 209, 88;
     --indigo-rgb: 94, 92, 230;
     --label-2: rgba(235, 235, 245, 0.7);
-    --label-3: rgba(235, 235, 245, 0.45);
+    --label-3: rgba(235, 235, 245, 0.58);
     --separator: rgba(84, 84, 88, 0.65);
     --fill: rgb(38, 38, 42);
     --window-bg: rgb(30, 30, 32);
@@ -64,6 +65,13 @@
   outline: 2px solid transparent;
   outline-offset: 1px;
   box-shadow: var(--focus-ring);
+}
+
+/* Headings take programmatic focus after navigation; only interactive controls show a ring. */
+h1[tabindex="-1"]:focus-visible,
+h2[tabindex="-1"]:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 @media (prefers-contrast: more) {

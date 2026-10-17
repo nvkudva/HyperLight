@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as api from '../api'
 import type { SearchBucket, SearchResult } from '../types'
 
@@ -33,11 +33,13 @@ const NO_BUCKETS: SearchBucket[] = []
 export function useLiveSearch(query: string, delayMs = 150, enabled = true) {
   const [buckets, setBuckets] = useState<SearchBucket[]>(NO_BUCKETS)
   const [isSearching, setIsSearching] = useState(false)
+  const [hasFailed, setHasFailed] = useState(false)
   const requestSeq = useRef(0)
 
   useEffect(() => {
     const seq = ++requestSeq.current
     const q = query.trim()
+    setHasFailed(false)
     if (!q || !enabled) {
       setBuckets(NO_BUCKETS)
       setIsSearching(false)
@@ -61,7 +63,10 @@ export function useLiveSearch(query: string, delayMs = 150, enabled = true) {
           setBuckets(next)
         }
       } catch (err) {
-        if (seq === requestSeq.current && (err as Error)?.name !== 'AbortError') console.error('Search error:', err)
+        if (seq !== requestSeq.current || (err as Error)?.name === 'AbortError') return
+        console.error('Search error:', err)
+        setBuckets(NO_BUCKETS)
+        setHasFailed(true)
       } finally {
         if (seq === requestSeq.current) setIsSearching(false)
       }
@@ -72,7 +77,5 @@ export function useLiveSearch(query: string, delayMs = 150, enabled = true) {
     }
   }, [query, delayMs, enabled])
 
-  const flatItems = useMemo(() => flattenBuckets(buckets), [buckets])
-
-  return { buckets, flatItems, isSearching }
+  return { buckets, isSearching, hasFailed }
 }

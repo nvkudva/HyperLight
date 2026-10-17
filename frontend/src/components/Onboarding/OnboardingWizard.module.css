@@ -84,6 +84,10 @@
 }
 
 .notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
   font-size: 0.75rem;
   color: var(--orange);
   background: var(--orange-tint);
@@ -125,7 +129,7 @@
 }
 
 .primaryBtn {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
 }
 
@@ -140,9 +144,20 @@
   color: var(--label);
 }
 
+.driveHint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.linkRow {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
 .linkBtn {
-  display: block;
-  margin-top: 0.25rem;
   padding: 0;
   border: none;
   background: none;

@@ -1,4 +1,4 @@
-import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchBucket, SearchResult } from './types'
+import type { AppSettings, ConfiguredSource, DriveLocation, GoogleStatus, IndexJobStatus, JobStart, SearchBucket } from './types'
 
 export interface SpotlightResponse {
   query: string
@@ -111,10 +111,6 @@ export async function searchSpotlight(query: string, signal?: AbortSignal): Prom
   return post('/api/spotlight', { query }, signal)
 }
 
-export async function sendChat(message: string): Promise<{ answer: string; photos: SearchResult[]; sources: SearchResult[] }> {
-  return post('/api/chat', { message })
-}
-
 export async function launchTarget(path: string): Promise<{ success: boolean; path: string }> {
   return post('/api/launch', { path })
 }
@@ -181,15 +177,6 @@ export function indexICloudLocations(locations: DriveLocation[]) {
 
 export async function openSettingsPane(pane: 'full-disk-access' | 'internet-accounts'): Promise<{ success: boolean }> {
   return post(`/api/open-settings/${pane}`)
-}
-
-export async function transcribeAudio(blob: Blob): Promise<string> {
-  const type = (blob.type || 'audio/webm').split(';')[0]
-  const ext = type.includes('mp4') ? 'clip.mp4' : type.includes('ogg') ? 'clip.ogg' : 'clip.webm'
-  const form = new FormData()
-  form.append('file', blob, ext)
-  const data = await postForm<{ text?: string }>('/api/transcribe', form)
-  return data.text ?? ''
 }
 
 export async function warmupAudio(): Promise<{ status: string }> {

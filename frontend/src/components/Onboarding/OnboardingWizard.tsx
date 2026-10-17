@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import * as api from '../../api'
 import { DRIVE_DOWNLOAD_URL, useDriveLocations } from '../../hooks/useDriveLocations'
+import { useModalDialog } from '../../hooks/useModalDialog'
 import { PermissionList } from '../Permission/PermissionList'
 import type { DriveLocation } from '../../types'
 import styles from './OnboardingWizard.module.css'
@@ -32,6 +33,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
   const [needsDiskAccess, setNeedsDiskAccess] = useState(false)
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
+  const { dialogRef, handleKeyDown } = useModalDialog(onDone, step)
 
   useEffect(() => {
     if (driveLocations) setPicked((p) => ({ ...Object.fromEntries(driveLocations.map((l) => [l.path, true])), ...p }))
@@ -84,7 +86,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
 
   return (
     <div className={styles.overlay}>
-      <div className={styles.modal}>
+      <div
+        ref={dialogRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-title"
+        onKeyDown={handleKeyDown}
+      >
         <div className={styles.dots}>
           {[0, 1, 2].map((i) => (
             <span key={i} className={i === step ? styles.dotActive : styles.dot} />
@@ -93,7 +102,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
 
         {step === 0 && (
           <>
-            <h1 className={styles.title}>What should I search?</h1>
+            <h1 id="onboarding-title" className={styles.title}>What should I search?</h1>
             <p className={styles.subtitle}>Everything stays on this Mac. You can change this later in Settings.</p>
             <div className={styles.options}>
               {LOCAL_FOLDERS.map((f) => checkbox(f.key, f.label))}
@@ -104,15 +113,17 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
               {(driveLocations ?? []).map((l) => checkbox(l.path, l.name))}
             </div>
             {driveLocations && driveLocations.length === 0 && (
-              <p className={styles.subtitle}>
-                Install Google Drive for desktop and sign in to search it too.{' '}
-                <button className={styles.linkBtn} onClick={() => api.launchTarget(DRIVE_DOWNLOAD_URL)}>
-                  Get Google Drive
-                </button>{' '}
-                <button className={styles.linkBtn} onClick={checkDrive}>
-                  Check again
-                </button>
-              </p>
+              <div className={styles.driveHint}>
+                <p className={styles.subtitle}>Install Google Drive for desktop and sign in to search it too.</p>
+                <div className={styles.linkRow}>
+                  <button className={styles.linkBtn} onClick={() => api.launchTarget(DRIVE_DOWNLOAD_URL)}>
+                    Get Google Drive
+                  </button>
+                  <button className={styles.linkBtn} onClick={checkDrive}>
+                    Check again
+                  </button>
+                </div>
+              </div>
             )}
             {needsDiskAccess && (
               <div className={styles.notice}>
@@ -128,6 +139,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
               </p>
             )}
             <div className={styles.footer}>
+              <button className={styles.secondaryBtn} onClick={onDone}>
+                Skip for now
+              </button>
               <button className={styles.primaryBtn} onClick={startIndexing} disabled={starting}>
                 Start indexing
               </button>
@@ -137,10 +151,13 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
 
         {step === 1 && (
           <>
-            <h1 className={styles.title}>Allow access</h1>
+            <h1 id="onboarding-title" className={styles.title}>Allow access</h1>
             <p className={styles.subtitle}>Hyperlight works best with these permissions. macOS asks once; you can change them later in Settings → Permissions.</p>
             <PermissionList />
             <div className={styles.footer}>
+              <button className={styles.secondaryBtn} onClick={onDone}>
+                Skip for now
+              </button>
               <button className={styles.primaryBtn} onClick={() => setStep(2)}>
                 Continue
               </button>
@@ -150,9 +167,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onStartProgr
 
         {step === 2 && (
           <>
-            <h1 className={styles.title}>You're set</h1>
+            <h1 id="onboarding-title" className={styles.title}>You're set</h1>
             <p className={styles.subtitle}>
-              Indexing runs in the background. Press <kbd>⌘K</kbd> to search anywhere, or ask a question in chat.
+              Indexing runs in the background. Press <kbd>⌘K</kbd> to search anywhere.
             </p>
             <div className={styles.footer}>
               <button className={styles.primaryBtn} onClick={onDone}>
