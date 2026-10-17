@@ -58,12 +58,12 @@ def api_icloud_locations() -> Dict[str, Any]:
 
 @router.post("/api/index-apps")
 def api_index_apps() -> Dict[str, Any]:
-    return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_apps", "macOS Applications")}
+    return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_apps", "Application")}
 
 
 @router.post("/api/index-settings")
 def api_index_settings() -> Dict[str, Any]:
-    return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_settings", "macOS Settings")}
+    return {"status": app_state.get_jobs().start_indexing(Path.home(), "macos_settings", "System Settings")}
 
 
 def _full_disk_access_denied() -> Any:

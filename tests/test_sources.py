@@ -60,9 +60,9 @@ class SourceRegistryTest(unittest.TestCase):
 
     def test_record_scan_lists_watchable_and_resyncs(self):
         sources.record_scan("Docs", str(self.folder), "local")
-        sources.record_scan("Apps", "/Applications", "macos_system")
+        sources.record_scan("Application", "/Applications", "macos_system")
         listed = {s["name"]: (s["watchable"], s["runner"]) for s in sources.list_all()}
-        self.assertEqual(listed, {"Docs": (True, None), "Apps": (False, "macos_apps")})
+        self.assertEqual(listed, {"Docs": (True, None), "Application": (False, "macos_apps")})
         self.assertEqual(sources.watched_paths(), {str(self.folder.resolve())})
         self.assertEqual(self.watcher.syncs, 2)
 

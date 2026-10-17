@@ -14,6 +14,7 @@ from typing import Any
 import fastapi
 import numpy
 
+import app_config
 import app_state
 import logging_config
 import spotlight
@@ -47,7 +48,8 @@ def _transcribe_samples(samples: numpy.ndarray) -> dict:
 
 @router.post("/api/audio-warmup")
 def api_audio_warmup() -> Any:
-    get_transcriber()
+    if app_config.get_app_settings()["voice_transcription"]:
+        get_transcriber()
     app_state.get_embedder()
     return {"status": "ok"}
 
@@ -107,7 +109,8 @@ def api_audio_search(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
         if n_channels > 1:
             samples = samples.reshape(-1, n_channels).mean(axis=1)
         samples = samples[: 16000 * 120]
-        response = spotlight.query_audio(samples, 16000, _transcribe_samples)
+        is_transcribing = app_config.get_app_settings()["voice_transcription"]
+        response = spotlight.query_audio(samples, 16000, _transcribe_samples if is_transcribing else None)
         if response is None:
             return fastapi.responses.JSONResponse(status_code=500, content={"error": "Audio embedding failed."})
         logger.info(f"Audio search -> {response['total_matches']} matches across {len(response['buckets'])} buckets")

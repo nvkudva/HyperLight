@@ -28,6 +28,7 @@ class _FakeModel:
 fake_whisper.load_model = lambda name, device=None: _FakeModel()
 sys.modules.setdefault("whisper", fake_whisper)
 
+import app_config  # noqa: E402
 import app_state  # noqa: E402
 import routes.audio as audio  # noqa: E402
 
@@ -35,6 +36,11 @@ import routes.audio as audio  # noqa: E402
 class _FakeEmbedder:
     audio_calls = 0
     text_calls = 0
+    raw_calls = 0
+
+    def embed_audio(self, samples, rate):
+        type(self).raw_calls += 1
+        return [0.0] * 768
 
     def embed_query(self, text):
         type(self).text_calls += 1
@@ -74,6 +80,7 @@ class AudioSearchFirstCallTest(unittest.TestCase):
         _FakeModel.no_speech_prob = 0.0
         _FakeEmbedder.audio_calls = 0
         _FakeEmbedder.text_calls = 0
+        _FakeEmbedder.raw_calls = 0
         app_state.get_embedder = lambda: _FakeEmbedder()
         app_state.get_storage = lambda: _FakeStorage()
 
@@ -118,6 +125,23 @@ class AudioSearchFirstCallTest(unittest.TestCase):
             _FakeModel.text = " ... "
             self.assertEqual(self._post(client).json(), {"query": "", "buckets": [], "total_matches": 0})
             self.assertEqual(_FakeEmbedder.audio_calls, 0)
+
+    def test_transcription_off_searches_raw_audio_without_whisper(self):
+        import fastapi
+        from unittest import mock
+        from fastapi.testclient import TestClient
+
+        app = fastapi.FastAPI()
+        app.include_router(audio.router)
+        settings = {**app_config.DEFAULT_SETTINGS, "voice_transcription": False}
+        with mock.patch.object(app_config, "get_app_settings", return_value=settings):
+            with TestClient(app, raise_server_exceptions=False) as client:
+                self.assertEqual(client.post("/api/audio-warmup").json(), {"status": "ok"})
+                self.assertEqual(self._post(client).json(), {"query": "", "buckets": [], "total_matches": 0})
+        self.assertEqual(_FakeEmbedder.raw_calls, 1)
+        self.assertEqual(_FakeEmbedder.audio_calls, 0)
+        self.assertEqual(_FakeStorage.last_kwargs, {"query_text": None, "boost_only": False})
+        self.assertIsNone(audio._transcriber)
 
     def test_warmup_ok(self):
         import fastapi

@@ -74,6 +74,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     hotkey_enabled: true,
     hotkey: 'double_ctrl',
     hotkey_voice: true,
+    voice_transcription: true,
     watched_paths_count: 0,
   })
   const [draftInstructions, setDraftInstructions] = useState('')
@@ -118,6 +119,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       )
     } catch (err: any) {
       setAppSettings((prev) => ({ ...prev, always_on_scanning: !nextVal }))
+      showToast(`Failed to update setting: ${err.message}`, 'red')
+    }
+  }
+
+  const handleToggleVoiceTranscription = async () => {
+    const nextVal = !appSettings.voice_transcription
+    setAppSettings((prev) => ({ ...prev, voice_transcription: nextVal }))
+    try {
+      setAppSettings(await updateAppSettings({ voice_transcription: nextVal }))
+      showToast(
+        nextVal ? 'Whisper transcription on.' : 'Whisper transcription off. Voice search uses raw audio only.',
+        nextVal ? 'emerald' : 'slate'
+      )
+    } catch (err: any) {
+      setAppSettings((prev) => ({ ...prev, voice_transcription: !nextVal }))
       showToast(`Failed to update setting: ${err.message}`, 'red')
     }
   }
@@ -296,6 +312,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             totalItems={totalItems}
             sources={sources}
             localSources={localSources}
+            voiceTranscription={appSettings.voice_transcription}
+            onToggleVoiceTranscription={handleToggleVoiceTranscription}
             onClearDb={handleClearDb}
             onResetApp={handleResetApp}
           />

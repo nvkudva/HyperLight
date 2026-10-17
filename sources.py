@@ -26,8 +26,8 @@ RUNNERS: Dict[str, Runner] = {
     "google_drive_cloud": Runner("Google Drive", "https://drive.google.com", "google_drive", True, True),
     "google_photos_cloud": Runner("Google Photos", str(google_auth.PHOTOS_CACHE_DIR.resolve()), "google_photos", True, False),
     "gmail_cloud": Runner("Gmail", "https://mail.google.com", "gmail", True, True),
-    "macos_apps": Runner("macOS Applications", "/Applications", SYSTEM_SOURCE_TYPE, False, True),
-    "macos_settings": Runner("macOS Settings", "x-apple.systempreferences:", SYSTEM_SOURCE_TYPE, False, True),
+    "macos_apps": Runner("Application", "/Applications", SYSTEM_SOURCE_TYPE, False, True),
+    "macos_settings": Runner("System Settings", "x-apple.systempreferences:", SYSTEM_SOURCE_TYPE, False, True),
 }
 
 
@@ -46,10 +46,12 @@ def is_watchable(source: Dict[str, Any]) -> bool:
 def list_all() -> List[Dict[str, Any]]:
     """Configured sources, with item counts read live from the index."""
     store = app_state.get_storage()
-    return [
-        {**s, "items_count": store.count_items_by_path(s["path"]), "watchable": is_watchable(s), "runner": runner_of(s)}
-        for s in app_config.get_configured_sources()
-    ]
+    listed = []
+    for s in app_config.get_configured_sources():
+        key = runner_of(s)
+        name = RUNNERS[key].name if key else s.get("name")  # config may hold a name from an older release
+        listed.append({**s, "name": name, "items_count": store.count_items_by_path(s["path"]), "watchable": is_watchable(s), "runner": key})
+    return listed
 
 
 def watched_paths() -> Set[str]:

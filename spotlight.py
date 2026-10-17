@@ -137,9 +137,13 @@ MIN_SPEECH_RMS = 0.005
 MAX_NO_SPEECH_PROB = 0.6
 
 
+def _is_quiet(samples: Sequence[float]) -> bool:
+    return float(numpy.sqrt(numpy.mean(numpy.square(samples)))) < MIN_SPEECH_RMS
+
+
 def _transcript_if_speech(samples: Sequence[float], transcribe: Callable[[Any], Dict[str, Any]]) -> str:
     """The spoken words, or "" when the clip is quiet, Whisper hears no speech, or the text is only punctuation."""
-    if float(numpy.sqrt(numpy.mean(numpy.square(samples)))) < MIN_SPEECH_RMS:
+    if _is_quiet(samples):
         return ""
     result = transcribe(samples)
     segments = result.get("segments") or []
@@ -149,10 +153,18 @@ def _transcript_if_speech(samples: Sequence[float], transcribe: Callable[[Any], 
     return text if any(c.isalnum() for c in text) else ""
 
 
-def query_audio(samples: Sequence[float], rate: int, transcribe: Callable[[Any], Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def query_audio(samples: Sequence[float], rate: int, transcribe: Optional[Callable[[Any], Dict[str, Any]]]) -> Optional[Dict[str, Any]]:
     """Voice search: transcript + audio embedded jointly, transcript words only boost.
+    Without `transcribe`, the raw audio alone is embedded and the response has no query text.
     Empty response for non-speech; None if embedding fails."""
     samples = numpy.asarray(samples, dtype=numpy.float32)
+    if transcribe is None:
+        if _is_quiet(samples):
+            return respond("", [])
+        vector = app_state.get_embedder().embed_audio(samples, rate)
+        if vector is None:
+            return None
+        return respond("", _search(vector, None))
     transcript = _transcript_if_speech(samples, transcribe)
     if not transcript:
         return respond("", [])
