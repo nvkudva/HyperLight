@@ -25,6 +25,9 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 ![Searching for display brightness finds the Displays settings pane](docs/screenshots/search-settings.png)
 *System Settings panes are indexed too. "display brightness" finds Displays.*
 
+![Settings, Shortcuts tab in dark mode: quick search shortcut, voice on shortcut and Input Monitoring](docs/screenshots/settings-shortcuts.png)
+*Pick your own global shortcut, choose whether the mic opens with it, and fix the Input Monitoring permission in one place. The UI follows light and dark mode.*
+
 ---
 
 ## ✨ Highlights
