@@ -27,7 +27,9 @@ def setup_logging(log_dir: Path = None, level: int = logging.INFO) -> logging.Lo
     )
 
     # Underlying destination handlers
-    file_handler = logging.FileHandler(str(log_file), encoding="utf-8")
+    file_handler = logging.handlers.RotatingFileHandler(
+        str(log_file), maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+    )
     file_handler.setFormatter(formatter)
     file_handler.setLevel(level)
 

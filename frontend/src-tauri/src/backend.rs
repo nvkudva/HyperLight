@@ -49,7 +49,7 @@ fn bundled_sidecar() -> Option<PathBuf> {
 fn spawn_process() -> std::io::Result<()> {
   let log_dir = PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| "/tmp".into())).join(".hyperlight");
   std::fs::create_dir_all(&log_dir)?;
-  let log = std::fs::OpenOptions::new().create(true).append(true).open(log_dir.join("backend.log"))?;
+  let log = std::fs::OpenOptions::new().create(true).write(true).truncate(true).open(log_dir.join("backend.log"))?;
 
   // Release builds run the bundled frozen backend; dev builds fall back to
   // the repo checkout's .venv below.

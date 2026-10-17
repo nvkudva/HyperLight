@@ -15,7 +15,7 @@ pkill -f "tauri dev" 2>/dev/null || true
 
 if ! curl -sf http://127.0.0.1:8585/api/status >/dev/null 2>&1; then
   echo "Starting backend..."
-  (cd "$ROOT" && nohup .venv/bin/python web_app.py >>"$HOME/.hyperlight/backend.log" 2>&1 &)
+  (cd "$ROOT" && nohup .venv/bin/python web_app.py >"$HOME/.hyperlight/backend.log" 2>&1 &)
   for _ in $(seq 1 60); do
     curl -sf http://127.0.0.1:8585/api/status >/dev/null 2>&1 && break
     sleep 2
