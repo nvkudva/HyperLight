@@ -110,15 +110,17 @@ export const App: React.FC = () => {
   }
 
   native.useHotkey((voiceOn, release) => {
+    const v = session.voice
     if (release) {
-      if (voiceOn && session.voice.listening) session.voice.stop()
+      if (voiceOn && v.listening) v.stop()
+      else if (voiceOn && v.starting) v.cancel()
       return
     }
     setScreen('search')
-    session.clearVoice()
+    // Clear the previous search in the same frame, before the mic is ready.
+    session.setQuery('')
     searchInputRef.current?.focus()
-    const v = session.voice
-    if (voiceOn && !v.listening && v.supported) v.toggle()
+    if (voiceOn && !v.listening && !v.starting && v.supported) v.toggle()
   })
 
   native.useOpenViewRequest((view) => {

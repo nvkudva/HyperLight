@@ -36,7 +36,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onActivateSearch,
   voice,
 }) => {
-  const audioActive = voice.listening || voice.searching
+  const audioStarting = voice.starting || voice.listening
+  const audioActive = audioStarting || voice.searching
 
   const tab = (id: TopTab, label: string, title: string, Icon: React.FC<{ className?: string }>) => (
     <button
@@ -62,7 +63,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         id="unified-search-input"
         inputRef={inputRef}
         inputClassName={styles.searchInput}
-        placeholder={voice.listening ? 'Listening…' : 'Search files, photos, mail and apps'}
+        placeholder={audioStarting ? 'Listening…' : 'Search files, photos, mail and apps'}
         value={query}
         onChange={onQueryChange}
         onKeyDown={onInputKeyDown}
@@ -103,19 +104,19 @@ export const TopBar: React.FC<TopBarProps> = ({
         }
         voice={{
           supported: voice.supported,
-          listening: voice.listening,
+          listening: audioStarting,
           disabled: !voice.supported,
           toggle: () => {
             onActivateSearch()
             voice.toggle()
           },
-          micLabel: voice.listening ? 'Stop voice search' : 'Voice search',
+          micLabel: audioStarting ? 'Stop voice search' : 'Voice search',
           micTitle:
             voice.error ??
             (voice.supported
               ? voice.searching
                 ? 'Searching audio…'
-                : voice.listening
+                : audioStarting
                   ? 'Listening… click to stop'
                   : 'Search by voice'
               : 'Voice search not supported here'),

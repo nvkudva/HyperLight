@@ -22,6 +22,10 @@ const NO_SPEECH_STOP_SEC = 6
 
 interface AudioSearch {
   supported: boolean
+  // True from the moment a start is requested until the mic is actually
+  // capturing, so the UI can switch to the listening view without waiting
+  // for device open + worklet load.
+  starting: boolean
   listening: boolean
   searching: boolean
   error: string | null
@@ -127,6 +131,36 @@ function createCaptureState(base: number, noiseFloor: number): CaptureState {
   }
 }
 
+// AudioContext + worklet module compiled ahead of time, so activating
+// voice only waits on the mic itself. Rebuilt after every use.
+async function loadWorkletContext(): Promise<AudioContext> {
+  const context = new AudioContext({ sampleRate: SAMPLE_RATE })
+  try {
+    await context.audioWorklet.addModule(workletUrl)
+    return context
+  } catch (err) {
+    context.close().catch(() => {})
+    throw err
+  }
+}
+
+let prewarmedCapture: Promise<AudioContext | null> | null = null
+
+function prewarmCapture(): Promise<AudioContext | null> {
+  prewarmedCapture ??= loadWorkletContext().catch(() => {
+    prewarmedCapture = null
+    return null
+  })
+  return prewarmedCapture
+}
+
+async function takePrewarmedCapture(): Promise<AudioContext> {
+  const ready = await prewarmCapture()
+  prewarmedCapture = null
+  if (ready && ready.state !== 'closed') return ready
+  return loadWorkletContext()
+}
+
 function rmsOf(samples: Float32Array): number {
   let sum = 0
   for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i]
@@ -199,6 +233,7 @@ function collectSpeechSamples(state: CaptureState): Float32Array {
 // meanwhile is sent once the request returns. The mic stops itself shortly
 // after the user finishes talking, or silently if nobody speaks.
 export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchCallbacks): AudioSearch {
+  const [starting, setStarting] = useState(false)
   const [listening, setListening] = useState(false)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -317,6 +352,7 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
     listeningRef.current = false
     setListening(false)
     teardownCapture()
+    prewarmCapture()
     const generation = generationRef.current
     void (async () => {
       await inFlightRef.current
@@ -349,8 +385,11 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
   const cancel = () => {
     reset()
     listeningRef.current = false
+    startingRef.current = false
+    setStarting(false)
     setListening(false)
     teardownCapture()
+    prewarmCapture()
   }
 
   const stopRef = useRef(stop)
@@ -386,10 +425,8 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
     tick()
   }
 
-  const openCapture = async (stream: MediaStream): Promise<CaptureResources> => {
-    const context = new AudioContext({ sampleRate: SAMPLE_RATE })
+  const openCapture = async (stream: MediaStream, context: AudioContext): Promise<CaptureResources> => {
     try {
-      await context.audioWorklet.addModule(workletUrl)
       if (context.state === 'suspended') await context.resume()
       const node = createCaptureNode(context, stream)
       return { stream, context, node }
@@ -421,18 +458,39 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
   const start = async () => {
     if (startingRef.current || listeningRef.current) return
     startingRef.current = true
+    setStarting(true)
     setError(null)
-    let stream: MediaStream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (err) {
+    const generation = generationRef.current
+    // Mic open and capture setup race; the listening view is already up.
+    const [contextResult, streamResult] = await Promise.allSettled([
+      takePrewarmedCapture(),
+      navigator.mediaDevices.getUserMedia({ audio: true }),
+    ])
+    if (contextResult.status === 'rejected' || streamResult.status === 'rejected') {
+      if (contextResult.status === 'fulfilled') {
+        contextResult.value.close().catch(() => {})
+        prewarmCapture()
+      }
+      if (streamResult.status === 'fulfilled') {
+        streamResult.value.getTracks().forEach((track) => track.stop())
+      }
       startingRef.current = false
-      setError(micErrorMessage((err as DOMException)?.name))
+      setStarting(false)
+      setError(
+        streamResult.status === 'rejected'
+          ? micErrorMessage((streamResult.reason as DOMException)?.name)
+          : 'Could not start audio recording on this device.'
+      )
       return
     }
+    const context = contextResult.value
+    const stream = streamResult.value
     startingRef.current = false
-    if (disposedRef.current) {
+    if (disposedRef.current || generation !== generationRef.current) {
       stream.getTracks().forEach((track) => track.stop())
+      context.close().catch(() => {})
+      prewarmCapture()
+      setStarting(false)
       return
     }
     generationRef.current += 1
@@ -442,13 +500,16 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
     levelsRef.current = []
     setSearching(false)
     try {
-      resourcesRef.current = await openCapture(stream)
+      resourcesRef.current = await openCapture(stream, context)
     } catch {
       stream.getTracks().forEach((track) => track.stop())
+      prewarmCapture()
+      setStarting(false)
       setError('Could not start audio recording on this device.')
       return
     }
     listeningRef.current = true
+    setStarting(false)
     setListening(true)
     api.warmupAudio().catch(() => {})
     cbRef.current.onStart?.()
@@ -456,12 +517,14 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
   }
 
   const toggle = () => {
-    if (listeningRef.current) stop()
+    if (startingRef.current) cancel()
+    else if (listeningRef.current) stop()
     else void start()
   }
 
   useEffect(() => {
     disposedRef.current = false
+    prewarmCapture().catch(() => {})
     return () => {
       disposedRef.current = true
       generationRef.current += 1
@@ -475,6 +538,7 @@ export function useAudioSearch({ onResults, onSearching, onStart }: AudioSearchC
       !!navigator.mediaDevices?.getUserMedia &&
       typeof AudioContext !== 'undefined' &&
       typeof AudioWorkletNode !== 'undefined',
+    starting,
     listening,
     searching,
     error,

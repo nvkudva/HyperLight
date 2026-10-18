@@ -5,7 +5,7 @@ import requests
 
 from google_sync.common import api_error, require_token
 
-EMBED_BATCH = 32
+EMBED_BATCH = 16
 
 
 def sync_google_drive(

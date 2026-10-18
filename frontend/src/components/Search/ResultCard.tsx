@@ -356,7 +356,7 @@ export const ResultCard: React.FC<ResultCardProps> = React.memo(
                   <img
                     key={current.path}
                     className={styles.previewImage}
-                    src={`/api/preview?path=${encodeURIComponent(current.path)}`}
+                    src={`/api/app-icon?path=${encodeURIComponent(current.path)}&size=256`}
                     alt={`Icon of ${displayName(current)}`}
                     loading="lazy"
                     onError={() => setFailedPreviews((prev) => new Set(prev).add(current.path))}

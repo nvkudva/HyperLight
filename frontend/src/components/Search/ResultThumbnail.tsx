@@ -13,12 +13,15 @@ interface ResultThumbnailProps {
 export const ResultThumbnail: React.FC<ResultThumbnailProps> = ({ path, fallback, size = 96, className }) => {
   const [failed, setFailed] = useState(false)
   if (!path || failed) return <>{fallback}</>
-  const previewable = /\.app$/i.test(path) || VISUAL_PREVIEW.test(path)
-  if (!previewable) return <>{fallback}</>
+  const isApp = /\.app$/i.test(path)
+  if (!isApp && !VISUAL_PREVIEW.test(path)) return <>{fallback}</>
+  const src = isApp
+    ? `/api/app-icon?path=${encodeURIComponent(path)}&size=${size}`
+    : `/api/preview?path=${encodeURIComponent(path)}&size=${size}`
   return (
     <img
       className={className ?? styles.thumb}
-      src={`/api/preview?path=${encodeURIComponent(path)}&size=${size}`}
+      src={src}
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}

@@ -54,7 +54,7 @@ def embed_and_store(
     store: Any,
     doc_records: List[Dict[str, Any]],
     source: str,
-    batch_size: int = 32,
+    batch_size: int = 16,
     replace_paths: Sequence[str] = (),
 ) -> int:
     if not doc_records and not replace_paths:
@@ -133,8 +133,10 @@ class Scanner:
         doc_replace: List[str] = []
         image_replace: List[str] = []
         stale_paths: Set[str] = set()
-        BATCH_SIZE = 64
-        IMG_BATCH_SIZE = 16
+        # Small batches bound how long one encode holds the model lock, so
+        # live searches interleave with indexing (16 texts ~0.7s, 4 images ~2.4s on MPS).
+        BATCH_SIZE = 16
+        IMG_BATCH_SIZE = 4
         MAX_QUEUED_BATCHES = 4
 
         embed_pool = ThreadPoolExecutor(max_workers=1)

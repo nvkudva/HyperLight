@@ -40,8 +40,6 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
     setQueryState(q)
   }, [])
 
-  const clearVoice = useCallback(() => setVoiceResult(null), [])
-
   const voiceReset = voice.reset
   const voiceCancel = voice.cancel
   const cancelSearch = useCallback(() => {
@@ -56,7 +54,7 @@ export function useSearchSession(recordSearch: (q: string) => void, onActivity: 
   }, [voiceCancel])
 
   // The search box shows the spoken transcript while a voice result is live.
-  return { query: voiceResult?.transcript ?? query, setQuery, voice, voiceResult, clearVoice, cancelSearch, cancelVoice }
+  return { query: voiceResult?.transcript ?? query, setQuery, voice, voiceResult, cancelSearch, cancelVoice }
 }
 
 export type SearchSession = ReturnType<typeof useSearchSession>
