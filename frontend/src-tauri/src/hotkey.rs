@@ -1,4 +1,4 @@
-//! Global hotkey: a listen-only CGEventTap that brings the window forward.
+//! Global hotkey: a listen-only CGEventTap that toggles the window front and back.
 //!
 //! Listen-only taps need the Input Monitoring permission (not Accessibility)
 //! and are allowed inside the App Sandbox.
@@ -137,15 +137,26 @@ pub fn show_window(app: &tauri::AppHandle) {
   let handle = app.clone();
   let _ = app.run_on_main_thread(move || {
     if let Some(win) = handle.get_webview_window("main") {
-      let _ = win.unminimize();
-      let _ = win.show();
-      // Accessory-policy apps never steal key focus on show alone, so the
-      // window lands behind the active app without an explicit activation.
-      #[cfg(target_os = "macos")]
-      bring_to_front(&win);
-      let _ = win.set_focus();
+      present(&win);
     }
   });
+}
+
+/// Raises `win` and gives it key focus. Main thread only.
+fn present(win: &tauri::WebviewWindow) {
+  let _ = win.unminimize();
+  let _ = win.show();
+  // Accessory-policy apps never steal key focus on show alone, so the
+  // window lands behind the active app without an explicit activation.
+  #[cfg(target_os = "macos")]
+  bring_to_front(win);
+  let _ = win.set_focus();
+}
+
+/// A window only counts as frontmost when the user can already see and type
+/// into it; one left open behind another app is raised instead of hidden.
+fn should_hide(visible: bool, focused: bool) -> bool {
+  visible && focused
 }
 
 #[cfg(target_os = "macos")]
@@ -170,9 +181,27 @@ fn bring_to_front(win: &tauri::WebviewWindow) {
 }
 
 /// Brings the window forward and tells the UI to focus search, or start recording when `voice`.
+/// Used by the tray menu, which always opens rather than toggles.
 pub fn reveal(app: &tauri::AppHandle, voice: bool) {
   show_window(app);
   let _ = app.emit(EVENT, serde_json::json!({ "voice": voice }));
+}
+
+/// What the global shortcut does: hide the window when it is already frontmost,
+/// otherwise raise it and ask the UI to focus search (or start recording when
+/// `voice`). Hiding reports back so the UI can stop any capture it started.
+pub fn toggle(app: &tauri::AppHandle, voice: bool) {
+  let handle = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    let Some(win) = handle.get_webview_window("main") else { return };
+    if should_hide(win.is_visible().unwrap_or(false), win.is_focused().unwrap_or(false)) {
+      let _ = win.hide();
+      let _ = handle.emit(EVENT, serde_json::json!({ "voice": voice, "hidden": true }));
+      return;
+    }
+    present(&win);
+    let _ = handle.emit(EVENT, serde_json::json!({ "voice": voice }));
+  });
 }
 
 fn emit_release(app: &tauri::AppHandle, voice: bool) {
@@ -241,7 +270,7 @@ extern "C" fn tap_callback(_proxy: *mut c_void, etype: u32, event: *mut c_void, 
     if let Ok(mut hold) = ctx.state.trigger_hold.lock() {
       *hold = Some((Instant::now(), trigger_keycode));
     }
-    reveal(&ctx.app, cfg.voice);
+    toggle(&ctx.app, cfg.voice);
     return event;
   }
   let released = match etype {
@@ -327,8 +356,15 @@ pub fn keyboard_access_granted() -> bool {
 
 #[cfg(test)]
 mod tests {
-  use super::{DoubleTap, MASK_ALT, MASK_CTRL, double_tap_for, is_hold_release, register_press, tap_matches};
+  use super::{DoubleTap, MASK_ALT, MASK_CTRL, double_tap_for, is_hold_release, register_press, should_hide, tap_matches};
   use std::time::{Duration, Instant};
+
+  #[test]
+  fn only_a_frontmost_window_is_hidden() {
+    assert!(should_hide(true, true));
+    assert!(!should_hide(true, false), "a window behind another app must be raised, not hidden");
+    assert!(!should_hide(false, false), "a hidden window must be raised");
+  }
 
   #[test]
   fn double_option_means_right_option_only() {

@@ -138,9 +138,11 @@ export async function closePermissionHelper(): Promise<void> {
   }
 }
 
-// Pushes saved hotkey settings to the shell once, then calls onHotkey with
-// the voice flag the shell resolved from those settings.
-export function useHotkey(onHotkey: (voice: boolean, release: boolean) => void) {
+// Pushes saved hotkey settings to the shell once, then calls onHotkey with the
+// flags the shell resolved from those settings. `hidden` is true when the
+// shortcut hid the window instead of opening it, `release` when a held key ended
+// a voice capture.
+export function useHotkey(onHotkey: (voice: boolean, release: boolean, hidden: boolean) => void) {
   const handlerRef = useRef(onHotkey)
   useEffect(() => {
     handlerRef.current = onHotkey
@@ -157,8 +159,8 @@ export function useHotkey(onHotkey: (voice: boolean, release: boolean) => void) 
         ])
         if (cancelled) return
         if (settings) await syncHotkey(settings)
-        const off = await listen<{ voice: boolean; release?: boolean }>('hyperlight-hotkey', (event) => {
-          handlerRef.current(event.payload.voice, event.payload.release ?? false)
+        const off = await listen<{ voice: boolean; release?: boolean; hidden?: boolean }>('hyperlight-hotkey', (event) => {
+          handlerRef.current(event.payload.voice, event.payload.release ?? false, event.payload.hidden ?? false)
         })
         if (cancelled) off()
         else unlisten = off

@@ -51,7 +51,7 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 
 ### 🍎 Native Mac experience
 - **Menu bar app.** No Dock icon. Open, Voice Search, History, Settings, Open at Login, Restart and Quit are one click away.
-- **Global hotkey.** Double-tap Control, or record your own shortcut. Hyperlight checks the Input Monitoring permission and helps you grant it.
+- **Global hotkey.** Double-tap Control, or record your own shortcut. Pressing it again hides Hyperlight. Hyperlight checks the Input Monitoring permission and helps you grant it.
 - **Frameless glass window** with hide-on-close and macOS vibrancy. Built on Tauri 2 and React 19.
 
 ### 📂 Sources
@@ -208,7 +208,7 @@ PYTHONPATH=. .venv/bin/python tools/eval_voice.py ~/my-clips # plus your own 16 
 
 | Key | Action |
 | :--- | :--- |
-| Double-tap Control | Show Hyperlight |
+| Double-tap Control | Show Hyperlight, or hide it when it is already in front |
 | Double-tap Control, then speak | Voice search |
 | Double-tap and hold Control | Hold to talk; release to finish |
 | ↑ / ↓ | Move through results |

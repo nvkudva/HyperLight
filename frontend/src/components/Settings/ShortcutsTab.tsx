@@ -122,7 +122,8 @@ export const ShortcutsTab: React.FC<ShortcutsTabProps> = ({ settings, onSaveHotk
           <div className={shared.cardHeaderCol}>
             <h2 className={shared.cardTitle}>Quick search shortcut</h2>
             <p className={shared.cardSubtitle}>
-              Opens Hyperlight anywhere on this Mac{voice ? ' and starts voice search with the mic on' : ''}.
+              Opens Hyperlight anywhere on this Mac, and hides it again when it is already in
+              front{voice ? ', starting voice search with the mic on' : ''}.
             </p>
           </div>
           <label className={shared.switch} title="Toggle global shortcut">

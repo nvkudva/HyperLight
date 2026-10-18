@@ -109,8 +109,14 @@ export const App: React.FC = () => {
     session.setQuery(q)
   }
 
-  native.useHotkey((voiceOn, release) => {
+  native.useHotkey((voiceOn, release, hidden) => {
     const v = session.voice
+    if (hidden) {
+      // The shortcut hid the window; never leave the mic open behind it.
+      if (v.listening) v.stop()
+      else if (v.starting) v.cancel()
+      return
+    }
     if (release) {
       if (voiceOn && v.listening) v.stop()
       else if (voiceOn && v.starting) v.cancel()
