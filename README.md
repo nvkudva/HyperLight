@@ -174,6 +174,22 @@ cd ..
 ```
 This starts the backend on port 8585, builds the Tauri shell, signs it and opens one window. Do not run `tauri dev` at the same time.
 
+### Keep `src-tauri` small
+`frontend/src-tauri/target` is gitignored build output and can grow past 20 GB. Causes and fixes:
+
+- **Bundled backend copies.** `resources/hyperlight-backend` holds the PyInstaller backend (~1.3 GB, includes torch). While it is populated, every `cargo build` copies it into `target/debug/backend` and `target/release/backend`. Dev builds do not need it: `./dev-app.sh` runs the backend from `.venv`. Only `packaging/build_sidecar.sh` and CI fill it.
+- **Release builds.** `target/release` (binary plus the `.app` and `.dmg` in `bundle/`) is about 8 GB. CI builds its own, so delete it after a local release build.
+- **Dev profile.** `Cargo.toml` sets `debug = "line-tables-only"` for the app and no debug info for dependencies. Do not remove it, because it roughly halves `target/debug/deps`.
+
+Cleanup:
+```bash
+cd frontend/src-tauri
+trash resources/hyperlight-backend && mkdir -p resources/hyperlight-backend   # empty dir must exist for cargo build
+trash target/release target/debug/backend target/debug/incremental            # safe, rebuilt on demand
+cargo clean                                                                   # full reset, next ./dev-app.sh rebuilds in ~30 s
+du -sh target resources                                                       # expect under 2 GB
+```
+
 ### Run the web app
 ```bash
 python3 web_app.py

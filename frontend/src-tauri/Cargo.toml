@@ -31,3 +31,9 @@ objc2 = { version = "0.6", default-features = false, features = ["std"] }
 block2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSWindow", "NSButton", "NSControl", "NSView", "NSResponder"] }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

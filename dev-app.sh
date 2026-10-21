@@ -28,6 +28,8 @@ if [ ! -f "$ROOT/frontend/dist/index.html" ] || [ -n "$(find "$ROOT/frontend/src
 else
   echo "Frontend dist is fresh, skipping build."
 fi
+# Keep the bundled-sidecar dir empty in dev: a populated one is copied (GBs) into target/ on every build.
+mkdir -p "$ROOT/frontend/src-tauri/resources/hyperlight-backend"
 (cd "$ROOT/frontend/src-tauri" && cargo build)
 
 # Repackage + codesign only when the binary changed since the last bundle.
