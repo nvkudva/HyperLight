@@ -31,13 +31,8 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 ### 🎬 Watch it work
 
 <p align="center">
-  <a href="docs/videos/hyperlight-simple.mp4"><img alt="Hyperlight demo: documents, photos, email, apps, code and voice search (46 s)" src="docs/screenshots/video-photos.png" width="720"></a><br>
-  <i>Product tour (46 s): documents, photos, email, apps, code and voice search. <a href="docs/videos/hyperlight-simple.mp4">Watch</a></i>
-</p>
-
-<p align="center">
-  <a href="docs/videos/hyperlight-launch.mp4"><img alt="Hyperlight launch video: how one embedding model searches text, photos and audio (51 s)" src="docs/videos/hyperlight-launch-poster.png" width="720"></a><br>
-  <i>Launch video (51 s): how one embedding model reads text, photos and audio. <a href="docs/videos/hyperlight-launch.mp4">Watch</a></i>
+  <a href="docs/videos/hyperlight-simple.mp4"><img alt="Hyperlight demo: voice, document, photo, email, app and code search, then search history and the menu bar item" src="docs/videos/hyperlight-demo.gif" width="720"></a><br>
+  <i>Product tour (53 s): voice, documents, photos, email, apps and code search. <a href="docs/videos/hyperlight-simple.mp4">Watch the full-quality video</a></i>
 </p>
 
 | | |
