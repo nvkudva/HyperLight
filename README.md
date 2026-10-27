@@ -39,7 +39,7 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 |---|---|
 | ![Documents found by meaning: "my flight got cancelled, how do I get my money back" finds flight-cancellation-claim.pdf](docs/screenshots/video-documents.png)<br>*Ask in your own words. Documents are matched by meaning, not exact words.* | ![Searching for helmet finds seven photos, none named helmet](docs/screenshots/video-photos.png)<br>*Photos are embedded as images. None of the seven is named "helmet".* |
 | ![Email search: "when will my delivery show up" finds the shipping notice](docs/screenshots/video-email.png)<br>*Email is embedded with sender, subject and body.* | ![Voice search listening for speech](docs/screenshots/video-voice.png)<br>*Raw 16 kHz audio goes straight into EmbeddingGemma 2. No speech-to-text.* |
-| ![One model reads text, photos and audio into the same 768-number space](docs/screenshots/video-one-model.png)<br>*One model, one 768-number space for text, photos and audio.* | ![Indexing speed on an M3 Max: 0.4 s for 23 documents, 8 s for 24 photos, 0.6 to 1 s save to search](docs/screenshots/video-speed.png)<br>*Searchable in seconds, measured on an M3 Max.* |
+| ![One model reads text, photos and audio into the same 768-number space](docs/screenshots/video-one-model.png)<br>*One model, one 768-number space for text, photos and audio.* |
 
 ---
 
