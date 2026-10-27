@@ -28,6 +28,24 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 ![Settings, Shortcuts tab in dark mode: quick search shortcut, voice on shortcut and Input Monitoring](docs/screenshots/settings-shortcuts.png)
 *Pick your own global shortcut, choose whether the mic opens with it, and fix the Input Monitoring permission in one place. The UI follows light and dark mode.*
 
+### 🎬 Watch it work
+
+<p align="center">
+  <a href="docs/videos/hyperlight-simple.mp4"><img alt="Hyperlight demo: documents, photos, email, apps, code and voice search (46 s)" src="docs/screenshots/video-photos.png" width="720"></a><br>
+  <i>Product tour (46 s): documents, photos, email, apps, code and voice search. <a href="docs/videos/hyperlight-simple.mp4">Watch</a></i>
+</p>
+
+<p align="center">
+  <a href="docs/videos/hyperlight-launch.mp4"><img alt="Hyperlight launch video: how one embedding model searches text, photos and audio (51 s)" src="docs/videos/hyperlight-launch-poster.png" width="720"></a><br>
+  <i>Launch video (51 s): how one embedding model reads text, photos and audio. <a href="docs/videos/hyperlight-launch.mp4">Watch</a></i>
+</p>
+
+| | |
+|---|---|
+| ![Documents found by meaning: "my flight got cancelled, how do I get my money back" finds flight-cancellation-claim.pdf](docs/screenshots/video-documents.png)<br>*Ask in your own words. Documents are matched by meaning, not exact words.* | ![Searching for helmet finds seven photos, none named helmet](docs/screenshots/video-photos.png)<br>*Photos are embedded as images. None of the seven is named "helmet".* |
+| ![Email search: "when will my delivery show up" finds the shipping notice](docs/screenshots/video-email.png)<br>*Email is embedded with sender, subject and body.* | ![Voice search listening for speech](docs/screenshots/video-voice.png)<br>*Raw 16 kHz audio goes straight into EmbeddingGemma 2. No speech-to-text.* |
+| ![One model reads text, photos and audio into the same 768-number space](docs/screenshots/video-one-model.png)<br>*One model, one 768-number space for text, photos and audio.* | ![Indexing speed on an M3 Max: 0.4 s for 23 documents, 8 s for 24 photos, 0.6 to 1 s save to search](docs/screenshots/video-speed.png)<br>*Searchable in seconds, measured on an M3 Max.* |
+
 ---
 
 ## ✨ Highlights
