@@ -8,17 +8,14 @@ import embedder
 import parsers
 import storage
 
-IGNORED_DIRS = {
-    ".git", ".venv", "venv", "node_modules", "__pycache__", ".cache",
-    "build", "dist", ".Trash", ".idea", ".vscode", "Library", ".npm",
-}
+IGNORED_DIRS = {"venv", "node_modules", "__pycache__", "build", "dist", "Library"}
 
 
 def is_ignored_dir(parent: str, name: str) -> bool:
     # A Photos library keeps resized derivatives and caches beside each original; index originals only.
     if parent.endswith(".photoslibrary") and name != "originals":
         return True
-    return name.endswith(".app") or name in IGNORED_DIRS
+    return name.startswith(".") or name.endswith(".app") or name in IGNORED_DIRS
 
 def collect_supported_files(target_path: Path) -> List[Tuple[Path, float, int]]:
     if target_path.is_file():
@@ -32,14 +29,12 @@ def collect_supported_files(target_path: Path) -> List[Tuple[Path, float, int]]:
             with os.scandir(curr) as it:
                 for entry in it:
                     name = entry.name
-                    if name.startswith("."):
-                        continue
                     if entry.is_dir(follow_symlinks=False):
                         if is_ignored_dir(curr, name):
                             continue
                         stack.append(entry.path)
                     elif entry.is_file(follow_symlinks=False):
-                        if parsers.is_indexable(name):
+                        if not name.startswith(".") and parsers.is_indexable(name):
                             try:
                                 st = entry.stat(follow_symlinks=False)
                                 files.append((Path(entry.path), st.st_mtime, st.st_size))

@@ -1,9 +1,11 @@
 """Thumbnail, media streaming, and QuickLook preview routes."""
+import contextlib
 import hashlib
 import mimetypes
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,18 @@ router = fastapi.APIRouter()
 
 HYPERLIGHT_DIR = Path.home() / ".hyperlight"
 PREVIEW_CACHE_DIR = HYPERLIGHT_DIR / "previews"
+
+
+PREVIEW_MAX_AGE_SECONDS = 30 * 24 * 3600
+
+
+def prune_preview_cache() -> None:
+    """Edited files leave their old preview behind; drop previews not made in the last 30 days."""
+    cutoff = time.time() - PREVIEW_MAX_AGE_SECONDS
+    for cached in PREVIEW_CACHE_DIR.glob("*.png"):
+        with contextlib.suppress(OSError):
+            if cached.stat().st_mtime < cutoff:
+                cached.unlink()
 
 
 def _is_within(path: Path, root: Path) -> bool:

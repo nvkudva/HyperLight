@@ -60,9 +60,7 @@ assert RUN_FUNCTIONS.keys() == sources.RUNNERS.keys()
 
 def _prune_missing_files(store: Any, root: str) -> None:
     """Drop index rows under `root` whose file is gone; a rescan keeps old rows until its scan has succeeded."""
-    for path in store.get_indexed_file_mtimes(under=root):
-        if not os.path.exists(path):
-            store.remove_items_by_path(path)
+    store.remove_paths([path for path in store.get_indexed_file_mtimes(under=root) if not os.path.exists(path)])
 
 
 @dataclasses.dataclass
@@ -161,21 +159,25 @@ class IndexJobManager:
                 self.cancel_requested = True
                 self.progress.status = "Stopping scan..."
 
-    def cancel_source(self, path: str) -> None:
-        """Forget queued jobs for `path`; if it is scanning now, stop it and wait for the scan to end."""
+    def cancel_source(self, path: str) -> bool:
+        """Forget queued jobs for `path`; if it is scanning now, stop it and wait for the scan to end.
+
+        False when that scan is still running after the wait."""
         with self.lock:
             self.pending = [job for job in self.pending if not app_config.is_same_path(job.tracked_path(), path)]
             is_scanning = self.is_running and app_config.is_same_path(self.progress.current_path, path)
             if is_scanning:
                 self.cancel_requested = True
                 self.progress.status = "Stopping scan..."
-        if is_scanning:
-            self.wait_until_idle()
+        return self.wait_until_idle() if is_scanning else True
 
-    def wait_until_idle(self, timeout: float = 30.0) -> None:
+    def wait_until_idle(self, timeout: float = 30.0) -> bool:
+        """True once the worker thread has ended, False if it is still running after `timeout`."""
         thread = self.thread
-        if thread is not None:
-            thread.join(timeout)
+        if thread is None:
+            return True
+        thread.join(timeout)
+        return not thread.is_alive()
 
     def _worker(self, job: Job) -> None:
         store = app_state.get_storage()
@@ -204,7 +206,7 @@ class IndexJobManager:
         is_rescan = bool(job.options.get("rescan"))
         try:
             if runner and is_rescan:
-                store.remove_items_by_path(track_path)
+                sources.remove_rows(track_path)
             sources.record_scan(name, track_path, kind)
             if runner:
                 RUN_FUNCTIONS[job.source](on_progress, cancel_check, job.options)
@@ -214,8 +216,9 @@ class IndexJobManager:
                 sc.scan_path(job.path, source=job.source, on_progress=on_progress, cancel_check=cancel_check, on_parsed=on_parsed, force=is_rescan)
                 if is_rescan and not cancel_check():
                     _prune_missing_files(store, track_path)
-            sources.record_scan(name, track_path, kind)
-            total_items = store.count_items_by_path(track_path)
+            if not cancel_check():  # a cancelled scan may be a removal; re-recording would bring the source back
+                sources.record_scan(name, track_path, kind)
+            total_items = sources.count_rows(track_path)
             with self.lock:
                 progress = self.progress
                 if self.cancel_requested:

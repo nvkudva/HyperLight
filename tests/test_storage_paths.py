@@ -57,5 +57,19 @@ class IndexVersionTest(unittest.TestCase):
         self.assertEqual((db_path / "index_version").read_text(), storage.INDEX_VERSION)
 
 
+class MaintenanceTest(unittest.TestCase):
+    def setUp(self):
+        self.store = storage.Storage(Path(tempfile.mkdtemp()))
+        self.store.add_items([_item("a", "/x/a.txt"), _item("b", "/x/b.txt"), _item("c", "/x/c.txt")])
+
+    def test_remove_paths_deletes_only_the_listed_files(self):
+        self.store.remove_paths(["/x/a.txt", "/x/b.txt"])
+        self.assertEqual(sorted(self.store.get_indexed_file_mtimes()), ["/x/c.txt"])
+
+    def test_compact_keeps_every_row(self):
+        self.store.compact()
+        self.assertEqual(self.store.count_items_by_path("/x"), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,10 +4,6 @@ from typing import List, Literal, Optional, Union
 import pydantic
 
 
-class ChatRequest(pydantic.BaseModel):
-    message: str = pydantic.Field(max_length=4000)
-
-
 class IndexRequest(pydantic.BaseModel):
     path: str
     source: str = "local"
@@ -34,7 +30,6 @@ class HotkeyCombo(pydantic.BaseModel):
 
 class SettingsUpdateRequest(pydantic.BaseModel):
     always_on_scanning: Optional[bool] = None
-    custom_instructions: Optional[str] = None
     hotkey_enabled: Optional[bool] = None
     hotkey: Optional[Union[Literal["double_ctrl", "double_option"], HotkeyCombo]] = None
     hotkey_voice: Optional[bool] = None

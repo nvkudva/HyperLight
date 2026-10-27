@@ -94,4 +94,6 @@ def sync_google_photos(
         except Exception as e:
             logger.warning(f"Failed to process Google Photo {filename}: {e}")
 
+    if cancel_check and cancel_check():
+        return 0
     return store.add_items(batch_items)

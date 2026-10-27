@@ -75,6 +75,7 @@ if pages.FRONTEND_DIST.exists():
 
 
 def main() -> None:
+    media.prune_preview_cache()
     uvicorn.run(app, host="127.0.0.1", port=PORT)
 
 

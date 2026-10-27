@@ -12,6 +12,7 @@ import app_state
 import connectors
 import google_auth
 import logging_config
+import scanner
 import sources
 from routes import media
 from routes.schemas import BrowseFolderRequest, IndexRequest, LaunchRequest, RemoveSourceRequest, SourceWatchRequest
@@ -107,28 +108,39 @@ def api_get_sources() -> Dict[str, Any]:
     return {"sources": sources.list_all()}
 
 
+def _scan_still_stopping() -> Any:
+    return fastapi.responses.JSONResponse(status_code=409, content={
+        "error": "scan_stopping",
+        "message": "The running scan is still stopping. Try again in a moment.",
+    })
+
+
 @router.post("/api/remove-source")
-def api_remove_source(req: RemoveSourceRequest) -> Dict[str, str]:
-    sources.remove(req.path)
+def api_remove_source(req: RemoveSourceRequest) -> Any:
+    if not sources.remove(req.path):
+        return _scan_still_stopping()
     return {"status": "removed"}
 
 
 @router.post("/api/clear")
-def api_clear() -> Dict[str, str]:
+def api_clear() -> Any:
     jobs = app_state.get_jobs()
     jobs.stop_indexing()
-    jobs.wait_until_idle()
+    if not jobs.wait_until_idle():
+        return _scan_still_stopping()
     app_state.get_storage().clear()
     sources.mark_unscanned()
+    shutil.rmtree(media.PREVIEW_CACHE_DIR, ignore_errors=True)
     return {"status": "cleared"}
 
 
 @router.post("/api/reset-all")
-def api_reset_all() -> Dict[str, str]:
+def api_reset_all() -> Any:
     """Back to a fresh install: index, sources, settings, Google sign-in and caches."""
     jobs = app_state.get_jobs()
     jobs.stop_indexing()
-    jobs.wait_until_idle()
+    if not jobs.wait_until_idle():
+        return _scan_still_stopping()
     app_state.get_storage().clear()
     app_config.reset_all()
     sources.refresh()
@@ -176,6 +188,18 @@ def api_status() -> Dict[str, Any]:
     return app_state.get_storage().get_stats()
 
 
+def _scan_reaches(outer: Path, inner: Path) -> bool:
+    """True when scanning `outer` would visit `inner`: it is inside, with no skipped folder in between."""
+    if inner != outer and outer not in inner.parents:
+        return False
+    folder = outer
+    for name in inner.relative_to(outer).parts:
+        if scanner.is_ignored_dir(str(folder), name):
+            return False
+        folder = folder / name
+    return True
+
+
 @router.post("/api/index")
 def api_index(req: IndexRequest) -> Dict[str, Any]:
     target = Path(req.path).expanduser().resolve()
@@ -190,7 +214,7 @@ def api_index(req: IndexRequest) -> Dict[str, Any]:
             existing = Path(s.get("path", "")).expanduser().resolve()
         except Exception:
             continue
-        if existing == target or target in existing.parents or existing in target.parents:
+        if _scan_reaches(existing, target) or _scan_reaches(target, existing):
             return fastapi.responses.JSONResponse(
                 status_code=409,
                 content={"error": "duplicate_source", "message": f"'{folder_name}' overlaps an already-added source ('{s.get('name') or existing}')."},

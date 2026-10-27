@@ -17,7 +17,6 @@ _lock = threading.RLock()
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "always_on_scanning": True,
-    "custom_instructions": "",
     "hotkey_enabled": True,
     "hotkey": "double_ctrl",
     "hotkey_voice": True,

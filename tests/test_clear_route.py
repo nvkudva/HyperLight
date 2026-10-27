@@ -26,7 +26,7 @@ class _FakeJobs:
         pass
 
     def wait_until_idle(self):
-        pass
+        return True
 
 
 class ClearRouteTest(unittest.TestCase):

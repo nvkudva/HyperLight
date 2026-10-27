@@ -30,6 +30,10 @@ class _FakeStore:
         self.events.append(f"remove:{path}")
         self.count = 0
 
+    def remove_paths(self, paths):
+        for path in paths:
+            self.events.append(f"remove:{path}")
+
     def get_indexed_file_mtimes(self, under=None):
         return dict.fromkeys(self.indexed_paths, 0.0)
 
@@ -97,7 +101,7 @@ class RescanWorkerTest(unittest.TestCase):
             jobs.IndexJobManager()._worker(jobs.Job(Path.home(), "macos_apps", "Application", {"rescan": True}))
         finally:
             jobs.RUN_FUNCTIONS["macos_apps"] = saved
-        self.assertEqual(self.events, ["remove:/Applications", "run:apps"])
+        self.assertEqual(self.events, ["remove:/Applications", "remove:/System/Applications", "run:apps"])
 
     def test_normal_index_does_not_remove(self):
         manager = jobs.IndexJobManager()
@@ -139,7 +143,7 @@ class _FakeJobs:
         self.stopped = True
 
     def wait_until_idle(self):
-        pass
+        return True
 
 
 class _FakeClearStore:

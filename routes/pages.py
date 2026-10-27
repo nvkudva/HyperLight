@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 import fastapi
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse
 
 router = fastapi.APIRouter()
 
@@ -36,11 +36,3 @@ def index_page() -> str:
 @router.get("/api/health")
 def health() -> dict:
     return {"ok": True}
-
-
-@router.get("/vite.svg")
-def vite_svg() -> Response:
-    svg_path = FRONTEND_DIST / "vite.svg"
-    if svg_path.exists():
-        return Response(content=svg_path.read_bytes(), media_type="image/svg+xml")
-    return Response(status_code=404)

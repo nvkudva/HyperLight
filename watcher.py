@@ -57,7 +57,7 @@ class DebouncedHandler(watchdog.events.FileSystemEventHandler):
         if is_directory or self._should_handle(path):
             with self.lock:
                 self.pending_events.pop(path, None)
-            self.callback(path, "deleted")
+            self._notify(path, "deleted")
 
     def on_deleted(self, event: watchdog.events.FileSystemEvent) -> None:
         self._deleted(event.src_path, event.is_directory)
@@ -80,13 +80,14 @@ class DebouncedHandler(watchdog.events.FileSystemEventHandler):
                         del self.pending_events[path]
             for path in ready_paths:
                 if os.path.exists(path):
-                    self._notify_modified(path)
+                    self._notify(path, "modified")
 
-    def _notify_modified(self, path: str) -> None:
+    def _notify(self, path: str, event_type: str) -> None:
+        """An exception here would end watchdog's observer thread and stop all live scanning."""
         try:
-            self.callback(path, "modified")
+            self.callback(path, event_type)
         except Exception:
-            logger.exception("Indexing %s failed", path)
+            logger.exception("Handling %s of %s failed", event_type, path)
 
     def stop(self) -> None:
         self.running = False
@@ -108,7 +109,7 @@ class LiveWatcher:
         self.observer = watchdog.observers.Observer()
         self.watches: Dict[str, Any] = {}
         self.handler = DebouncedHandler(self._handle_file_event, lambda: self.watches.keys())
-        self.watched_paths: Set[str] = set()
+        self.source_types: Dict[str, str] = {}
         self.lock = threading.Lock()
 
     def _handle_file_event(self, file_path: str, event_type: str) -> None:
@@ -123,10 +124,9 @@ class LiveWatcher:
             return
 
         source = "local"
-        for src in app_config.get_configured_sources():
-            src_path = src.get("path", "")
-            if src_path and (file_path == src_path or file_path.startswith(src_path.rstrip("/") + "/")):
-                source = src.get("source_type", "local")
+        for src_path, source_type in self.source_types.items():
+            if file_path == src_path or file_path.startswith(src_path.rstrip("/") + "/"):
+                source = source_type
                 break
 
         count = self.scanner.scan_path(p, source=source)
@@ -155,7 +155,9 @@ class LiveWatcher:
                 except Exception:
                     pass
 
-            self.watched_paths = set(self.watches.keys())
+            self.source_types = {
+                s["path"]: s.get("source_type", "local") for s in app_config.get_configured_sources() if s.get("path")
+            }
 
     def start(self) -> None:
         self.sync_sources()

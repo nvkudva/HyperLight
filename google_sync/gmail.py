@@ -17,7 +17,7 @@ def sync_gmail(
     store: Any,
     on_progress: Optional[Callable[[str, int, int], None]] = None,
     cancel_check: Optional[Callable[[], bool]] = None,
-    max_messages: int = 1000,
+    max_messages: int = 1000,  # shortcut: newest 1000 messages only, page through all before public release
 ) -> int:
     headers = require_token()
     ids: List[str] = []
@@ -72,4 +72,6 @@ def sync_gmail(
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
 
+    if cancel_check and cancel_check():  # a stopped sync must not write into an index that was just cleared
+        return 0
     return scanner.embed_and_store(emb, store, records, "gmail")

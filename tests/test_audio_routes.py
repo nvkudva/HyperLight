@@ -143,20 +143,6 @@ class AudioSearchFirstCallTest(unittest.TestCase):
         self.assertEqual(_FakeStorage.last_kwargs, {"query_text": None, "boost_only": False})
         self.assertIsNone(audio._transcriber)
 
-    def test_transcribe_rejects_non_audio_without_leaking_decoder_output(self):
-        import fastapi
-        from unittest import mock
-        from fastapi.testclient import TestClient
-
-        app = fastapi.FastAPI()
-        app.include_router(audio.router)
-        ffmpeg_dump = RuntimeError("Failed to load audio: ffmpeg version 7 --enable-gpl --prefix=/opt/homebrew")
-        with mock.patch.object(audio, "_decode_audio", side_effect=ffmpeg_dump):
-            with TestClient(app, raise_server_exceptions=False) as client:
-                res = client.post("/api/transcribe", files={"file": ("notes.txt", b"hello", "text/plain")})
-        self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.json(), {"error": "Unreadable audio file."})
-
     def test_audio_search_failure_does_not_leak_internal_messages(self):
         import fastapi
         from unittest import mock

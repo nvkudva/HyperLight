@@ -3,9 +3,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
+import scanner
 from google_sync.common import api_error, require_token
-
-EMBED_BATCH = 16
 
 
 def sync_google_drive(
@@ -13,7 +12,7 @@ def sync_google_drive(
     store: Any,
     on_progress: Optional[Callable[[str, int, int], None]] = None,
     cancel_check: Optional[Callable[[], bool]] = None,
-    max_files: int = 200,
+    max_files: int = 200,  # shortcut: first 200 files only, page through all before public release
 ) -> int:
     headers = require_token()
     files_url = "https://www.googleapis.com/drive/v3/files"
@@ -48,57 +47,31 @@ def sync_google_drive(
         return 0
 
     total = len(all_files)
-    metas: List[Dict[str, Any]] = []
+    records: List[Dict[str, Any]] = []
     for idx, f in enumerate(all_files):
         if cancel_check and cancel_check():
-            break
+            return 0
         name = f.get("name", "Untitled")
         if on_progress:
             on_progress(name, idx + 1, total)
         fid = f.get("id")
         mime = f.get("mimeType", "")
-        web_link = f.get("webViewLink") or f"https://drive.google.com/file/d/{fid}/view"
-        metas.append({
+        modified = f.get("modifiedTime", "")
+        records.append({
             "id": f"gdrive_{fid}",
-            "path": web_link,
+            # One stable address that opens Docs and Sheets too, so removal finds every Drive row by its prefix.
+            "path": f"https://drive.google.com/file/d/{fid}/view",
             "filename": name,
             "type": "document",
-            "source": "google_drive",
-            "content": f"Google Drive File: {name}\nType: {mime}\nModified: {f.get('modifiedTime', '')}\nDescription: {f.get('description', '')}",
-            "excerpt": f"Google Drive • {mime.split('.')[-1]} • {f.get('modifiedTime', '')[:10]}",
-            "mime": mime,
-            "modifiedTime": f.get("modifiedTime", ""),
-            "googleId": fid,
-            "url": web_link,
+            "content": f"Google Drive File: {name}\nType: {mime}\nModified: {modified}\nDescription: {f.get('description', '')}",
+            "metadata": {
+                "url": f.get("webViewLink") or f"https://drive.google.com/file/d/{fid}/view",
+                "mimeType": mime,
+                "modifiedTime": modified,
+                "googleId": fid,
+            },
         })
 
     if cancel_check and cancel_check():
         return 0
-
-    vectors = emb.embed_texts(
-        [m["content"] for m in metas],
-        titles=[m["filename"] for m in metas],
-        batch_size=EMBED_BATCH,
-    )
-    batch_items: List[Dict[str, Any]] = []
-    for meta, vec in zip(metas, vectors):
-        batch_items.append({
-            "id": meta["id"],
-            "path": meta["path"],
-            "filename": meta["filename"],
-            "type": meta["type"],
-            "source": meta["source"],
-            "content": meta["content"],
-            "excerpt": meta["excerpt"],
-            "vector": vec,
-            "metadata": {
-                "url": meta["url"],
-                "mimeType": meta["mime"],
-                "modifiedTime": meta["modifiedTime"],
-                "googleId": meta["googleId"],
-            },
-        })
-
-    if batch_items:
-        store.add_items(batch_items)
-    return len(batch_items)
+    return scanner.embed_and_store(emb, store, records, "google_drive")

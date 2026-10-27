@@ -1,14 +1,12 @@
-"""Voice routes: EmbeddingGemma audio search, plus dictation transcription.
+"""Voice routes: EmbeddingGemma audio search.
 
 Audio search transcribes with Whisper, then embeds transcript + audio jointly
-(see spotlight.query_audio). /api/transcribe stays for chat dictation, where the
-literal words are the message being composed.
+(see spotlight.query_audio).
 """
 import os
 import tempfile
 import threading
 import wave
-from pathlib import Path
 from typing import Any
 
 import fastapi
@@ -40,12 +38,6 @@ def get_transcriber():
     return _transcriber
 
 
-def _decode_audio(path: str) -> numpy.ndarray:
-    """Whisper's ffmpeg decode; raises RuntimeError with ffmpeg's output when the file is not audio."""
-    import whisper
-    return whisper.load_audio(path)
-
-
 def _transcribe_samples(samples: numpy.ndarray) -> dict:
     model = get_transcriber()
     with _transcribe_lock:
@@ -58,39 +50,6 @@ def api_audio_warmup() -> Any:
         get_transcriber()
     app_state.get_embedder()
     return {"status": "ok"}
-
-
-@router.post("/api/transcribe")
-def api_transcribe(file: fastapi.UploadFile = fastapi.File(...)) -> Any:
-    data = file.file.read(MAX_UPLOAD_BYTES + 1)
-    if len(data) > MAX_UPLOAD_BYTES:
-        return fastapi.responses.JSONResponse(status_code=413, content={"error": "Audio upload too large."})
-    if not data:
-        return fastapi.responses.JSONResponse(status_code=400, content={"error": "Empty audio upload."})
-    suffix = Path(file.filename or "clip").suffix or ".webm"
-    tmp_path = ""
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(data)
-            tmp_path = tmp.name
-        try:
-            samples = _decode_audio(tmp_path)
-        except RuntimeError as e:
-            logger.warning(f"Transcription input is not decodable audio: {e}")
-            return fastapi.responses.JSONResponse(status_code=400, content={"error": "Unreadable audio file."})
-        model = get_transcriber()
-        with _transcribe_lock:
-            result = model.transcribe(samples, fp16=False)
-        return {"text": (result.get("text") or "").strip()}
-    except Exception as e:
-        logger.error(f"Transcription failed: {e}")
-        return fastapi.responses.JSONResponse(status_code=500, content={"error": "Transcription failed."})
-    finally:
-        try:
-            if tmp_path:
-                os.unlink(tmp_path)
-        except OSError:
-            pass
 
 
 @router.post("/api/audio-search")

@@ -23,8 +23,6 @@ def api_get_settings() -> Dict[str, Any]:
 @router.post("/api/settings")
 def api_update_settings(req: SettingsUpdateRequest) -> Dict[str, Any]:
     updates = req.model_dump(exclude_none=True)
-    if "custom_instructions" in updates:
-        updates["custom_instructions"] = updates["custom_instructions"].strip()[:4000]
     if updates:
         app_config.update_app_settings(updates)
     if "always_on_scanning" in updates:

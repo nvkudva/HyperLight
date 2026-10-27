@@ -59,5 +59,32 @@ class ProcessQueueTest(unittest.TestCase):
                 handler.stop()
 
 
+class HiddenFolderTest(unittest.TestCase):
+    def test_watcher_and_scan_agree_on_hidden_folders(self):
+        import pathlib
+        import scanner
+
+        handler = watcher.DebouncedHandler(lambda path, kind: None, lambda: ["/proj"])
+        try:
+            self.assertFalse(handler._should_handle("/proj/.github/workflows/ci.yml"))
+        finally:
+            handler.stop()
+        with tempfile.TemporaryDirectory() as tmp:
+            hidden = pathlib.Path(tmp) / ".github"
+            hidden.mkdir()
+            (hidden / "ci.yml").write_text("x")
+            self.assertEqual(scanner.collect_supported_files(pathlib.Path(tmp)), [])
+
+    def test_failing_delete_does_not_escape_the_observer_thread(self):
+        def boom(path, kind):
+            raise RuntimeError("disk full")
+
+        handler = watcher.DebouncedHandler(boom, lambda: ["/proj"])
+        try:
+            handler._deleted("/proj/a.txt", False)
+        finally:
+            handler.stop()
+
+
 if __name__ == "__main__":
     unittest.main()

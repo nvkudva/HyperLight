@@ -1,3 +1,4 @@
+import datetime
 import json
 import threading
 from pathlib import Path
@@ -24,6 +25,13 @@ SCHEMA = pa.schema([
     pa.field("metadata", pa.string()),
 ])
 
+# Every add or delete writes a new file and table version; merge them after this many writes.
+COMPACT_EVERY_WRITES = 200
+# Readers outside the lock may still hold a recent version, so keep the last hour.
+KEEP_VERSIONS_FOR = datetime.timedelta(hours=1)
+DELETE_BATCH = 500
+
+
 def _quote(value: str) -> str:
     """Escape a value for a single-quoted SQL string literal."""
     return value.replace("'", "''")
@@ -49,6 +57,22 @@ class Storage:
         self._known_ids: Optional[Set[str]] = None
         # Watcher, index jobs and request handlers write concurrently.
         self._lock = threading.RLock()
+        self._writes_since_compact = 0
+        self.compact()
+
+    def compact(self, keep_versions_for: datetime.timedelta = KEEP_VERSIONS_FOR) -> None:
+        """Merge small data files and drop old table versions; without it the index grows without bound."""
+        with self._lock:
+            self._writes_since_compact = 0
+            try:
+                self.table.optimize(cleanup_older_than=keep_versions_for)
+            except Exception:
+                logger.warning("Index compaction failed; will retry later.", exc_info=True)
+
+    def _note_write(self) -> None:
+        self._writes_since_compact += 1
+        if self._writes_since_compact >= COMPACT_EVERY_WRITES:
+            self.compact()
 
     def _is_stale(self, version_path: Path) -> bool:
         if getattr(self.table.schema.field("vector").type, "list_size", None) != 768:
@@ -109,6 +133,7 @@ class Storage:
                     pa.array(metadatas, type=pa.string()),
                 ], schema=SCHEMA)
                 self.table.add(pa.Table.from_batches([batch]))
+                self._note_write()
         return len(ids)
 
     def search(
@@ -173,16 +198,11 @@ class Storage:
         """Path -> mtime of indexed items, optionally only those at or beneath `under`."""
         if len(self.table) == 0:
             return {}
-        try:
-            query = self.table.search().select(["path", "modified_at"])
-            if under:
-                query = query.where(self._path_filter(under))
-            arrow_data = query.limit(None).to_arrow()
-            paths = arrow_data["path"].to_pylist()
-            mtimes = arrow_data["modified_at"].to_pylist()
-            return dict(zip(paths, mtimes))
-        except Exception:
-            return {}
+        query = self.table.search().select(["path", "modified_at"])
+        if under:
+            query = query.where(self._path_filter(under))
+        arrow_data = query.limit(None).to_arrow()
+        return dict(zip(arrow_data["path"].to_pylist(), arrow_data["modified_at"].to_pylist()))
 
     @staticmethod
     def _path_filter(target_path: str) -> str:
@@ -209,6 +229,14 @@ class Storage:
         with self._lock:
             self._delete_where(self._path_filter(target_path))
 
+    def remove_paths(self, paths: Iterable[str]) -> None:
+        """Delete the items stored at exactly these paths, a batch per commit."""
+        paths = list(paths)
+        with self._lock:
+            for start in range(0, len(paths), DELETE_BATCH):
+                batch = paths[start : start + DELETE_BATCH]
+                self._delete_where(" OR ".join(f"path = '{_quote(p)}'" for p in batch))
+
     def _delete_where(self, where: str) -> None:
         if len(self.table) == 0:
             return
@@ -218,6 +246,7 @@ class Storage:
             removed = self.table.search().select(["id"]).where(where).limit(None).to_arrow()
             self._known_ids.difference_update(removed["id"].to_pylist())
         self.table.delete(where)
+        self._note_write()
 
     def clear(self) -> None:
         with self._lock:

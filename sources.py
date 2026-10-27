@@ -4,7 +4,7 @@ Every change to a Source goes through here, so callers never have to remember
 to resync the watcher, and "can this Source be live-scanned?" has one answer.
 """
 import os
-from typing import Any, Dict, List, NamedTuple, Optional, Set
+from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 
 import app_config
 import app_state
@@ -20,13 +20,14 @@ class Runner(NamedTuple):
     kind: str  # source_type of the records it writes
     is_cloud: bool
     rescannable: bool  # can run again without user input (Photos needs a picker session)
+    extra_paths: Tuple[str, ...] = ()  # other locations its rows live under, so removal and rescan reach them
 
 
 RUNNERS: Dict[str, Runner] = {
-    "google_drive_cloud": Runner("Google Drive", "https://drive.google.com", "google_drive", True, True),
+    "google_drive_cloud": Runner("Google Drive", "https://drive.google.com", "google_drive", True, True, ("https://docs.google.com",)),
     "google_photos_cloud": Runner("Google Photos", str(google_auth.PHOTOS_CACHE_DIR.resolve()), "google_photos", True, False),
     "gmail_cloud": Runner("Gmail", "https://mail.google.com", "gmail", True, True),
-    "macos_apps": Runner("Application", "/Applications", SYSTEM_SOURCE_TYPE, False, True),
+    "macos_apps": Runner("Application", "/Applications", SYSTEM_SOURCE_TYPE, False, True, ("/System/Applications",)),
     "macos_settings": Runner("System Settings", "x-apple.systempreferences:", SYSTEM_SOURCE_TYPE, False, True),
 }
 
@@ -50,8 +51,25 @@ def list_all() -> List[Dict[str, Any]]:
     for s in app_config.get_configured_sources():
         key = runner_of(s)
         name = RUNNERS[key].name if key else s.get("name")  # config may hold a name from an older release
-        listed.append({**s, "name": name, "items_count": store.count_items_by_path(s["path"]), "watchable": is_watchable(s), "runner": key})
+        listed.append({**s, "name": name, "items_count": count_rows(s["path"]), "watchable": is_watchable(s), "runner": key})
     return listed
+
+
+def row_paths(path: str) -> List[str]:
+    """Every path whose rows belong to the source recorded under `path`."""
+    runner = next((r for r in RUNNERS.values() if r.path == path), None)
+    return [path, *runner.extra_paths] if runner else [path]
+
+
+def count_rows(path: str) -> int:
+    store = app_state.get_storage()
+    return sum(store.count_items_by_path(p) for p in row_paths(path))
+
+
+def remove_rows(path: str) -> None:
+    store = app_state.get_storage()
+    for p in row_paths(path):
+        store.remove_items_by_path(p)
 
 
 def watched_paths() -> Set[str]:
@@ -79,12 +97,17 @@ def set_watch(path: str, enabled: bool) -> None:
     refresh()
 
 
-def remove(path: str) -> None:
-    """Forget a source; a scan of it is stopped first so it cannot write rows or re-register itself."""
-    app_state.get_jobs().cancel_source(path)
-    app_state.get_storage().remove_items_by_path(path)
+def remove(path: str) -> bool:
+    """Forget a source; a scan of it is stopped first so it cannot write rows or re-register itself.
+
+    False, with nothing removed, when the scan has not stopped yet: the caller should retry.
+    """
+    if not app_state.get_jobs().cancel_source(path):
+        return False
+    remove_rows(path)
     app_config.remove_configured_source(path)
     refresh()
+    return True
 
 
 def refresh() -> None:

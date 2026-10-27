@@ -69,18 +69,6 @@ class Embedder:
             self._null_vectors = [self.embed_query(q) for q in ranking.NULL_QUERIES]
         return self._null_vectors
 
-    def embed_text(self, text: str, title: Optional[str] = None, is_query: bool = False) -> List[float]:
-        if is_query:
-            return self.embed_query(text)
-        cleaned = _clip(text.strip())
-        if cleaned.startswith("task: ") or cleaned.startswith("title: "):
-            doc_str = cleaned
-        else:
-            doc_str = f"title: {title or 'none'} | text: {cleaned}"
-        with self._model_lock:
-            vec = self.model.encode(doc_str, normalize_embeddings=True)
-        return vec.tolist()
-
     def embed_texts(self, texts: List[str], titles: Optional[List[str]] = None, batch_size: int = 64) -> List[List[float]]:
         if not texts:
             return []

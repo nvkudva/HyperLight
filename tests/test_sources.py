@@ -159,5 +159,40 @@ class HotkeySchemaTest(unittest.TestCase):
                 SettingsUpdateRequest(hotkey=bad)
 
 
+class RunnerRowsTest(unittest.TestCase):
+    def test_runner_rows_include_paths_outside_the_fixed_one(self):
+        self.assertEqual(sources.row_paths("/Applications"), ["/Applications", "/System/Applications"])
+        self.assertIn("https://docs.google.com", sources.row_paths("https://drive.google.com"))
+        self.assertEqual(sources.row_paths("/some/folder"), ["/some/folder"])
+
+
+class ScanReachTest(unittest.TestCase):
+    def test_home_and_mail_do_not_overlap_because_library_is_skipped(self):
+        from routes import sources as source_routes
+
+        home = Path("/Users/me")
+        self.assertFalse(source_routes._scan_reaches(home, home / "Library" / "Mail"))
+        self.assertTrue(source_routes._scan_reaches(home, home / "Documents" / "a"))
+        self.assertTrue(source_routes._scan_reaches(home, home))
+
+
+class _StuckJobs:
+    def cancel_source(self, path):
+        return False
+
+
+class RemoveWhileStuckTest(SourceRegistryTest):
+    def test_remove_changes_nothing_while_the_scan_has_not_stopped(self):
+        app_config.save_configured_source("Docs", str(self.folder), "local")
+        original_jobs = app_state.get_jobs
+        app_state.get_jobs = lambda: _StuckJobs()
+        try:
+            self.assertFalse(sources.remove(str(self.folder)))
+        finally:
+            app_state.get_jobs = original_jobs
+        self.assertEqual(self.store.removed, [])
+        self.assertEqual(len(app_config.get_configured_sources()), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,6 @@ from typing import Any, Dict
 
 import embedder
 import logging_config
-import qa_engine
 import scanner
 import sources
 import storage
@@ -23,8 +22,6 @@ _store = None
 _store_lock = threading.Lock()
 _sc = None
 _sc_lock = threading.Lock()
-_engine = None
-_engine_lock = threading.Lock()
 _live_watcher = None
 _watcher_lock = threading.Lock()
 _jobs = None
@@ -57,15 +54,6 @@ def get_scanner() -> scanner.Scanner:
             if _sc is None:
                 _sc = scanner.Scanner(get_embedder(), get_storage())
     return _sc
-
-
-def get_engine() -> qa_engine.QAEngine:
-    global _engine
-    if _engine is None:
-        with _engine_lock:
-            if _engine is None:
-                _engine = qa_engine.QAEngine()
-    return _engine
 
 
 def get_watcher() -> watcher.LiveWatcher:
