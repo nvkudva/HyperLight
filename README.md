@@ -13,12 +13,6 @@
   <img alt="Local AI" src="https://img.shields.io/badge/AI-100%25%20local-6E56CF">
 </p>
 
-<p align="center">
-  <a href="https://github.com/nvkudva/HyperLight/releases"><b>⬇️ Download the DMG from the Releases page</b></a>
-</p>
-
----
-
 Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu bar, opens with a double-tap of Control, and understands text, images and speech in one search.
 
 <p align="center">
@@ -26,16 +20,57 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
   <i>Product tour (53 s): voice, documents, photos, email, apps and code search. <a href="docs/videos/hyperlight-simple.mp4">Watch the full-quality video</a></i>
 </p>
 
+## 🚀 How to run
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Option 1: Run from source
+
+1. Paste this in Terminal. It clones the repo, installs everything it needs and opens the app:
+   ```bash
+   git clone https://github.com/nvkudva/HyperLight.git ~/Hyperlight && cd ~/Hyperlight && ./install.sh
+   ```
+2. Hyperlight opens and stays in the menu bar. **Double-tap right Control** and speak. Raw audio is matched against photos, no speech-to-text.
+
+Building locally avoids the Gatekeeper warning. Relaunch later with `./dev-app.sh`.
+
+</td>
+<td width="50%" valign="top">
+
+### Option 2: Download the app
+
+1. Download the latest `.dmg` from the [Releases page](https://github.com/nvkudva/HyperLight/releases) and drag Hyperlight to Applications.
+2. macOS blocks the first launch because the app isn't notarized yet. Run this in Terminal:
+   ```bash
+   xattr -cr /Applications/Hyperlight.app
+   ```
+   Or open the app once, then go to **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway**.
+3. Open Hyperlight. It stays in the menu bar. **Double-tap right Control** and speak. Raw audio is matched against photos, no speech-to-text.
+
+</td>
+</tr>
+</table>
+
+---
+
 ### 📸 Screenshots
 
-![Searching for storage.py shows the file with a syntax-highlighted preview](docs/screenshots/search-code.png)
-*Type a filename or describe what's inside. Code previews are syntax-highlighted.*
-
-![Searching for display brightness finds the Displays settings pane](docs/screenshots/search-settings.png)
-*System Settings panes are indexed too. "display brightness" finds Displays.*
-
-![Settings, Shortcuts tab in dark mode: quick search shortcut, voice on shortcut and Input Monitoring](docs/screenshots/settings-shortcuts.png)
-*Pick your own global shortcut, choose whether the mic opens with it, and fix the Input Monitoring permission in one place. The UI follows light and dark mode.*
+<table>
+  <tr>
+    <td width="50%"><img alt="Voice search matches 7 helmet photos by sound" src="docs/screenshots/voice-search.png"><br><sub>Double-tap right Control and speak. Raw audio is matched against photos, no speech-to-text.</sub></td>
+    <td width="50%"><img alt="Asking &quot;my flight got cancelled, how do I get my money back&quot; finds the flight cancellation PDF" src="docs/screenshots/documents.png"><br><sub>Ask in your own words. Documents are matched by meaning, not exact words.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img alt="Searching helmet finds photos that are not named helmet" src="docs/screenshots/photos.png"><br><sub>Photos are found by what is in them, with no captions or filename tricks.</sub></td>
+    <td width="50%"><img alt="Searching &quot;when will my delivery show up&quot; finds the shipping notice email" src="docs/screenshots/email.png"><br><sub>Emails are embedded with sender, subject and body.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img alt="Searching &quot;code: turn a title into a url slug&quot; finds slugify.py with a syntax-highlighted preview" src="docs/screenshots/code.png"><br><sub>Start with <code>code:</code> to search source. Previews are syntax-highlighted.</sub></td>
+    <td width="50%"><img alt="Search history sidebar listing past searches" src="docs/screenshots/history.png"><br><sub>Every search is saved on your Mac, one click away.</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -59,7 +94,7 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 - **Formatted text.** Markdown renders with headings and lists, JSON is pretty-printed, CSV shows as a table, and code is syntax-highlighted.
 
 ### 🍎 Native Mac experience
-- **Menu bar app.** No Dock icon. Open, Voice Search, History, Settings, Open at Login, Restart and Quit are one click away.
+- **Menu bar app.** Dock icon is optional: show or hide it from the menu bar or Settings. Open, Voice Search, History, Settings, Open at Login, Restart and Quit are one click away.
 - **Global hotkey.** Double-tap Control, or record your own shortcut. Pressing it again hides Hyperlight. Hyperlight checks the Input Monitoring permission and helps you grant it.
 - **Frameless glass window** with hide-on-close and macOS vibrancy. Built on Tauri 2 and React 19.
 
@@ -174,25 +209,9 @@ flowchart LR
 
 ---
 
-## 🚀 Get started
+## 🛠️ Development
 
-### Prerequisites
-- macOS on Apple Silicon
-- Python 3.12 or later
-- [Bun](https://bun.sh/) and [Rust](https://rustup.rs/)
-- [Ollama](https://ollama.com/), then `ollama pull gemma2:2b`
-
-### Set up
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-uv pip install fastapi uvicorn lancedb pyarrow sentence-transformers torch openai-whisper watchdog pillow pypdf python-docx
-
-cd frontend
-bun install
-bun run build
-cd ..
-```
+Run `./install.sh` once (see [How to run](#-how-to-run)) to set up `.venv`, the frontend packages and Ollama.
 
 ### Run the desktop app
 ```bash
@@ -256,11 +275,7 @@ PYTHONPATH=. .venv/bin/python tools/eval_voice.py ~/my-clips # plus your own 16 
 
 Download the latest `.dmg` from the [Releases page](https://github.com/nvkudva/HyperLight/releases). Pushing a tag such as `v0.1.0-beta.2` builds the Tauri app on GitHub Actions and publishes a prerelease. Beta builds bundle the Python backend inside the app, so the DMG runs standalone on Apple Silicon with no repository or `.venv`.
 
-The build is ad-hoc signed, not notarized, so Gatekeeper blocks the first launch. After dragging Hyperlight to Applications, run once in Terminal, then open it normally:
-
-```
-xattr -cr /Applications/Hyperlight.app
-```
+The build is ad-hoc signed, not notarized. See [How to run](#-how-to-run) for the one-time Gatekeeper step.
 
 Chat answers need Ollama running locally; search and indexing work without it. Models download on first use.
 
