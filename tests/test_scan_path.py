@@ -7,7 +7,7 @@ import time
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import scanner  # noqa: E402
 

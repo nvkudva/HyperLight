@@ -7,7 +7,7 @@ import threading
 import time
 import unittest
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import watcher  # noqa: E402
 

@@ -14,7 +14,7 @@ def resource_root() -> Path:
 
     Frozen PyInstaller sidecar: resources extract to ``sys._MEIPASS``.
     ``HYPERLIGHT_RESOURCE_DIR`` overrides for tests and custom layouts.
-    Otherwise the repo root (this file's grandparent).
+    Otherwise the repo root (three levels above this file).
     """
     frozen_root = getattr(sys, "_MEIPASS", None)
     if frozen_root:
@@ -22,7 +22,7 @@ def resource_root() -> Path:
     override = os.environ.get("HYPERLIGHT_RESOURCE_DIR")
     if override:
         return Path(override)
-    return Path(__file__).parent.parent
+    return Path(__file__).parent.parent.parent
 
 
 FRONTEND_DIST = resource_root() / "frontend" / "dist"

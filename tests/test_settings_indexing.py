@@ -4,7 +4,7 @@ Run: .venv/bin/python -m unittest tests.test_settings_indexing -v
 import sys
 import unittest
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import connectors  # noqa: E402
 import spotlight  # noqa: E402

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 import secrets
 import time
@@ -14,7 +15,7 @@ CONFIG_DIR = Path.home() / ".hyperlight"
 TOKENS_PATH = CONFIG_DIR / "google_tokens.json"
 CLIENT_CONFIG_PATH = CONFIG_DIR / "google_client.json"
 PHOTOS_CACHE_DIR = CONFIG_DIR / "google_photos_cache"
-BUNDLED_CLIENT_PATH = Path(__file__).resolve().parent / "google_client.json"
+BUNDLED_CLIENT_PATH = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent)) / "google_client.json"
 
 # Drive and Gmail scopes are restricted: they need Google verification plus a CASA assessment before public release.
 FULL_ACCESS = os.environ.get("HYPERLIGHT_GOOGLE_FULL_ACCESS") == "1"

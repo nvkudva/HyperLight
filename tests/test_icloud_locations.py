@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import connectors  # noqa: E402
 

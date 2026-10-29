@@ -52,8 +52,8 @@ hiddenimports += collect_submodules("routes")
 hiddenimports += collect_submodules("google_sync")
 
 a = Analysis(
-    [os.path.join(ROOT, "web_app.py")],
-    pathex=[ROOT],
+    [os.path.join(ROOT, "backend", "web_app.py")],
+    pathex=[os.path.join(ROOT, "backend")],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

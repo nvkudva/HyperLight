@@ -7,7 +7,7 @@ import threading
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import app_config  # noqa: E402
 import app_state  # noqa: E402

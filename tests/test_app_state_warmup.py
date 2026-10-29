@@ -4,7 +4,7 @@ Run: .venv/bin/python -m unittest tests.test_app_state_warmup -v
 import sys
 import unittest
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import app_state  # noqa: E402
 

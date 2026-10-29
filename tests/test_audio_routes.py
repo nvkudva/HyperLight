@@ -12,7 +12,7 @@ import types
 import unittest
 import wave
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 fake_whisper = types.ModuleType("whisper")
 

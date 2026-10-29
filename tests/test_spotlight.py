@@ -4,7 +4,7 @@ Run: .venv/bin/python -m unittest tests.test_spotlight -v
 import sys
 import unittest
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "backend")
 
 import spotlight  # noqa: E402
 
