@@ -92,6 +92,25 @@ export async function requestMicrophoneAccess(): Promise<boolean | null> {
   }
 }
 
+// Whether the Dock icon is shown. null outside the desktop app.
+export async function dockIconVisible(): Promise<boolean | null> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    return await invoke<boolean>('dock_icon_visible')
+  } catch {
+    return null
+  }
+}
+
+export async function setDockIconVisible(visible: boolean): Promise<void> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('set_dock_icon_visible', { visible })
+  } catch {
+    // Browser build: there is no Dock icon to change.
+  }
+}
+
 // Calls onOpen when the menu bar icon asks for the history or settings view.
 export function useOpenViewRequest(onOpen: (view: 'history' | 'settings') => void) {
   const handlerRef = useRef(onOpen)

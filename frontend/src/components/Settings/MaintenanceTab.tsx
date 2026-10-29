@@ -1,4 +1,5 @@
 import React from 'react'
+import * as native from '../../native'
 import shared from './SettingsShared.module.css'
 
 interface MaintenanceTabProps {
@@ -24,6 +25,22 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
 }) => {
   const [confirming, setConfirming] = React.useState(false)
   const [confirmingReset, setConfirmingReset] = React.useState(false)
+  const [dockVisible, setDockVisible] = React.useState<boolean | null>(null)
+
+  // The menu bar item can change this too, so re-read when the window regains focus.
+  React.useEffect(() => {
+    const read = () => void native.dockIconVisible().then(setDockVisible)
+    read()
+    window.addEventListener('focus', read)
+    return () => window.removeEventListener('focus', read)
+  }, [])
+
+  const toggleDock = async () => {
+    const next = !dockVisible
+    setDockVisible(next)
+    await native.setDockIconVisible(next)
+  }
+
   return (
   <div className={shared.panel}>
     <div className={shared.card}>
@@ -70,6 +87,30 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
         </label>
       </div>
     </div>
+
+    {dockVisible !== null && (
+      <div className={shared.card}>
+        <div className={shared.cardHeader}>
+          <div className={shared.cardHeaderCol}>
+            <h2 className={shared.cardTitle}>Dock icon</h2>
+            <p className={shared.cardSubtitle}>
+              Show Hyperlight in the Dock while it runs. The menu bar icon is always there. You can also change this
+              from the menu bar icon.
+            </p>
+          </div>
+          <label className={shared.switch} title="Toggle Dock icon">
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Dock icon"
+              checked={dockVisible}
+              onChange={toggleDock}
+            />
+            <span className={shared.slider} />
+          </label>
+        </div>
+      </div>
+    )}
 
     <div className={shared.card}>
       <div className={shared.cardHeader}>

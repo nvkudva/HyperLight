@@ -1,4 +1,5 @@
 mod backend;
+mod dock;
 mod hotkey;
 mod permission;
 mod tray;
@@ -68,8 +69,7 @@ pub fn run() {
       #[cfg(target_os = "macos")]
       permission::request_microphone_access();
       hotkey::spawn(app.handle().clone(), hotkey_state);
-      #[cfg(target_os = "macos")]
-      app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+      dock::apply_saved(app.handle());
       tray::build(app.handle())?;
       #[cfg(target_os = "macos")]
       if let Some(win) = app.get_webview_window("main") {
@@ -78,7 +78,7 @@ pub fn run() {
       load_ui_when_backend_ready(app.handle().clone());
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![hotkey::set_hotkey, hotkey::request_keyboard_access, hotkey::keyboard_access_granted,
+    .invoke_handler(tauri::generate_handler![hotkey::set_hotkey, dock::dock_icon_visible, dock::set_dock_icon_visible, hotkey::request_keyboard_access, hotkey::keyboard_access_granted,
       permission::microphone_access_granted,
       permission::request_microphone_access,
       permission::start_permission_drag,

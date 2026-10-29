@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-dock-icon-visible"
+description = "Enables the dock_icon_visible command without any pre-configured scope."
+commands.allow = ["dock_icon_visible"]
+
+[[permission]]
+identifier = "deny-dock-icon-visible"
+description = "Denies the dock_icon_visible command without any pre-configured scope."
+commands.deny = ["dock_icon_visible"]

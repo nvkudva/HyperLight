@@ -1,17 +1,18 @@
-//! Menu bar icon: the app lives here instead of the Dock.
+//! Menu bar icon: the app always lives here, with an optional Dock icon.
 
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::{backend, hotkey};
+use crate::{backend, dock, hotkey};
 
 const SHOW: &str = "show";
 const VOICE: &str = "voice";
 const HISTORY: &str = "history";
 const SETTINGS: &str = "settings";
 const LOGIN: &str = "login";
+const DOCK: &str = "dock";
 const RESTART: &str = "restart";
 const QUIT: &str = "quit";
 
@@ -39,6 +40,8 @@ fn restart(app: &tauri::AppHandle) -> ! {
 pub fn build(app: &tauri::AppHandle) -> tauri::Result<()> {
   let open_at_login = app.autolaunch().is_enabled().unwrap_or(false);
   let login_item = CheckMenuItem::with_id(app, LOGIN, "Open at Login", true, open_at_login, None::<&str>)?;
+  let dock_item = CheckMenuItem::with_id(app, DOCK, "Show Dock Icon", true, dock::is_visible(), None::<&str>)?;
+  app.manage(dock::MenuItem(dock_item.clone()));
   let menu = Menu::with_items(
     app,
     &[
@@ -49,6 +52,7 @@ pub fn build(app: &tauri::AppHandle) -> tauri::Result<()> {
       &MenuItem::with_id(app, SETTINGS, "Settings…", true, None::<&str>)?,
       &PredefinedMenuItem::separator(app)?,
       &login_item,
+      &dock_item,
       &PredefinedMenuItem::separator(app)?,
       &MenuItem::with_id(app, RESTART, "Restart", true, None::<&str>)?,
       &MenuItem::with_id(app, QUIT, "Quit", true, None::<&str>)?,
@@ -66,6 +70,7 @@ pub fn build(app: &tauri::AppHandle) -> tauri::Result<()> {
       HISTORY => open_view(app, "history"),
       SETTINGS => open_view(app, "settings"),
       LOGIN => toggle_open_at_login(app, &login_item),
+      DOCK => dock::set_visible(app, !dock::is_visible()),
       RESTART => restart(app),
       QUIT => app.exit(0),
       _ => {}

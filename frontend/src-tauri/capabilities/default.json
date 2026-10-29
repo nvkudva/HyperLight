@@ -15,7 +15,9 @@
     "allow-request-keyboard-access",
     "allow-keyboard-access-granted",
     "allow-start-permission-drag",
-    "allow-close-permission-helper"
+    "allow-close-permission-helper",
+    "allow-dock-icon-visible",
+    "allow-set-dock-icon-visible"
   ],
   "remote": {
     "urls": [
