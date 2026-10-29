@@ -1,5 +1,3 @@
-![Hyperlight](assets/hyperlight_banner.png)
-
 <h1 align="center">Hyperlight</h1>
 
 <p align="center">
@@ -15,9 +13,20 @@
   <img alt="Local AI" src="https://img.shields.io/badge/AI-100%25%20local-6E56CF">
 </p>
 
+<p align="center">
+  <a href="https://github.com/nvkudva/HyperLight/releases"><b>⬇️ Download the DMG from the Releases page</b></a>
+</p>
+
 ---
 
 Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu bar, opens with a double-tap of Control, and understands text, images and speech in one search.
+
+<p align="center">
+  <a href="docs/videos/hyperlight-simple.mp4"><img alt="Hyperlight demo: voice, document, photo, email, app and code search, then search history and the menu bar item" src="docs/videos/hyperlight-demo.gif" width="720"></a><br>
+  <i>Product tour (53 s): voice, documents, photos, email, apps and code search. <a href="docs/videos/hyperlight-simple.mp4">Watch the full-quality video</a></i>
+</p>
+
+### 📸 Screenshots
 
 ![Searching for storage.py shows the file with a syntax-highlighted preview](docs/screenshots/search-code.png)
 *Type a filename or describe what's inside. Code previews are syntax-highlighted.*
@@ -27,13 +36,6 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 
 ![Settings, Shortcuts tab in dark mode: quick search shortcut, voice on shortcut and Input Monitoring](docs/screenshots/settings-shortcuts.png)
 *Pick your own global shortcut, choose whether the mic opens with it, and fix the Input Monitoring permission in one place. The UI follows light and dark mode.*
-
-### 🎬 Watch it work
-
-<p align="center">
-  <a href="docs/videos/hyperlight-simple.mp4"><img alt="Hyperlight demo: voice, document, photo, email, app and code search, then search history and the menu bar item" src="docs/videos/hyperlight-demo.gif" width="720"></a><br>
-  <i>Product tour (53 s): voice, documents, photos, email, apps and code search. <a href="docs/videos/hyperlight-simple.mp4">Watch the full-quality video</a></i>
-</p>
 
 ---
 
@@ -76,6 +78,23 @@ Hyperlight is a Spotlight replacement for Apple Silicon. It lives in the menu ba
 - **Locked-down local API.** The backend listens on `127.0.0.1:8585` only and rejects foreign Host and Origin headers, so a web page cannot read your files. Previews, thumbnails and *Open* only work for files that are in your index.
 - **Credentials stay yours.** Google tokens are stored owner-only (`0600`), and OAuth sign-in is protected with a one-time `state` check.
 - **Safe re-scans.** A re-scan keeps your existing results until the new pass succeeds, and removing a source stops its scan first.
+
+---
+
+## ⌨️ Keyboard
+
+| Key | Action |
+| :--- | :--- |
+| Double-tap Control | Show Hyperlight, or hide it when it is already in front |
+| Double-tap Control, then speak | Voice search |
+| Double-tap and hold Control | Hold to talk; release to finish |
+| ↑ / ↓ | Move through results |
+| Return | Open the selected result |
+| ⌘R | Reveal in Finder |
+| ⌘K | Focus search |
+| ⌘, | Open or close Settings |
+| Esc | Clear the search. The mic keeps recording. |
+| Esc Esc | Stop the mic and cancel the voice search |
 
 ---
 
@@ -181,7 +200,9 @@ cd ..
 ```
 This starts the backend on port 8585, builds the Tauri shell, signs it and opens one window. Do not run `tauri dev` at the same time.
 
-### Keep `src-tauri` small
+<details>
+<summary><b>Keep <code>src-tauri</code> small</b></summary>
+
 `frontend/src-tauri/target` is gitignored build output and can grow past 20 GB. Causes and fixes:
 
 - **Bundled backend copies.** `resources/hyperlight-backend` holds the PyInstaller backend (~1.3 GB, includes torch). While it is populated, every `cargo build` copies it into `target/debug/backend` and `target/release/backend`. Dev builds do not need it: `./dev-app.sh` runs the backend from `.venv`. Only `packaging/build_sidecar.sh` and CI fill it.
@@ -196,6 +217,8 @@ trash target/release target/debug/backend target/debug/incremental            # 
 cargo clean                                                                   # full reset, next ./dev-app.sh rebuilds in ~30 s
 du -sh target resources                                                       # expect under 2 GB
 ```
+
+</details>
 
 ### Run the web app
 ```bash
@@ -227,26 +250,11 @@ PYTHONPATH=. .venv/bin/python tools/eval_voice.py ~/my-clips # plus your own 16 
 
 ---
 
-## ⌨️ Keyboard
-
-| Key | Action |
-| :--- | :--- |
-| Double-tap Control | Show Hyperlight, or hide it when it is already in front |
-| Double-tap Control, then speak | Voice search |
-| Double-tap and hold Control | Hold to talk; release to finish |
-| ↑ / ↓ | Move through results |
-| Return | Open the selected result |
-| ⌘R | Reveal in Finder |
-| ⌘K | Focus search |
-| ⌘, | Open or close Settings |
-| Esc | Clear the search. The mic keeps recording. |
-| Esc Esc | Stop the mic and cancel the voice search |
-
 ---
 
 ## 📦 Releases
 
-Pushing a tag such as `v0.1.0-beta.2` builds the Tauri app on GitHub Actions and publishes a prerelease. Beta builds bundle the Python backend inside the app, so the DMG runs standalone on Apple Silicon with no repository or `.venv`.
+Download the latest `.dmg` from the [Releases page](https://github.com/nvkudva/HyperLight/releases). Pushing a tag such as `v0.1.0-beta.2` builds the Tauri app on GitHub Actions and publishes a prerelease. Beta builds bundle the Python backend inside the app, so the DMG runs standalone on Apple Silicon with no repository or `.venv`.
 
 The build is ad-hoc signed, not notarized, so Gatekeeper blocks the first launch. After dragging Hyperlight to Applications, run once in Terminal, then open it normally:
 
